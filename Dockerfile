@@ -1,9 +1,9 @@
-# Render¿ë Dockerfile
+# Renderìš© Dockerfile
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
 WORKDIR /app
 EXPOSE 8080
 
-# FFmpeg ¼³Ä¡
+# FFmpeg ì„¤ì¹˜
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
@@ -22,11 +22,11 @@ FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
 
-# À½¾Ç Æú´õ »ı¼º ¹× ±ÇÇÑ ¼³Á¤
+# ìŒì•… í´ë” ìƒì„± ë° ê¶Œí•œ ì„¤ì •
 RUN mkdir -p /app/music
 RUN chmod 755 /app/music
 
-# È¯°æ º¯¼ö ¼³Á¤
+# í™˜ê²½ ë³€ìˆ˜ ì„¤ì •
 ENV ASPNETCORE_URLS=http://+:8080
 ENV ASPNETCORE_ENVIRONMENT=Production
 
