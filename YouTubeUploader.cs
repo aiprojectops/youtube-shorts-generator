@@ -3,9 +3,9 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using Google.Apis.Auth.OAuth2;
 using Google.Apis.Auth.OAuth2.Flows;
-using Google.Apis.Auth.OAuth2.Requests;
 using Google.Apis.Auth.OAuth2.Responses;
 using Google.Apis.Services;
 using Google.Apis.Upload;
@@ -23,6 +23,9 @@ namespace YouTubeShortsWebApp
         };
         private static readonly string ApplicationName = "YouTube Shorts Generator";
 
+        // Render에서는 메모리 저장소 사용 (임시적)
+        private static readonly ConcurrentDictionary<string, TokenResponse> _memoryTokenStore = new();
+        
         private YouTubeService youtubeService;
         private UserCredential credential;
 
@@ -59,67 +62,70 @@ namespace YouTubeShortsWebApp
             public string PrivacyStatus { get; set; }
         }
 
-        // OAuth 인증
-        public async Task<bool> AuthenticateAsync(bool forceReauth = false)
+        // 웹 기반 인증을 위한 새로운 메서드
+        public async Task<string> GetAuthorizationUrlAsync(string baseUrl)
         {
             try
             {
-                string credPath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "YouTubeShortsWebApp",
-                    "youtube-credentials"
-                );
-
-                if (forceReauth && Directory.Exists(credPath))
-                {
-                    try
-                    {
-                        Directory.Delete(credPath, true);
-                        System.Diagnostics.Debug.WriteLine("기존 인증 토큰 삭제됨");
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"토큰 삭제 실패: {ex.Message}");
-                    }
-                }
-
                 var config = ConfigManager.GetConfig();
 
                 if (string.IsNullOrEmpty(config.YouTubeClientId) || string.IsNullOrEmpty(config.YouTubeClientSecret))
                 {
-                    throw new Exception("YouTube API 클라이언트 ID와 시크릿이 설정되지 않았습니다.\n설정 화면에서 먼저 등록해주세요.");
+                    throw new Exception("YouTube API 클라이언트 ID와 시크릿이 설정되지 않았습니다.");
                 }
 
-                var clientSecrets = new ClientSecrets
+                var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
                 {
-                    ClientId = config.YouTubeClientId,
-                    ClientSecret = config.YouTubeClientSecret
-                };
+                    ClientSecrets = new ClientSecrets
+                    {
+                        ClientId = config.YouTubeClientId,
+                        ClientSecret = config.YouTubeClientSecret
+                    },
+                    Scopes = Scopes,
+                    DataStore = new MemoryDataStore() // 메모리 저장소 사용
+                });
 
-                // 클라우드 환경 감지
-                bool isCloudEnvironment = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("RENDER")) ||
-                                         !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("RAILWAY_ENVIRONMENT"));
+                var redirectUri = $"{baseUrl.TrimEnd('/')}/auth/google/callback";
+                var request = flow.CreateAuthorizationCodeRequest(redirectUri);
 
-                ICodeReceiver codeReceiver;
-                if (isCloudEnvironment)
+                System.Diagnostics.Debug.WriteLine($"인증 URL 생성: {request.Build()}");
+                System.Diagnostics.Debug.WriteLine($"리디렉션 URI: {redirectUri}");
+
+                return request.Build().ToString();
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"인증 URL 생성 실패: {ex.Message}");
+            }
+        }
+
+        // 콜백에서 받은 코드로 토큰 교환
+        public async Task<bool> ExchangeCodeForTokenAsync(string code, string baseUrl)
+        {
+            try
+            {
+                var config = ConfigManager.GetConfig();
+                var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
                 {
-                    // 클라우드 환경: 수동 코드 입력 방식 사용
-                    codeReceiver = new PromptCodeReceiver();
-                }
-                else
-                {
-                    // 로컬 환경: 브라우저 자동 열기 방식 사용
-                    codeReceiver = new LocalServerCodeReceiver();
-                }
+                    ClientSecrets = new ClientSecrets
+                    {
+                        ClientId = config.YouTubeClientId,
+                        ClientSecret = config.YouTubeClientSecret
+                    },
+                    Scopes = Scopes,
+                    DataStore = new MemoryDataStore()
+                });
 
-                credential = await GoogleWebAuthorizationBroker.AuthorizeAsync(
-                    clientSecrets,
-                    Scopes,
-                    "user",
-                    CancellationToken.None,
-                    new FileDataStore(credPath, true),
-                    codeReceiver
-                );
+                var redirectUri = $"{baseUrl.TrimEnd('/')}/auth/google/callback";
+                
+                System.Diagnostics.Debug.WriteLine($"토큰 교환 시작: 코드={code.Substring(0, 10)}..., 리디렉션 URI={redirectUri}");
+                
+                var token = await flow.ExchangeCodeForTokenAsync("user", code, redirectUri, CancellationToken.None);
+
+                // 메모리에 토큰 저장
+                _memoryTokenStore["user"] = token;
+
+                credential = new UserCredential(flow, "user", token);
 
                 youtubeService = new YouTubeService(new BaseClientService.Initializer()
                 {
@@ -127,12 +133,85 @@ namespace YouTubeShortsWebApp
                     ApplicationName = ApplicationName,
                 });
 
+                System.Diagnostics.Debug.WriteLine("토큰 교환 성공!");
                 return true;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"YouTube 인증 실패: {ex.Message}");
-                throw new Exception($"YouTube 인증 실패: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"토큰 교환 실패: {ex.Message}");
+                throw new Exception($"토큰 교환 실패: {ex.Message}");
+            }
+        }
+
+        // 기존 토큰으로 인증 시도
+        public async Task<bool> AuthenticateAsync(bool forceReauth = false)
+        {
+            try
+            {
+                if (forceReauth)
+                {
+                    _memoryTokenStore.Clear();
+                    credential = null;
+                    youtubeService = null;
+                }
+
+                var config = ConfigManager.GetConfig();
+
+                if (string.IsNullOrEmpty(config.YouTubeClientId) || string.IsNullOrEmpty(config.YouTubeClientSecret))
+                {
+                    throw new Exception("YouTube API 클라이언트 ID와 시크릿이 설정되지 않았습니다.");
+                }
+
+                // 메모리에서 기존 토큰 확인
+                if (_memoryTokenStore.TryGetValue("user", out TokenResponse existingToken) && 
+                    existingToken != null && !string.IsNullOrEmpty(existingToken.AccessToken))
+                {
+                    var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
+                    {
+                        ClientSecrets = new ClientSecrets
+                        {
+                            ClientId = config.YouTubeClientId,
+                            ClientSecret = config.YouTubeClientSecret
+                        },
+                        Scopes = Scopes,
+                        DataStore = new MemoryDataStore()
+                    });
+
+                    credential = new UserCredential(flow, "user", existingToken);
+
+                    youtubeService = new YouTubeService(new BaseClientService.Initializer()
+                    {
+                        HttpClientInitializer = credential,
+                        ApplicationName = ApplicationName,
+                    });
+
+                    // 토큰 유효성 검사
+                    try
+                    {
+                        var channelsRequest = youtubeService.Channels.List("snippet");
+                        channelsRequest.Mine = true;
+                        channelsRequest.MaxResults = 1;
+                        await channelsRequest.ExecuteAsync();
+                        
+                        System.Diagnostics.Debug.WriteLine("기존 토큰으로 인증 성공!");
+                        return true;
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"기존 토큰 유효하지 않음: {ex.Message}");
+                        // 토큰이 만료되었거나 유효하지 않음
+                        _memoryTokenStore.TryRemove("user", out _);
+                    }
+                }
+
+                // 새로운 인증이 필요함
+                System.Diagnostics.Debug.WriteLine("새로운 인증이 필요합니다.");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"인증 확인 실패: {ex.Message}");
+                return false;
             }
         }
 
@@ -165,17 +244,9 @@ namespace YouTubeShortsWebApp
                     ThumbnailUrl = channel.Snippet.Thumbnails?.Default__?.Url,
                     ChannelUrl = $"https://www.youtube.com/channel/{channel.Id}",
                     SubscriberCount = channel.Statistics?.SubscriberCount ?? 0,
-                    VideoCount = channel.Statistics?.VideoCount ?? 0
+                    VideoCount = channel.Statistics?.VideoCount ?? 0,
+                    Email = "YouTube 계정"
                 };
-
-                try
-                {
-                    accountInfo.Email = "YouTube 계정";
-                }
-                catch
-                {
-                    accountInfo.Email = "YouTube 계정";
-                }
 
                 return accountInfo;
             }
@@ -196,7 +267,7 @@ namespace YouTubeShortsWebApp
         public async Task<bool> SwitchAccountAsync()
         {
             await RevokeAuthenticationAsync();
-            return await AuthenticateAsync(forceReauth: true);
+            return false; // 웹에서는 다시 인증 URL을 받아서 처리해야 함
         }
 
         // 인증 해제
@@ -209,17 +280,7 @@ namespace YouTubeShortsWebApp
                     await credential.RevokeTokenAsync(CancellationToken.None);
                 }
 
-                string credPath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "YouTubeShortsWebApp",
-                    "youtube-credentials"
-                );
-
-                if (Directory.Exists(credPath))
-                {
-                    Directory.Delete(credPath, true);
-                }
-
+                _memoryTokenStore.Clear();
                 youtubeService?.Dispose();
                 youtubeService = null;
                 credential = null;
@@ -232,7 +293,7 @@ namespace YouTubeShortsWebApp
             }
         }
 
-        // 비디오 파일 검증 메서드 추가
+        // 비디오 파일 검증 메서드
         private bool ValidateVideoFile(string filePath)
         {
             try
@@ -244,8 +305,8 @@ namespace YouTubeShortsWebApp
 
                 var fileInfo = new FileInfo(filePath);
 
-                // 파일 크기 검사 (YouTube 제한: 256GB, 하지만 실용적으로 2GB로 제한)
-                const long maxSize = 2L * 1024 * 1024 * 1024; // 2GB
+                // 파일 크기 검사 (2GB로 제한)
+                const long maxSize = 2L * 1024 * 1024 * 1024;
                 if (fileInfo.Length > maxSize)
                 {
                     System.Diagnostics.Debug.WriteLine($"파일이 너무 큼: {fileInfo.Length / 1024 / 1024}MB");
@@ -296,7 +357,7 @@ namespace YouTubeShortsWebApp
                     foreach (var tag in tagList)
                     {
                         var trimmedTag = tag.Trim();
-                        if (!string.IsNullOrEmpty(trimmedTag) && trimmedTag.Length <= 500) // YouTube 태그 길이 제한
+                        if (!string.IsNullOrEmpty(trimmedTag) && trimmedTag.Length <= 500)
                         {
                             videoMetadata.Snippet.Tags.Add(trimmedTag);
                         }
@@ -321,30 +382,25 @@ namespace YouTubeShortsWebApp
                         break;
                 }
 
-                // 쇼츠 감지 및 설정
-                videoMetadata.Status.SelfDeclaredMadeForKids = false; // 중요: 쇼츠의 경우 필수
+                videoMetadata.Status.SelfDeclaredMadeForKids = false;
 
                 string uploadedVideoId = null;
 
                 using (var fileStream = new FileStream(uploadInfo.FilePath, FileMode.Open, FileAccess.Read))
                 {
                     var videosInsertRequest = youtubeService.Videos.Insert(videoMetadata, "snippet,status", fileStream, "video/*");
-
-                    // 청크 크기 설정 (안정성 향상)
-                    videosInsertRequest.ChunkSize = ResumableUpload.MinimumChunkSize * 4; // 1MB
+                    videosInsertRequest.ChunkSize = ResumableUpload.MinimumChunkSize * 4;
 
                     DateTime startTime = DateTime.Now;
                     long totalBytes = fileStream.Length;
 
-                    // 응답 수신 이벤트
                     videosInsertRequest.ResponseReceived += (uploadedVideo) =>
                     {
                         uploadedVideoId = uploadedVideo.Id;
                         System.Diagnostics.Debug.WriteLine($"업로드 완료: 비디오 ID = {uploadedVideoId}");
                     };
 
-                    // 진행률 추적을 위한 타이머 (실제 진행률 추적이 어려우므로)
-                    var progressTimer = new System.Timers.Timer(1000); // 1초마다
+                    var progressTimer = new System.Timers.Timer(1000);
                     int simulatedProgress = 0;
                     bool uploadCompleted = false;
 
@@ -370,7 +426,6 @@ namespace YouTubeShortsWebApp
 
                     try
                     {
-                        // 업로드 실행
                         var uploadResult = await videosInsertRequest.UploadAsync(cancellationToken);
 
                         progressTimer.Stop();
@@ -393,32 +448,12 @@ namespace YouTubeShortsWebApp
                             throw new Exception("업로드는 완료되었지만 비디오 ID를 받지 못했습니다.");
                         }
 
-                        // 업로드 완료 후 처리 상태 확인
-                        progress?.Report(new UploadProgressInfo
-                        {
-                            BytesSent = totalBytes,
-                            TotalBytes = totalBytes,
-                            Percentage = 95,
-                            Status = "YouTube 처리 중",
-                            ElapsedTime = DateTime.Now - startTime,
-                            VideoId = uploadedVideoId
-                        });
-
-                        // YouTube 처리 상태 확인 (최대 2분 대기)
-                        bool processingComplete = await WaitForVideoProcessing(uploadedVideoId, progress, cancellationToken);
-
-                        if (!processingComplete)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"경고: 비디오 처리가 완료되지 않았지만 계속 진행합니다. ID: {uploadedVideoId}");
-                        }
-
-                        // 최종 완료 상태
                         progress?.Report(new UploadProgressInfo
                         {
                             BytesSent = totalBytes,
                             TotalBytes = totalBytes,
                             Percentage = 100,
-                            Status = processingComplete ? "업로드 및 처리 완료" : "업로드 완료 (처리 진행 중)",
+                            Status = "업로드 완료",
                             ElapsedTime = DateTime.Now - startTime,
                             VideoId = uploadedVideoId
                         });
@@ -448,122 +483,6 @@ namespace YouTubeShortsWebApp
             }
         }
 
-        // YouTube 비디오 처리 상태 확인 메서드 추가
-        private async Task<bool> WaitForVideoProcessing(string videoId, IProgress<UploadProgressInfo> progress, CancellationToken cancellationToken)
-        {
-            const int maxAttempts = 24; // 2분 대기 (5초 간격)
-            const int delaySeconds = 5;
-
-            for (int attempt = 0; attempt < maxAttempts; attempt++)
-            {
-                try
-                {
-                    if (cancellationToken.IsCancellationRequested)
-                        break;
-
-                    var videoRequest = youtubeService.Videos.List("status,processingDetails");
-                    videoRequest.Id = videoId;
-
-                    var videoResponse = await videoRequest.ExecuteAsync();
-
-                    if (videoResponse.Items != null && videoResponse.Items.Count > 0)
-                    {
-                        var video = videoResponse.Items[0];
-                        var uploadStatus = video.Status?.UploadStatus;
-                        var processingStatus = video.ProcessingDetails?.ProcessingStatus;
-
-                        System.Diagnostics.Debug.WriteLine($"처리 상태 확인 ({attempt + 1}/{maxAttempts}): Upload={uploadStatus}, Processing={processingStatus}");
-
-                        // 업로드 상태 확인
-                        if (uploadStatus == "processed" || uploadStatus == "uploaded")
-                        {
-                            System.Diagnostics.Debug.WriteLine($"비디오 처리 완료: {videoId}");
-                            return true;
-                        }
-
-                        if (uploadStatus == "failed" || uploadStatus == "rejected")
-                        {
-                            throw new Exception($"YouTube에서 비디오 처리 실패: {uploadStatus}");
-                        }
-
-                        // 진행률 업데이트
-                        int processingPercentage = 96 + (attempt * 4 / maxAttempts); // 96-100% 범위
-                        progress?.Report(new UploadProgressInfo
-                        {
-                            BytesSent = 0,
-                            TotalBytes = 0,
-                            Percentage = Math.Min(99, processingPercentage),
-                            Status = $"YouTube 처리 중 ({uploadStatus})",
-                            ElapsedTime = TimeSpan.FromSeconds(attempt * delaySeconds),
-                            VideoId = videoId
-                        });
-                    }
-
-                    await Task.Delay(delaySeconds * 1000, cancellationToken);
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"처리 상태 확인 오류: {ex.Message}");
-                    // 상태 확인 실패해도 계속 진행
-                }
-            }
-
-            System.Diagnostics.Debug.WriteLine($"처리 상태 확인 시간 초과: {videoId}");
-            return false; // 처리 상태 확인 실패 (하지만 업로드는 성공했을 가능성 있음)
-        }
-
-        // 업로드된 내 비디오 목록 가져오기
-        public async Task<IList<Video>> GetMyVideosAsync(int maxResults = 10)
-        {
-            if (!IsAuthenticated())
-            {
-                throw new Exception("YouTube에 인증되지 않았습니다.");
-            }
-
-            try
-            {
-                var channelsListRequest = youtubeService.Channels.List("contentDetails");
-                channelsListRequest.Mine = true;
-
-                var channelsListResponse = await channelsListRequest.ExecuteAsync();
-                var channel = channelsListResponse.Items[0];
-                var uploadsListId = channel.ContentDetails.RelatedPlaylists.Uploads;
-
-                var playlistItemsListRequest = youtubeService.PlaylistItems.List("snippet");
-                playlistItemsListRequest.PlaylistId = uploadsListId;
-                playlistItemsListRequest.MaxResults = maxResults;
-
-                var playlistItemsListResponse = await playlistItemsListRequest.ExecuteAsync();
-
-                var videos = new List<Video>();
-                foreach (var playlistItem in playlistItemsListResponse.Items)
-                {
-                    var video = new Video
-                    {
-                        Id = playlistItem.Snippet.ResourceId.VideoId,
-                        Snippet = new VideoSnippet
-                        {
-                            Title = playlistItem.Snippet.Title,
-                            Description = playlistItem.Snippet.Description,
-                            PublishedAtDateTimeOffset = playlistItem.Snippet.PublishedAtDateTimeOffset
-                        }
-                    };
-                    videos.Add(video);
-                }
-
-                return videos;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"비디오 목록 가져오기 오류: {ex.Message}");
-                throw new Exception($"비디오 목록을 가져오는 중 오류 발생: {ex.Message}");
-            }
-        }
-
         // 리소스 정리
         public void Dispose()
         {
@@ -571,20 +490,36 @@ namespace YouTubeShortsWebApp
         }
     }
 
-    // PromptCodeReceiver 클래스 - 별도 클래스로 분리
-    public class PromptCodeReceiver : ICodeReceiver
+    // 메모리 데이터 저장소 클래스
+    public class MemoryDataStore : IDataStore
     {
-        public string RedirectUri => "urn:ietf:wg:oauth:2.0:oob";
+        private static readonly ConcurrentDictionary<string, object> _store = new();
 
-        public async Task<AuthorizationCodeResponseUrl> ReceiveCodeAsync(
-            AuthorizationCodeRequestUrl url, 
-            CancellationToken taskCancellationToken)
+        public Task StoreAsync<T>(string key, T value)
         {
-            string authUrl = url.Build().ToString();
-            System.Diagnostics.Debug.WriteLine($"인증 URL: {authUrl}");
-            
-            // 실제로는 사용자가 이 URL로 가서 코드를 입력해야 함
-            throw new NotSupportedException("클라우드 환경에서는 수동 인증이 필요합니다. 로컬에서 먼저 인증을 완료해주세요.");
+            _store[key] = value;
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteAsync<T>(string key)
+        {
+            _store.TryRemove(key, out _);
+            return Task.CompletedTask;
+        }
+
+        public Task<T> GetAsync<T>(string key)
+        {
+            if (_store.TryGetValue(key, out object value) && value is T)
+            {
+                return Task.FromResult((T)value);
+            }
+            return Task.FromResult(default(T));
+        }
+
+        public Task ClearAsync()
+        {
+            _store.Clear();
+            return Task.CompletedTask;
         }
     }
 }
