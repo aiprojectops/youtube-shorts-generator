@@ -1,9 +1,12 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using Google.Apis.Auth.OAuth2;
+using Google.Apis.Auth.OAuth2.Flows;
+using Google.Apis.Auth.OAuth2.Requests;
+using Google.Apis.Auth.OAuth2.Responses;
 using Google.Apis.Services;
 using Google.Apis.Upload;
 using Google.Apis.Util.Store;
@@ -43,7 +46,7 @@ namespace YouTubeShortsWebApp
             public int Percentage { get; set; }
             public string Status { get; set; }
             public TimeSpan ElapsedTime { get; set; }
-            public string VideoId { get; set; } // 추가: 업로드된 비디오 ID
+            public string VideoId { get; set; }
         }
 
         // YouTube 업로드를 위한 비디오 정보 클래스
@@ -56,99 +59,82 @@ namespace YouTubeShortsWebApp
             public string PrivacyStatus { get; set; }
         }
 
-// YouTubeUploader.cs의 AuthenticateAsync 메서드를 다음과 같이 수정
-public async Task<bool> AuthenticateAsync(bool forceReauth = false)
-{
-    try
-    {
-        string credPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "YouTubeShortsWebApp",
-            "youtube-credentials"
-        );
-
-        if (forceReauth && Directory.Exists(credPath))
+        // OAuth 인증
+        public async Task<bool> AuthenticateAsync(bool forceReauth = false)
         {
             try
             {
-                Directory.Delete(credPath, true);
-                System.Diagnostics.Debug.WriteLine("기존 인증 토큰 삭제됨");
+                string credPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "YouTubeShortsWebApp",
+                    "youtube-credentials"
+                );
+
+                if (forceReauth && Directory.Exists(credPath))
+                {
+                    try
+                    {
+                        Directory.Delete(credPath, true);
+                        System.Diagnostics.Debug.WriteLine("기존 인증 토큰 삭제됨");
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"토큰 삭제 실패: {ex.Message}");
+                    }
+                }
+
+                var config = ConfigManager.GetConfig();
+
+                if (string.IsNullOrEmpty(config.YouTubeClientId) || string.IsNullOrEmpty(config.YouTubeClientSecret))
+                {
+                    throw new Exception("YouTube API 클라이언트 ID와 시크릿이 설정되지 않았습니다.\n설정 화면에서 먼저 등록해주세요.");
+                }
+
+                var clientSecrets = new ClientSecrets
+                {
+                    ClientId = config.YouTubeClientId,
+                    ClientSecret = config.YouTubeClientSecret
+                };
+
+                // 클라우드 환경 감지
+                bool isCloudEnvironment = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("RENDER")) ||
+                                         !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("RAILWAY_ENVIRONMENT"));
+
+                ICodeReceiver codeReceiver;
+                if (isCloudEnvironment)
+                {
+                    // 클라우드 환경: 수동 코드 입력 방식 사용
+                    codeReceiver = new PromptCodeReceiver();
+                }
+                else
+                {
+                    // 로컬 환경: 브라우저 자동 열기 방식 사용
+                    codeReceiver = new LocalServerCodeReceiver();
+                }
+
+                credential = await GoogleWebAuthorizationBroker.AuthorizeAsync(
+                    clientSecrets,
+                    Scopes,
+                    "user",
+                    CancellationToken.None,
+                    new FileDataStore(credPath, true),
+                    codeReceiver
+                );
+
+                youtubeService = new YouTubeService(new BaseClientService.Initializer()
+                {
+                    HttpClientInitializer = credential,
+                    ApplicationName = ApplicationName,
+                });
+
+                return true;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"토큰 삭제 실패: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"YouTube 인증 실패: {ex.Message}");
+                throw new Exception($"YouTube 인증 실패: {ex.Message}");
             }
         }
-
-        var config = ConfigManager.GetConfig();
-
-        if (string.IsNullOrEmpty(config.YouTubeClientId) || string.IsNullOrEmpty(config.YouTubeClientSecret))
-        {
-            throw new Exception("YouTube API 클라이언트 ID와 시크릿이 설정되지 않았습니다.\n설정 화면에서 먼저 등록해주세요.");
-        }
-
-        var clientSecrets = new ClientSecrets
-        {
-            ClientId = config.YouTubeClientId,
-            ClientSecret = config.YouTubeClientSecret
-        };
-
-        // 클라우드 환경 감지
-        bool isCloudEnvironment = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("RENDER")) ||
-                                 !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("RAILWAY_ENVIRONMENT"));
-
-        ICodeReceiver codeReceiver;
-        if (isCloudEnvironment)
-        {
-            // 클라우드 환경: 수동 코드 입력 방식 사용
-            codeReceiver = new PromptCodeReceiver();
-        }
-        else
-        {
-            // 로컬 환경: 브라우저 자동 열기 방식 사용
-            codeReceiver = new LocalServerCodeReceiver();
-        }
-
-        credential = await GoogleWebAuthorizationBroker.AuthorizeAsync(
-            clientSecrets,
-            Scopes,
-            "user",
-            CancellationToken.None,
-            new FileDataStore(credPath, true),
-            codeReceiver
-        );
-
-        youtubeService = new YouTubeService(new BaseClientService.Initializer()
-        {
-            HttpClientInitializer = credential,
-            ApplicationName = ApplicationName,
-        });
-
-        return true;
-    }
-    catch (Exception ex)
-    {
-        System.Diagnostics.Debug.WriteLine($"YouTube 인증 실패: {ex.Message}");
-        throw new Exception($"YouTube 인증 실패: {ex.Message}");
-    }
-}
-
-// PromptCodeReceiver 클래스 추가 (클래스 맨 아래에 추가)
-public class PromptCodeReceiver : ICodeReceiver
-{
-    public string RedirectUri => "urn:ietf:wg:oauth:2.0:oob";
-
-    public async Task<AuthorizationCodeResponseUrl> ReceiveCodeAsync(AuthorizationCodeRequestUrl url, CancellationToken taskCancellationToken)
-    {
-        // 인증 URL을 로그에 출력 (실제로는 사용자에게 보여줘야 함)
-        string authUrl = url.Build().ToString();
-        System.Diagnostics.Debug.WriteLine($"인증 URL: {authUrl}");
-        
-        // 실제 구현에서는 사용자가 이 URL로 가서 코드를 받아와야 함
-        // 현재는 에러를 던져서 문제를 알림
-        throw new NotSupportedException("클라우드 환경에서는 수동 인증이 필요합니다. 로컬에서 먼저 인증을 완료해주세요.");
-    }
-}
 
         // 현재 연동된 계정 정보 가져오기
         public async Task<YouTubeAccountInfo> GetCurrentAccountInfoAsync()
@@ -582,6 +568,23 @@ public class PromptCodeReceiver : ICodeReceiver
         public void Dispose()
         {
             youtubeService?.Dispose();
+        }
+    }
+
+    // PromptCodeReceiver 클래스 - 별도 클래스로 분리
+    public class PromptCodeReceiver : ICodeReceiver
+    {
+        public string RedirectUri => "urn:ietf:wg:oauth:2.0:oob";
+
+        public async Task<AuthorizationCodeResponseUrl> ReceiveCodeAsync(
+            AuthorizationCodeRequestUrl url, 
+            CancellationToken taskCancellationToken)
+        {
+            string authUrl = url.Build().ToString();
+            System.Diagnostics.Debug.WriteLine($"인증 URL: {authUrl}");
+            
+            // 실제로는 사용자가 이 URL로 가서 코드를 입력해야 함
+            throw new NotSupportedException("클라우드 환경에서는 수동 인증이 필요합니다. 로컬에서 먼저 인증을 완료해주세요.");
         }
     }
 }
