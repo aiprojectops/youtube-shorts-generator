@@ -1,0 +1,48 @@
+﻿<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">YouTubeShortsWebApp</a>
+    </div>
+</div>
+
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="flex-column">
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
+            </NavLink>
+        </div>
+           
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="settings">
+                <span aria-hidden="true">⚙️</span> 기본 설정
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="video-generator">
+                <span aria-hidden="true">🎬</span> 비디오 생성기
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="youtube-upload">
+                <span aria-hidden="true">📤</span> YouTube 업로드
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="all-in-one">
+                <span aria-hidden="true">🚀</span> All-in-One 자동화
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="video-history">
+                <span aria-hidden="true"></span> 생성 히스토리
+            </NavLink>
+        </div>
+
+    </nav>
+</div>

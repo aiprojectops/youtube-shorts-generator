@@ -1,0 +1,378 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|c:\\users\\funnelmoa-240601\\desktop\\youtubeshortswebapp\\videopostprocessor.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|solutionrelative:videopostprocessor.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|c:\\users\\funnelmoa-240601\\desktop\\youtubeshortswebapp\\configmanager.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|solutionrelative:configmanager.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|c:\\users\\funnelmoa-240601\\desktop\\youtubeshortswebapp\\.dockerignore.txt||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|solutionrelative:.dockerignore.txt||{8B382828-6202-11D1-8870-0000F87579D2}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|c:\\users\\funnelmoa-240601\\desktop\\youtubeshortswebapp\\dockerfile.txt||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|solutionrelative:dockerfile.txt||{8B382828-6202-11D1-8870-0000F87579D2}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|c:\\users\\funnelmoa-240601\\desktop\\youtubeshortswebapp\\youtubeshortswebapp.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|",
+      "RelativeMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|solutionrelative:youtubeshortswebapp.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|c:\\users\\funnelmoa-240601\\desktop\\youtubeshortswebapp\\components\\pages\\allinone.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|solutionrelative:components\\pages\\allinone.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|c:\\users\\funnelmoa-240601\\desktop\\youtubeshortswebapp\\replicateclient.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|solutionrelative:replicateclient.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|c:\\users\\funnelmoa-240601\\desktop\\youtubeshortswebapp\\components\\pages\\youtubeupload.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|solutionrelative:components\\pages\\youtubeupload.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|c:\\users\\funnelmoa-240601\\desktop\\youtubeshortswebapp\\components\\pages\\videohistory.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|solutionrelative:components\\pages\\videohistory.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|c:\\users\\funnelmoa-240601\\desktop\\youtubeshortswebapp\\components\\pages\\videogenerator.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|solutionrelative:components\\pages\\videogenerator.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|c:\\users\\funnelmoa-240601\\desktop\\youtubeshortswebapp\\components\\layout\\navmenu.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|solutionrelative:components\\layout\\navmenu.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|c:\\users\\funnelmoa-240601\\desktop\\youtubeshortswebapp\\components\\pages\\settings.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|solutionrelative:components\\pages\\settings.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|c:\\users\\funnelmoa-240601\\desktop\\youtubeshortswebapp\\videohistorymanager.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|solutionrelative:videohistorymanager.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|c:\\users\\funnelmoa-240601\\desktop\\youtubeshortswebapp\\components\\app.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|solutionrelative:components\\app.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|c:\\users\\funnelmoa-240601\\desktop\\youtubeshortswebapp\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|solutionrelative:program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|c:\\users\\funnelmoa-240601\\desktop\\youtubeshortswebapp\\components\\routes.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|solutionrelative:components\\routes.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|c:\\users\\funnelmoa-240601\\desktop\\youtubeshortswebapp\\components\\_imports.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|solutionrelative:components\\_imports.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|c:\\users\\funnelmoa-240601\\desktop\\youtubeshortswebapp\\components\\pages\\home.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|solutionrelative:components\\pages\\home.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|c:\\users\\funnelmoa-240601\\desktop\\youtubeshortswebapp\\components\\pages\\error.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|solutionrelative:components\\pages\\error.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|c:\\users\\funnelmoa-240601\\desktop\\youtubeshortswebapp\\scheduleduploadservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|solutionrelative:scheduleduploadservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|c:\\users\\funnelmoa-240601\\desktop\\youtubeshortswebapp\\youtubeuploader.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|solutionrelative:youtubeuploader.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|c:\\users\\funnelmoa-240601\\desktop\\youtubeshortswebapp\\wwwroot\\js\\download.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{0D728D58-C59C-4CB2-924B-156F48FC710C}|YouTubeShortsWebApp.csproj|solutionrelative:wwwroot\\js\\download.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 3,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": ".dockerignore.txt",
+              "DocumentMoniker": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\.dockerignore.txt",
+              "RelativeDocumentMoniker": ".dockerignore.txt",
+              "ToolTip": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\.dockerignore.txt",
+              "RelativeToolTip": ".dockerignore.txt",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAgAAAANAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003109|",
+              "WhenOpened": "2025-09-23T06:22:12.757Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "Dockerfile.txt",
+              "DocumentMoniker": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\Dockerfile.txt",
+              "RelativeDocumentMoniker": "Dockerfile.txt",
+              "ToolTip": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\Dockerfile.txt",
+              "RelativeToolTip": "Dockerfile.txt",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAACAAAAAwAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003109|",
+              "WhenOpened": "2025-09-23T06:19:54.004Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "ConfigManager.cs",
+              "DocumentMoniker": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\ConfigManager.cs",
+              "RelativeDocumentMoniker": "ConfigManager.cs",
+              "ToolTip": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\ConfigManager.cs",
+              "RelativeToolTip": "ConfigManager.cs",
+              "ViewState": "AgIAAKwAAAAAAAAAAAAAAOQAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-09T03:46:46.615Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "VideoPostProcessor.cs",
+              "DocumentMoniker": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\VideoPostProcessor.cs",
+              "RelativeDocumentMoniker": "VideoPostProcessor.cs",
+              "ToolTip": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\VideoPostProcessor.cs",
+              "RelativeToolTip": "VideoPostProcessor.cs",
+              "ViewState": "AgIAAA8AAAAAAAAAAAAywCwAAAAfAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-10T08:09:29.362Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "AllInOne.razor",
+              "DocumentMoniker": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\Components\\Pages\\AllInOne.razor",
+              "RelativeDocumentMoniker": "Components\\Pages\\AllInOne.razor",
+              "ToolTip": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\Components\\Pages\\AllInOne.razor",
+              "RelativeToolTip": "Components\\Pages\\AllInOne.razor",
+              "ViewState": "AgIAAAkFAAAAAAAAAAAiwDQFAAAJAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2025-09-16T06:26:51.024Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "VideoHistory.razor",
+              "DocumentMoniker": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\Components\\Pages\\VideoHistory.razor",
+              "RelativeDocumentMoniker": "Components\\Pages\\VideoHistory.razor",
+              "ToolTip": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\Components\\Pages\\VideoHistory.razor",
+              "RelativeToolTip": "Components\\Pages\\VideoHistory.razor",
+              "ViewState": "AgIAANgAAAAAAAAAAAAcwAsBAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2025-09-10T06:41:20.714Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "YouTubeUpload.razor",
+              "DocumentMoniker": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\Components\\Pages\\YouTubeUpload.razor",
+              "RelativeDocumentMoniker": "Components\\Pages\\YouTubeUpload.razor",
+              "ToolTip": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\Components\\Pages\\YouTubeUpload.razor",
+              "RelativeToolTip": "Components\\Pages\\YouTubeUpload.razor",
+              "ViewState": "AgIAAEQAAAAAAAAAAAAUwPsCAAAmAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2025-09-10T06:01:27.779Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "YouTubeShortsWebApp.csproj",
+              "DocumentMoniker": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\YouTubeShortsWebApp.csproj",
+              "RelativeDocumentMoniker": "YouTubeShortsWebApp.csproj",
+              "ToolTip": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\YouTubeShortsWebApp.csproj",
+              "RelativeToolTip": "YouTubeShortsWebApp.csproj",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABYAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2025-09-15T01:21:56.941Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 12,
+              "Title": "VideoHistoryManager.cs",
+              "DocumentMoniker": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\VideoHistoryManager.cs",
+              "RelativeDocumentMoniker": "VideoHistoryManager.cs",
+              "ToolTip": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\VideoHistoryManager.cs",
+              "RelativeToolTip": "VideoHistoryManager.cs",
+              "ViewState": "AgIAAFcAAAAAAAAAAAAAAI8AAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-10T06:40:49.422Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 10,
+              "Title": "NavMenu.razor",
+              "DocumentMoniker": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\Components\\Layout\\NavMenu.razor",
+              "RelativeDocumentMoniker": "Components\\Layout\\NavMenu.razor",
+              "ToolTip": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\Components\\Layout\\NavMenu.razor",
+              "RelativeToolTip": "Components\\Layout\\NavMenu.razor",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAACUAAAAWAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2025-09-09T03:54:39.12Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "VideoGenerator.razor",
+              "DocumentMoniker": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\Components\\Pages\\VideoGenerator.razor",
+              "RelativeDocumentMoniker": "Components\\Pages\\VideoGenerator.razor",
+              "ToolTip": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\Components\\Pages\\VideoGenerator.razor",
+              "RelativeToolTip": "Components\\Pages\\VideoGenerator.razor",
+              "ViewState": "AgIAAIwDAAAAAAAAAAAiwLwDAAA+AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2025-09-09T03:53:49.613Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 11,
+              "Title": "Settings.razor",
+              "DocumentMoniker": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\Components\\Pages\\Settings.razor",
+              "RelativeDocumentMoniker": "Components\\Pages\\Settings.razor",
+              "ToolTip": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\Components\\Pages\\Settings.razor",
+              "RelativeToolTip": "Components\\Pages\\Settings.razor",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABcAAAA1AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2025-09-09T05:01:09.885Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 16,
+              "Title": "_Imports.razor",
+              "DocumentMoniker": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\Components\\_Imports.razor",
+              "RelativeDocumentMoniker": "Components\\_Imports.razor",
+              "ToolTip": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\Components\\_Imports.razor",
+              "RelativeToolTip": "Components\\_Imports.razor",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAoAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2025-09-09T05:59:30.683Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 15,
+              "Title": "Routes.razor",
+              "DocumentMoniker": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\Components\\Routes.razor",
+              "RelativeDocumentMoniker": "Components\\Routes.razor",
+              "ToolTip": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\Components\\Routes.razor",
+              "RelativeToolTip": "Components\\Routes.razor",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAQAAAAMAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2025-09-09T06:03:15.579Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 14,
+              "Title": "Program.cs",
+              "DocumentMoniker": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\Program.cs",
+              "RelativeDocumentMoniker": "Program.cs",
+              "ToolTip": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\Program.cs",
+              "RelativeToolTip": "Program.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAB4AAAAKAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-09T06:04:57.351Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 13,
+              "Title": "App.razor",
+              "DocumentMoniker": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\Components\\App.razor",
+              "RelativeDocumentMoniker": "Components\\App.razor",
+              "ToolTip": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\Components\\App.razor",
+              "RelativeToolTip": "Components\\App.razor",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAACAAAAAHAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2025-09-09T06:03:26.089Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 17,
+              "Title": "Home.razor",
+              "DocumentMoniker": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\Components\\Pages\\Home.razor",
+              "RelativeDocumentMoniker": "Components\\Pages\\Home.razor",
+              "ToolTip": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\Components\\Pages\\Home.razor",
+              "RelativeToolTip": "Components\\Pages\\Home.razor",
+              "ViewState": "AgIAAFAAAAAAAAAAAAAswIkAAAAGAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2025-09-10T05:00:34.203Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 18,
+              "Title": "Error.razor",
+              "DocumentMoniker": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\Components\\Pages\\Error.razor",
+              "RelativeDocumentMoniker": "Components\\Pages\\Error.razor",
+              "ToolTip": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\Components\\Pages\\Error.razor",
+              "RelativeToolTip": "Components\\Pages\\Error.razor",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAACQAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2025-09-17T01:52:45.346Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "ReplicateClient.cs",
+              "DocumentMoniker": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\ReplicateClient.cs",
+              "RelativeDocumentMoniker": "ReplicateClient.cs",
+              "ToolTip": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\ReplicateClient.cs",
+              "RelativeToolTip": "ReplicateClient.cs",
+              "ViewState": "AgIAABgBAAAAAAAAAAAQwCsBAAAjAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-09T05:10:02.845Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 20,
+              "Title": "YouTubeUploader.cs",
+              "DocumentMoniker": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\YouTubeUploader.cs",
+              "RelativeDocumentMoniker": "YouTubeUploader.cs",
+              "ToolTip": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\YouTubeUploader.cs",
+              "RelativeToolTip": "YouTubeUploader.cs",
+              "ViewState": "AgIAAKcAAAAAAAAAAAAqwLEAAAAuAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-09T05:07:03.111Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 19,
+              "Title": "ScheduledUploadService.cs",
+              "DocumentMoniker": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\ScheduledUploadService.cs",
+              "RelativeDocumentMoniker": "ScheduledUploadService.cs",
+              "ToolTip": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\ScheduledUploadService.cs",
+              "RelativeToolTip": "ScheduledUploadService.cs",
+              "ViewState": "AgIAAJgAAAAAAAAAAAAuwMYAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-15T08:41:55.21Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 21,
+              "Title": "download.js",
+              "DocumentMoniker": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\wwwroot\\js\\download.js",
+              "RelativeDocumentMoniker": "wwwroot\\js\\download.js",
+              "ToolTip": "C:\\Users\\funnelmoa-240601\\Desktop\\YouTubeShortsWebApp\\wwwroot\\js\\download.js",
+              "RelativeToolTip": "wwwroot\\js\\download.js",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABQAAAACAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2025-09-10T04:54:25.961Z"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
