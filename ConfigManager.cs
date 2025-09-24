@@ -44,6 +44,8 @@ namespace YouTubeShortsWebApp
 
                 // 환경변수에서 먼저 읽기 (클라우드 배포용)
                 _config.ReplicateApiKey = Environment.GetEnvironmentVariable("REPLICATE_API_KEY") ?? "";
+                // LoadConfig() 메서드 수정 - 환경변수 로드 부분에 추가:
+                _config.RunwayApiKey = Environment.GetEnvironmentVariable("RUNWAY_API_KEY") ?? "";
                 _config.YouTubeClientId = Environment.GetEnvironmentVariable("YOUTUBE_CLIENT_ID") ?? "";
                 _config.YouTubeClientSecret = Environment.GetEnvironmentVariable("YOUTUBE_CLIENT_SECRET") ?? "";
                 _config.BasePrompt = Environment.GetEnvironmentVariable("BASE_PROMPT") ?? "";
@@ -55,8 +57,11 @@ namespace YouTubeShortsWebApp
                     var fileConfig = Newtonsoft.Json.JsonConvert.DeserializeObject<Config>(json);
                     if (fileConfig != null)
                     {
-                        if (string.IsNullOrEmpty(_config.ReplicateApiKey))
-                            _config.ReplicateApiKey = fileConfig.ReplicateApiKey ?? "";
+                        /*if (string.IsNullOrEmpty(_config.ReplicateApiKey))
+                            _config.ReplicateApiKey = fileConfig.ReplicateApiKey ?? "";*/
+                        // 그리고 파일에서 로드하는 부분에도 추가:
+                        if (string.IsNullOrEmpty(_config.RunwayApiKey))
+                            _config.RunwayApiKey = fileConfig.RunwayApiKey ?? "";
                         if (string.IsNullOrEmpty(_config.YouTubeClientId))
                             _config.YouTubeClientId = fileConfig.YouTubeClientId ?? "";
                         if (string.IsNullOrEmpty(_config.YouTubeClientSecret))
@@ -75,8 +80,11 @@ namespace YouTubeShortsWebApp
                 // null 값 방지
                 if (_config.BasePrompt == null)
                     _config.BasePrompt = "";
-                if (_config.ReplicateApiKey == null)
-                    _config.ReplicateApiKey = "";
+                /*if (_config.ReplicateApiKey == null)
+                    _config.ReplicateApiKey = "";*/
+                // null 값 방지 부분에도 추가:
+                if (_config.RunwayApiKey == null)
+                    _config.RunwayApiKey = "";
                 if (_config.YouTubeClientId == null)
                     _config.YouTubeClientId = "";
                 if (_config.YouTubeClientSecret == null)
@@ -89,6 +97,19 @@ namespace YouTubeShortsWebApp
             }
         }
 
+        // 다음 메서드들 추가:
+        public static void SetRunwayApiKey(string apiKey)
+        {
+            GetConfig().RunwayApiKey = apiKey ?? "";
+            SaveConfig();
+        }
+
+        public static bool IsRunwayApiKeySet()
+        {
+            return !string.IsNullOrEmpty(GetConfig().RunwayApiKey);
+        }
+        
+        
         public static void SaveConfig()
         {
             try
