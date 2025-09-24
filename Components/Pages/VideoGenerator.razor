@@ -1,4 +1,4 @@
-@page "/video-generator"
+﻿@page "/video-generator"
 @rendermode InteractiveServer
 @using YouTubeShortsWebApp
 @using System.Diagnostics
@@ -17,7 +17,7 @@
                     <h3>비디오 생성 옵션</h3>
                 </div>
                 <div class="card-body">
-                    <!-- 영상 소스 선택 -->
+                    <!-- 영상 소스 선택 (새로 추가) -->
                     <div class="mb-4">
                         <label class="form-label"><strong>영상 소스:</strong></label>
                         <div class="form-check">
@@ -335,8 +335,8 @@
     private string lastFileName = "";
     private string currentPromptUsed = "";
 
-    // 영상 소스 관련 변수
-    private bool isGenerateVideo = true;
+    // 영상 소스 관련 변수 (새로 추가)
+    private bool isGenerateVideo = true;  // 기본값: 새로 생성
     private List<IBrowserFile> localVideoFiles = new List<IBrowserFile>();
 
     // 후처리 관련 변수들
@@ -381,12 +381,13 @@
         }
     }
 
+     // 로컬 파일 선택 핸들러 (새로 추가)
     private async Task HandleLocalVideoSelection(InputFileChangeEventArgs e)
     {
         localVideoFiles.Clear();
-        localVideoFiles.AddRange(e.GetMultipleFiles(10));
+        localVideoFiles.AddRange(e.GetMultipleFiles(10)); // 최대 10개 파일
 
-        const long maxSizePerFile = 2L * 1024 * 1024 * 1024;
+        const long maxSizePerFile = 2L * 1024 * 1024 * 1024; // 2GB
         var invalidFiles = localVideoFiles.Where(f => f.Size > maxSizePerFile).ToList();
 
         if (invalidFiles.Any())
@@ -397,6 +398,7 @@
             localVideoFiles = localVideoFiles.Where(f => f.Size <= maxSizePerFile).ToList();
         }
 
+        // 로컬 파일 개수로 videoCount 자동 설정
         if (!isGenerateVideo && localVideoFiles.Count > 0)
         {
             videoCount = localVideoFiles.Count;
@@ -405,6 +407,7 @@
         StateHasChanged();
     }
 
+    // 파일 크기 포맷팅 메서드 (새로 추가)
     private string FormatFileSize(long bytes)
     {
         if (bytes >= 1024 * 1024 * 1024)
@@ -417,6 +420,7 @@
             return $"{bytes} bytes";
     }
 
+    // 기존 OnBackgroundMusicChanged 메서드를 다음과 같이 수정
     private void OnBackgroundMusicChanged()
     {
         Console.WriteLine($"=== OnBackgroundMusicChanged 호출됨!");
@@ -426,6 +430,7 @@
         StateHasChanged();
     }
 
+    // 음량 변경 시 호출되는 메서드 수정
     private void OnVolumeChanged()
     {
         Console.WriteLine($"=== 음량 변경됨: {musicVolume}");
@@ -439,7 +444,7 @@
 
         try
         {
-            const long maxSize = 5 * 1024 * 1024;
+            const long maxSize = 5 * 1024 * 1024; // 5MB
             if (file.Size > maxSize)
             {
                 await JSRuntime.InvokeVoidAsync("alert", "CSV 파일이 너무 큽니다. 5MB 이하의 파일을 선택해주세요.");
@@ -469,11 +474,13 @@
         var prompts = new List<string>();
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
+        // 첫 번째 줄은 헤더로 건너뛰기
         for (int i = 1; i < lines.Length; i++)
         {
             var line = lines[i].Trim();
             if (string.IsNullOrEmpty(line)) continue;
 
+            // 간단한 CSV 파싱 (두 번째 컬럼이 프롬프트)
             var columns = line.Split(',');
             if (columns.Length >= 2)
             {
@@ -513,11 +520,12 @@
         Console.WriteLine($"=== ========================================= ===");
 
         string finalPrompt = "";
-        string combinedPrompt = "";
+        string combinedPrompt = ""; // 변수를 상단으로 이동
 
         // 검증 로직
         if (isGenerateVideo)
         {
+            // AI 생성 모드 검증
             if (isRandomPromptMode)
             {
                 if (csvPrompts.Count == 0)
@@ -537,6 +545,7 @@
         }
         else
         {
+            // 로컬 파일 모드 검증
             if (localVideoFiles.Count == 0)
             {
                 await JSRuntime.InvokeVoidAsync("alert", "처리할 영상 파일을 선택해주세요!");
@@ -571,9 +580,9 @@
         if (isGenerateVideo)
         {
             var config = ConfigManager.GetConfig();
-            if (string.IsNullOrEmpty(config.RunwayApiKey))
+            if (string.IsNullOrEmpty(config.ReplicateApiKey))
             {
-                await JSRuntime.InvokeVoidAsync("alert", "먼저 설정에서 RunwayML API 키를 설정해주세요.");
+                await JSRuntime.InvokeVoidAsync("alert", "먼저 설정에서 Replicate API 키를 설정해주세요.");
                 return;
             }
         }
@@ -584,12 +593,12 @@
 
         try
         {
-            // RunwayClient 생성 (AI 생성 모드일 때만)
-            RunwayClient runwayClient = null;
+            // ReplicateClient 생성 (AI 생성 모드일 때만)
+            ReplicateClient replicateClient = null;
             if (isGenerateVideo)
             {
                 var config = ConfigManager.GetConfig();
-                runwayClient = new RunwayClient(config.RunwayApiKey);
+                replicateClient = new ReplicateClient(config.ReplicateApiKey);
             }
 
             int totalVideosToProcess = isGenerateVideo ? videoCount : localVideoFiles.Count;
@@ -621,28 +630,30 @@
                         // 기본 프롬프트와 합성
                         combinedPrompt = ConfigManager.CombinePrompts(finalPrompt);
 
-                        // RunwayML 비디오 생성 요청 준비
-                        var request = new RunwayClient.VideoGenerationRequest
+                        // 비디오 생성 요청 준비
+                        var request = new ReplicateClient.VideoGenerationRequest
                         {
                             prompt = combinedPrompt,
                             duration = selectedDuration,
                             aspect_ratio = selectedAspectRatio,
-                            model = "gen3a_turbo"
+                            resolution = "1080p",
+                            fps = 24,
+                            camera_fixed = true
                         };
 
-                        statusMessage = $"영상 {i + 1}/{totalVideosToProcess} - RunwayML API 요청 중...";
+                        statusMessage = $"영상 {i + 1}/{totalVideosToProcess} - API 요청 중...";
                         currentProgress = 10 + (i * 70 / totalVideosToProcess);
                         StateHasChanged();
 
                         // 비디오 생성 시작
-                        var task = await runwayClient.StartVideoGeneration(request);
+                        var prediction = await replicateClient.StartVideoGeneration(request);
 
                         statusMessage = $"영상 {i + 1}/{totalVideosToProcess} - 생성 중...";
                         currentProgress = 20 + (i * 70 / totalVideosToProcess);
                         StateHasChanged();
 
                         // 진행률 업데이트용 Progress 객체
-                        var progress = new Progress<RunwayClient.ProgressInfo>(progressInfo =>
+                        var progress = new Progress<ReplicateClient.ProgressInfo>(progressInfo =>
                         {
                             InvokeAsync(() =>
                             {
@@ -657,11 +668,11 @@
                         });
 
                         // 완료까지 대기
-                        var result = await runwayClient.WaitForCompletion(task.id, progress);
+                        var result = await replicateClient.WaitForCompletion(prediction.id, progress);
 
-                        if (result.status == "SUCCEEDED" && result.output != null && result.output.Count > 0)
+                        if (result.output != null)
                         {
-                            string videoUrl = result.output[0].url;
+                            string videoUrl = result.output.ToString();
                             generatedUrls.Add(videoUrl);
 
                             Console.WriteLine($"=== 영상 {i + 1} URL: {videoUrl}");
@@ -680,7 +691,7 @@
                         // 로컬 파일 처리 모드
                         var fileToProcess = localVideoFiles[i];
                         currentPromptUsed = $"로컬 파일: {fileToProcess.Name}";
-                        combinedPrompt = currentPromptUsed;
+                        combinedPrompt = currentPromptUsed; // 로컬 파일 모드에서는 파일명을 사용
 
                         statusMessage = $"파일 {i + 1}/{totalVideosToProcess} - 업로드 중... {fileToProcess.Name}";
                         currentProgress = (i * 80 / totalVideosToProcess) + 10;
@@ -755,7 +766,7 @@
         }
     }
 
-    // 개별 영상 처리 메서드
+    // 개별 영상 처리 메서드 (비디오 생성기용)
     private async Task ProcessIndividualVideoGen(string videoPath, int videoIndex, string originalPrompt, string combinedPrompt)
     {
         try
@@ -805,7 +816,7 @@
         }
     }
 
-    // 후처리를 위한 영상 다운로드
+    // 후처리를 위한 영상 다운로드 (비디오 생성기용)
     private async Task<string> DownloadVideoForGen(string videoUrl, string fileName)
     {
         try
@@ -852,7 +863,7 @@
         }
     }
 
-    // 영상 후처리 수행 - 랜덤 처리 추가
+    // 영상 후처리 수행 (비디오 생성기용) - 랜덤 처리 추가
     private async Task<string> ProcessVideoGen(string inputPath, string promptText)
     {
         try
@@ -901,9 +912,9 @@
             if (addCaption && !string.IsNullOrWhiteSpace(captionText))
             {
                 options.CaptionText = captionText;
-                options.FontSize = actualCaptionSize;
-                options.FontColor = actualCaptionColor;
-                options.CaptionPosition = actualCaptionPosition;
+                options.FontSize = actualCaptionSize;        // 랜덤 처리된 크기 사용
+                options.FontColor = actualCaptionColor;      // 랜덤 처리된 색상 사용
+                options.CaptionPosition = actualCaptionPosition; // 랜덤 처리된 위치 사용
             }
 
             // 배경음악 추가
@@ -942,7 +953,7 @@
         }
     }
 
-    // 로컬 파일을 브라우저로 다운로드
+    // 로컬 파일을 브라우저로 다운로드 (비디오 생성기용)
     private async Task TriggerBrowserDownloadFromFileGen(string filePath, string fileName)
     {
         try
