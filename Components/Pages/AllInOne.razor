@@ -1,4 +1,4 @@
-﻿@page "/all-in-one"
+@page "/all-in-one"
 @rendermode InteractiveServer
 @using YouTubeShortsWebApp
 @inject IJSRuntime JSRuntime
@@ -29,246 +29,6 @@
                                 <strong>새로 생성</strong> - AI로 영상을 생성합니다
                             </label>
                         </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" name="videoSource" id="useLocalVideo"
-                                   @onchange="() => isGenerateVideo = false" checked="@(!isGenerateVideo)" disabled="@(isRunning || hasActiveSchedule)">
-                            <label class="form-check-label" for="useLocalVideo">
-                                <strong>로컬 파일 사용</strong> - 기존에 있는 영상 파일들을 업로드합니다
-                            </label>
-                        </div>
-                    </div>
-
-                    @if (isGenerateVideo)
-                    {
-                        <!-- AI 영상 생성 옵션들 -->
-                        <div class="row mb-3">
-                            <div class="col-md-4">
-                                <label class="form-label"><strong>생성할 영상 개수: @videoCount 개</strong></label>
-                                <input type="range" class="form-range" min="1" max="10" @bind="videoCount" disabled="@(isRunning || hasActiveSchedule)" />
-                                <div class="text-primary">총 예상 비용: $@totalCost</div>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label"><strong>영상 길이:</strong></label>
-                                <div>
-                                    <button type="button" class="btn @GetDurationClass(5)" @onclick="@(() => selectedDuration = 5)" disabled="@(isRunning || hasActiveSchedule)">5초</button>
-                                    <button type="button" class="btn @GetDurationClass(10)" @onclick="@(() => selectedDuration = 10)" disabled="@(isRunning || hasActiveSchedule)">10초</button>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label"><strong>화면 비율:</strong></label>
-                                <div>
-                                    <button type="button" class="btn @GetAspectClass("9:16")" @onclick="@(() => selectedAspectRatio = "9:16")" disabled="@(isRunning || hasActiveSchedule)">9:16</button>
-                                    <button type="button" class="btn @GetAspectClass("16:9")" @onclick="@(() => selectedAspectRatio = "16:9")" disabled="@(isRunning || hasActiveSchedule)">16:9</button>
-                                    <button type="button" class="btn @GetAspectClass("1:1")" @onclick="@(() => selectedAspectRatio = "1:1")" disabled="@(isRunning || hasActiveSchedule)">1:1</button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- CSV 파일 업로드 -->
-                        <div class="mb-3">
-                            <label class="form-label"><strong>랜덤 프롬프트 CSV 파일:</strong></label>
-                            <InputFile OnChange="HandleCsvFileSelection" accept=".csv" class="form-control" disabled="@(isRunning || hasActiveSchedule)" />
-                            <div class="form-text">CSV 파일 형식: 첫 번째 열은 번호, 두 번째 열은 프롬프트 내용</div>
-
-                            @if (csvPrompts.Count > 0)
-                            {
-                                <div class="mt-2 alert alert-success">
-                                    <strong>로드된 프롬프트:</strong> @csvPrompts.Count 개
-                                    <button type="button" class="btn btn-sm btn-outline-primary ms-2" @onclick="ShowCsvPreview" disabled="@(isRunning || hasActiveSchedule)">
-                                        미리보기
-                                    </button>
-                                </div>
-                            }
-                        </div>
-                    }
-                    else
-                    {
-                        <!-- 로컬 파일 선택 옵션들 -->
-                        <div class="mb-3">
-                            <label class="form-label"><strong>로컬 영상 파일들:</strong></label>
-                            <InputFile OnChange="HandleLocalVideoSelection" accept="video/*" multiple class="form-control" disabled="@(isRunning || hasActiveSchedule)" />
-                            <div class="form-text">하나 또는 여러 개의 비디오 파일을 선택하세요 (각각 최대 2GB)</div>
-
-                            @if (localVideoFiles.Count > 0)
-                            {
-                                <div class="mt-2 alert alert-success">
-                                    <strong>선택된 파일:</strong> @localVideoFiles.Count 개
-                                    <ul class="mb-0 mt-2">
-                                        @foreach (var file in localVideoFiles.Take(5))
-                                        {
-                                            <li>@file.Name (@FormatFileSize(file.Size))</li>
-                                        }
-                                        @if (localVideoFiles.Count > 5)
-                                        {
-                                            <li>... 외 @(localVideoFiles.Count - 5)개 더</li>
-                                        }
-                                    </ul>
-                                </div>
-                            }
-                        </div>
-                    }
-                </div>
-            </div>
-
-            <!-- 2. 후처리 설정 -->
-            <div class="card mb-4">
-                <div class="card-header bg-success text-white">
-                    <h4>2. 후처리 설정</h4>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" @bind="addCaption" id="addCaption" disabled="@(isRunning || hasActiveSchedule)">
-                                    <label class="form-check-label" for="addCaption">
-                                        <strong>캡션 추가</strong>
-                                    </label>
-                                </div>
-                                @if (addCaption)
-                                {
-                                    <div class="mt-2">
-                                        <input type="text" class="form-control form-control-sm" @bind="captionText" placeholder="캡션 텍스트" disabled="@(isRunning || hasActiveSchedule)" />
-                                        <div class="row mt-2">
-                                            <div class="col-4">
-                                                <select class="form-select form-select-sm" @bind="captionPosition" disabled="@(isRunning || hasActiveSchedule)">
-                                                    <option value="top">상단</option>
-                                                    <option value="center">중앙</option>
-                                                    <option value="bottom">하단</option>
-                                                    <option value="random">랜덤</option>
-                                                </select>
-                                            </div>
-                                            <div class="col-4">
-                                                <select class="form-select form-select-sm" @bind="captionSize" disabled="@(isRunning || hasActiveSchedule)">
-                                                    <option value="60">작게</option>
-                                                    <option value="80">보통</option>
-                                                    <option value="120">크게</option>
-                                                    <option value="random">랜덤</option>
-                                                </select>
-                                            </div>
-                                            <div class="col-4">
-                                                <select class="form-select form-select-sm" @bind="captionColor" disabled="@(isRunning || hasActiveSchedule)">
-                                                    <option value="white">흰색</option>
-                                                    <option value="yellow">노란색</option>
-                                                    <option value="red">빨간색</option>
-                                                    <option value="black">검정색</option>
-                                                    <option value="random">랜덤</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </div>
-                                }
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" @bind="addBackgroundMusic" id="addBackgroundMusic" disabled="@(isRunning || hasActiveSchedule)">
-                                    <label class="form-check-label" for="addBackgroundMusic">
-                                        <strong>배경음악 추가</strong>
-                                    </label>
-                                </div>
-                                @if (addBackgroundMusic)
-                                {
-                                    <div class="mt-2">
-                                        <label class="form-label form-label-sm">음량: @musicVolume</label>
-                                        <input type="range" class="form-range" min="0.1" max="1.0" step="0.1" @bind="musicVolume" disabled="@(isRunning || hasActiveSchedule)" />
-                                    </div>
-                                }
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 3. YouTube 업로드 설정 -->
-            <div class="card mb-4">
-                <div class="card-header bg-danger text-white">
-                    <h4>3. YouTube 업로드 설정</h4>
-                </div>
-                <div class="card-body">
-                    <!-- YouTube 계정 상태 -->
-                    <div class="mb-3">
-                        @if (currentYouTubeAccount == null)
-                        {
-                            <div class="alert alert-warning">
-                                <strong>YouTube 계정 연동 필요</strong>
-                                <button type="button" class="btn btn-danger btn-sm ms-2" @onclick="AuthenticateYouTube" disabled="@(isAuthenticating || isRunning)">
-                                    @if (isAuthenticating)
-                                    {
-                                        <span>인증 중...</span>
-                                    }
-                                    else
-                                    {
-                                        <span>계정 연동</span>
-                                    }
-                                </button>
-                            </div>
-                        }
-                        else
-                        {
-                            <div class="alert alert-success">
-                                <strong>연동된 계정:</strong> @currentYouTubeAccount.ChannelTitle
-                                <small class="text-muted ms-2">구독자: @FormatSubscriberCount(currentYouTubeAccount.SubscriberCount)명</small>
-                                <button type="button" class="btn btn-outline-secondary btn-sm ms-2" @onclick="SwitchYouTubeAccount" disabled="@(isRunning || hasActiveSchedule)">
-                                    계정 전환
-                                </button>
-                            </div>
-                        }
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label"><strong>제목 템플릿:</strong></label>
-                                <input type="text" class="form-control" @bind="titleTemplate" placeholder="예: Runmoa #NUMBER" disabled="@(isRunning || hasActiveSchedule)" />
-                                <div class="form-text">#NUMBER는 자동으로 #1, #2, #3... 으로 변환됩니다</div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label"><strong>태그:</strong></label>
-                                <input type="text" class="form-control" @bind="youtubeTags" placeholder="태그1, 태그2, 태그3" disabled="@(isRunning || hasActiveSchedule)" />
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label"><strong>설명:</strong></label>
-                                <textarea class="form-control" rows="3" @bind="youtubeDescription" placeholder="영상 설명" disabled="@(isRunning || hasActiveSchedule)"></textarea>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label"><strong>공개 설정:</strong></label>
-                                <select class="form-select" @bind="youtubePrivacy" disabled="@(isRunning || hasActiveSchedule)">
-                                    <option value="비공개">비공개</option>
-                                    <option value="공개">공개</option>
-                                    <option value="링크 공유">링크 공유</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 4. 업로드 방식 설정 -->
-            <div class="card mb-4">
-                <div class="card-header bg-warning text-dark">
-                    <h4>4. 업로드 방식 설정</h4>
-                </div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" name="uploadMode" id="immediateUpload"
-                                   @onchange="() => isScheduleUpload = false" checked="@(!isScheduleUpload)" disabled="@(isRunning || hasActiveSchedule)">
-                            <label class="form-check-label" for="immediateUpload">
-                                <strong>즉시 업로드</strong> - 영상 생성 완료 후 바로 순차 업로드
-                            </label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" name="uploadMode" id="scheduleUpload"
-                                   @onchange="() => isScheduleUpload = true" checked="@isScheduleUpload" disabled="@(isRunning || hasActiveSchedule)">
-                            <label class="form-check-label" for="scheduleUpload">
-                                <strong>스케줄 업로드</strong> - 지정된 시간에 랜덤하게 자동 업로드
-                            </label>
-                        </div>
-                    </div>
 
                     @if (isScheduleUpload)
                     {
@@ -459,18 +219,17 @@
 
 @code {
     
-    // 영상 소스 설정 (기존 변수들에 추가)
-    private bool isGenerateVideo = true;  // 기본값: 새로 생성
+    // 영상 소스 설정
+    private bool isGenerateVideo = true;
     private List<IBrowserFile> localVideoFiles = new List<IBrowserFile>();
 
     private bool CanStart =>
-    !hasActiveSchedule && // 스케줄이 진행 중이 아닐 때만
+    !hasActiveSchedule &&
     currentYouTubeAccount != null &&
     !string.IsNullOrWhiteSpace(titleTemplate) &&
     ((isGenerateVideo && csvPrompts.Count > 0) || (!isGenerateVideo && localVideoFiles.Count > 0));
 
     // 영상 생성 설정
-    // videoCount 바인딩을 수정
     private int _videoCount = 5;
     private int videoCount
     {
@@ -500,13 +259,13 @@
     private YouTubeUploader? youtubeUploader;
     private YouTubeUploader.YouTubeAccountInfo? currentYouTubeAccount;
     private bool isAuthenticating = false;
-    private string titleTemplate = "Runmoa #NUMBER";  // 수정
+    private string titleTemplate = "Runmoa #NUMBER";
     private string youtubeDescription = "www.runmoa.com";
     private string youtubeTags = "Runmoa, website, 1min";
     private string youtubePrivacy = "공개";
 
-    // 업로드 방식 설정 (기존 변수들에 추가)
-    private bool isScheduleUpload = true;  // 기본값을 스케줄 업로드로
+    // 업로드 방식 설정
+    private bool isScheduleUpload = true;
     private List<SchedulePreviewItem> schedulePreviewList = new List<SchedulePreviewItem>();
 
     public class SchedulePreviewItem
@@ -837,7 +596,7 @@
                     return "";
                 }
 
-                var fileToUpload = localVideoFiles[videoIndex - 1];  // videoIndex는 1부터 시작
+                var fileToUpload = localVideoFiles[videoIndex - 1];
 
                 // 임시 파일로 저장
                 string fileName = $"local_video_{DateTime.Now:yyyyMMdd_HHmmss}_{videoIndex:D2}_{fileToUpload.Name}";
@@ -880,12 +639,12 @@
                 {
                     Prompt = selectedPrompt,
                     FinalPrompt = combinedPrompt,
-                    Duration = 0, // 로컬 파일은 길이 모름
+                    Duration = 0,
                     AspectRatio = "로컬 파일",
                     VideoUrl = "",
                     IsRandomPrompt = false,
                     FileName = Path.GetFileName(finalPath),
-                    IsDownloaded = false, // All-in-One에서는 스케줄 등록
+                    IsDownloaded = false,
                     IsUploaded = false,
                     Status = "All-in-One (로컬 파일)"
                 };
@@ -908,27 +667,25 @@
 
                 combinedPrompt = ConfigManager.CombinePrompts(selectedPrompt);
 
-                // API 클라이언트 생성
+                // RunwayML API 클라이언트 생성
                 var config = ConfigManager.GetConfig();
-                var replicateClient = new ReplicateClient(config.ReplicateApiKey);
+                var runwayClient = new RunwayClient(config.RunwayApiKey);
 
-                var request = new ReplicateClient.VideoGenerationRequest
+                var request = new RunwayClient.VideoGenerationRequest
                 {
                     prompt = combinedPrompt,
                     duration = selectedDuration,
                     aspect_ratio = selectedAspectRatio,
-                    resolution = "1080p",
-                    fps = 24,
-                    camera_fixed = true
+                    model = "gen3a_turbo"
                 };
 
                 // 영상 생성
-                var prediction = await replicateClient.StartVideoGeneration(request);
-                var result = await replicateClient.WaitForCompletion(prediction.id);
+                var task = await runwayClient.StartVideoGeneration(request);
+                var result = await runwayClient.WaitForCompletion(task.id);
 
-                if (result.output != null)
+                if (result.status == "SUCCEEDED" && result.output != null && result.output.Count > 0)
                 {
-                    videoUrl = result.output.ToString();
+                    videoUrl = result.output[0].url;
 
                     // 다운로드
                     string fileName = $"allinone_video_{DateTime.Now:yyyyMMdd_HHmmss}_{videoIndex:D2}.mp4";
@@ -955,7 +712,7 @@
                         VideoUrl = videoUrl,
                         IsRandomPrompt = true,
                         FileName = Path.GetFileName(finalPath),
-                        IsDownloaded = false, // All-in-One에서는 스케줄 등록
+                        IsDownloaded = false,
                         IsUploaded = false,
                         Status = "All-in-One (AI 생성)"
                     };
@@ -1094,8 +851,8 @@
             OutputVideoPath = outputPath,
             CaptionText = addCaption ? captionText : "",
             CaptionPosition = actualCaptionPosition,
-            FontSize = actualCaptionSize,        // 랜덤 처리된 크기 사용
-            FontColor = actualCaptionColor,      // 랜덤 처리된 색상 사용
+            FontSize = actualCaptionSize,
+            FontColor = actualCaptionColor,
             BackgroundMusicPath = addBackgroundMusic ? await VideoPostProcessor.DownloadSampleMusicAsync() : "",
             MusicVolume = musicVolume
         };
@@ -1119,7 +876,7 @@
 
         schedulePreviewList.Clear();
         DateTime startTime = DateTime.Now.AddMinutes(5);
-        DateTime endTime = startTime.AddHours(scheduleHours); // float이므로 문제없음
+        DateTime endTime = startTime.AddHours(scheduleHours);
 
         for (int i = 0; i < videoCount; i++)
         {
@@ -1173,7 +930,7 @@
         }
         else
         {
-            // 즉시 업로드 - 여기서는 스케줄에 등록하지 않고 바로 업로드
+            // 즉시 업로드
             await StartImmediateUpload();
         }
     }
@@ -1187,7 +944,7 @@
         scheduleStatusTimer.Start();
     }
 
-    // 스케줄 상태 추적에 추가
+    // 스케줄 상태 추적
     private string nextUploadInfo = "";
 
     private void CheckScheduleStatus(object sender, System.Timers.ElapsedEventArgs e)
@@ -1315,7 +1072,7 @@
         double segmentMinutes = totalMinutes / totalCount;
 
         double segmentStart = index * segmentMinutes;
-        double segmentEnd = Math.Min((index + 1) * segmentMinutes, totalMinutes); // 전체 기간을 넘지 않도록
+        double segmentEnd = Math.Min((index + 1) * segmentMinutes, totalMinutes);
 
         Random random = new Random();
         double randomMinutes = segmentStart + (random.NextDouble() * (segmentEnd - segmentStart));
@@ -1338,4 +1095,244 @@
         return startTime.AddMinutes(randomMinutes);
     }
 
-}
+}>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="videoSource" id="useLocalVideo"
+                                   @onchange="() => isGenerateVideo = false" checked="@(!isGenerateVideo)" disabled="@(isRunning || hasActiveSchedule)">
+                            <label class="form-check-label" for="useLocalVideo">
+                                <strong>로컬 파일 사용</strong> - 기존에 있는 영상 파일들을 업로드합니다
+                            </label>
+                        </div>
+                    </div>
+
+                    @if (isGenerateVideo)
+                    {
+                        <!-- AI 영상 생성 옵션들 -->
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label"><strong>생성할 영상 개수: @videoCount 개</strong></label>
+                                <input type="range" class="form-range" min="1" max="10" @bind="videoCount" disabled="@(isRunning || hasActiveSchedule)" />
+                                <div class="text-primary">총 예상 비용: $@totalCost</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label"><strong>영상 길이:</strong></label>
+                                <div>
+                                    <button type="button" class="btn @GetDurationClass(5)" @onclick="@(() => selectedDuration = 5)" disabled="@(isRunning || hasActiveSchedule)">5초</button>
+                                    <button type="button" class="btn @GetDurationClass(10)" @onclick="@(() => selectedDuration = 10)" disabled="@(isRunning || hasActiveSchedule)">10초</button>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label"><strong>화면 비율:</strong></label>
+                                <div>
+                                    <button type="button" class="btn @GetAspectClass("9:16")" @onclick="@(() => selectedAspectRatio = "9:16")" disabled="@(isRunning || hasActiveSchedule)">9:16</button>
+                                    <button type="button" class="btn @GetAspectClass("16:9")" @onclick="@(() => selectedAspectRatio = "16:9")" disabled="@(isRunning || hasActiveSchedule)">16:9</button>
+                                    <button type="button" class="btn @GetAspectClass("1:1")" @onclick="@(() => selectedAspectRatio = "1:1")" disabled="@(isRunning || hasActiveSchedule)">1:1</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- CSV 파일 업로드 -->
+                        <div class="mb-3">
+                            <label class="form-label"><strong>랜덤 프롬프트 CSV 파일:</strong></label>
+                            <InputFile OnChange="HandleCsvFileSelection" accept=".csv" class="form-control" disabled="@(isRunning || hasActiveSchedule)" />
+                            <div class="form-text">CSV 파일 형식: 첫 번째 열은 번호, 두 번째 열은 프롬프트 내용</div>
+
+                            @if (csvPrompts.Count > 0)
+                            {
+                                <div class="mt-2 alert alert-success">
+                                    <strong>로드된 프롬프트:</strong> @csvPrompts.Count 개
+                                    <button type="button" class="btn btn-sm btn-outline-primary ms-2" @onclick="ShowCsvPreview" disabled="@(isRunning || hasActiveSchedule)">
+                                        미리보기
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <!-- 로컬 파일 선택 옵션들 -->
+                        <div class="mb-3">
+                            <label class="form-label"><strong>로컬 영상 파일들:</strong></label>
+                            <InputFile OnChange="HandleLocalVideoSelection" accept="video/*" multiple class="form-control" disabled="@(isRunning || hasActiveSchedule)" />
+                            <div class="form-text">하나 또는 여러 개의 비디오 파일을 선택하세요 (각각 최대 2GB)</div>
+
+                            @if (localVideoFiles.Count > 0)
+                            {
+                                <div class="mt-2 alert alert-success">
+                                    <strong>선택된 파일:</strong> @localVideoFiles.Count 개
+                                    <ul class="mb-0 mt-2">
+                                        @foreach (var file in localVideoFiles.Take(5))
+                                        {
+                                            <li>@file.Name (@FormatFileSize(file.Size))</li>
+                                        }
+                                        @if (localVideoFiles.Count > 5)
+                                        {
+                                            <li>... 외 @(localVideoFiles.Count - 5)개 더</li>
+                                        }
+                                    </ul>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- 2. 후처리 설정 -->
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h4>2. 후처리 설정</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" @bind="addCaption" id="addCaption" disabled="@(isRunning || hasActiveSchedule)">
+                                    <label class="form-check-label" for="addCaption">
+                                        <strong>캡션 추가</strong>
+                                    </label>
+                                </div>
+                                @if (addCaption)
+                                {
+                                    <div class="mt-2">
+                                        <input type="text" class="form-control form-control-sm" @bind="captionText" placeholder="캡션 텍스트" disabled="@(isRunning || hasActiveSchedule)" />
+                                        <div class="row mt-2">
+                                            <div class="col-4">
+                                                <select class="form-select form-select-sm" @bind="captionPosition" disabled="@(isRunning || hasActiveSchedule)">
+                                                    <option value="top">상단</option>
+                                                    <option value="center">중앙</option>
+                                                    <option value="bottom">하단</option>
+                                                    <option value="random">랜덤</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-4">
+                                                <select class="form-select form-select-sm" @bind="captionSize" disabled="@(isRunning || hasActiveSchedule)">
+                                                    <option value="60">작게</option>
+                                                    <option value="80">보통</option>
+                                                    <option value="120">크게</option>
+                                                    <option value="random">랜덤</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-4">
+                                                <select class="form-select form-select-sm" @bind="captionColor" disabled="@(isRunning || hasActiveSchedule)">
+                                                    <option value="white">흰색</option>
+                                                    <option value="yellow">노란색</option>
+                                                    <option value="red">빨간색</option>
+                                                    <option value="black">검정색</option>
+                                                    <option value="random">랜덤</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" @bind="addBackgroundMusic" id="addBackgroundMusic" disabled="@(isRunning || hasActiveSchedule)">
+                                    <label class="form-check-label" for="addBackgroundMusic">
+                                        <strong>배경음악 추가</strong>
+                                    </label>
+                                </div>
+                                @if (addBackgroundMusic)
+                                {
+                                    <div class="mt-2">
+                                        <label class="form-label form-label-sm">음량: @musicVolume</label>
+                                        <input type="range" class="form-range" min="0.1" max="1.0" step="0.1" @bind="musicVolume" disabled="@(isRunning || hasActiveSchedule)" />
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. YouTube 업로드 설정 -->
+            <div class="card mb-4">
+                <div class="card-header bg-danger text-white">
+                    <h4>3. YouTube 업로드 설정</h4>
+                </div>
+                <div class="card-body">
+                    <!-- YouTube 계정 상태 -->
+                    <div class="mb-3">
+                        @if (currentYouTubeAccount == null)
+                        {
+                            <div class="alert alert-warning">
+                                <strong>YouTube 계정 연동 필요</strong>
+                                <button type="button" class="btn btn-danger btn-sm ms-2" @onclick="AuthenticateYouTube" disabled="@(isAuthenticating || isRunning)">
+                                    @if (isAuthenticating)
+                                    {
+                                        <span>인증 중...</span>
+                                    }
+                                    else
+                                    {
+                                        <span>계정 연동</span>
+                                    }
+                                </button>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-success">
+                                <strong>연동된 계정:</strong> @currentYouTubeAccount.ChannelTitle
+                                <small class="text-muted ms-2">구독자: @FormatSubscriberCount(currentYouTubeAccount.SubscriberCount)명</small>
+                                <button type="button" class="btn btn-outline-secondary btn-sm ms-2" @onclick="SwitchYouTubeAccount" disabled="@(isRunning || hasActiveSchedule)">
+                                    계정 전환
+                                </button>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label"><strong>제목 템플릿:</strong></label>
+                                <input type="text" class="form-control" @bind="titleTemplate" placeholder="예: Runmoa #NUMBER" disabled="@(isRunning || hasActiveSchedule)" />
+                                <div class="form-text">#NUMBER는 자동으로 #1, #2, #3... 으로 변환됩니다</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label"><strong>태그:</strong></label>
+                                <input type="text" class="form-control" @bind="youtubeTags" placeholder="태그1, 태그2, 태그3" disabled="@(isRunning || hasActiveSchedule)" />
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label"><strong>설명:</strong></label>
+                                <textarea class="form-control" rows="3" @bind="youtubeDescription" placeholder="영상 설명" disabled="@(isRunning || hasActiveSchedule)"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label"><strong>공개 설정:</strong></label>
+                                <select class="form-select" @bind="youtubePrivacy" disabled="@(isRunning || hasActiveSchedule)">
+                                    <option value="비공개">비공개</option>
+                                    <option value="공개">공개</option>
+                                    <option value="링크 공유">링크 공유</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. 업로드 방식 설정 -->
+            <div class="card mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h4>4. 업로드 방식 설정</h4>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="uploadMode" id="immediateUpload"
+                                   @onchange="() => isScheduleUpload = false" checked="@(!isScheduleUpload)" disabled="@(isRunning || hasActiveSchedule)">
+                            <label class="form-check-label" for="immediateUpload">
+                                <strong>즉시 업로드</strong> - 영상 생성 완료 후 바로 순차 업로드
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="uploadMode" id="scheduleUpload"
+                                   @onchange="() => isScheduleUpload = true" checked="@isScheduleUpload" disabled="@(isRunning || hasActiveSchedule)">
+                            <label class="form-check-label" for="scheduleUpload">
+                                <strong>스케줄 업로드</strong> - 지정된 시간에 랜덤하게 자동 업로드
+                            </label>
+                        </div>
+                    </div
