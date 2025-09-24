@@ -18,14 +18,21 @@ namespace YouTubeShortsWebApp
         {
             _apiKey = apiKey;
             _httpClient = new HttpClient();
-            _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_apiKey}");
-    
-            // 브라우저처럼 보이게 하는 헤더들 추가
+            
+            // Cloudflare가 좋아하는 헤더들로 설정
+            _httpClient.DefaultRequestHeaders.Clear();
             _httpClient.DefaultRequestHeaders.Add("User-Agent", 
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
-            _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+            _httpClient.DefaultRequestHeaders.Add("Accept", "application/json, text/plain, */*");
             _httpClient.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.9");
-    
+            _httpClient.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate, br");
+            _httpClient.DefaultRequestHeaders.Add("Cache-Control", "no-cache");
+            _httpClient.DefaultRequestHeaders.Add("Sec-Fetch-Dest", "empty");
+            _httpClient.DefaultRequestHeaders.Add("Sec-Fetch-Mode", "cors");
+            _httpClient.DefaultRequestHeaders.Add("Sec-Fetch-Site", "cross-site");
+            
+            // Authorization 헤더는 마지막에 추가
+            _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_apiKey}");
             _httpClient.Timeout = TimeSpan.FromMinutes(30);
         }
 
