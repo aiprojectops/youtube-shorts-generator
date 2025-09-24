@@ -152,20 +152,7 @@ namespace YouTubeShortsWebApp
             return !string.IsNullOrEmpty(GetConfig().ReplicateApiKey);
         }
 
-        
-        // 메서드 추가
-        public static void SetRunwayApiKey(string apiKey)
-        {
-            GetConfig().RunwayApiKey = apiKey ?? "";
-            SaveConfig();
-        }
-
-        public static bool IsRunwayApiKeySet()
-        {
-            return !string.IsNullOrEmpty(GetConfig().RunwayApiKey);
-        }
-
-        
+         
         // YouTube API 관련
         public static void SetYouTubeCredentials(string clientId, string clientSecret)
         {
