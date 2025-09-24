@@ -598,7 +598,8 @@
             if (isGenerateVideo)
             {
                 var config = ConfigManager.GetConfig();
-                replicateClient = new ReplicateClient(config.ReplicateApiKey);
+                // replicateClient = new ReplicateClient(config.ReplicateApiKey);
+                var runwayClient = new RunwayClient(config.RunwayApiKey);
             }
 
             int totalVideosToProcess = isGenerateVideo ? videoCount : localVideoFiles.Count;
@@ -630,7 +631,7 @@
                         // 기본 프롬프트와 합성
                         combinedPrompt = ConfigManager.CombinePrompts(finalPrompt);
 
-                        // 비디오 생성 요청 준비
+                        /* // 비디오 생성 요청 준비
                         var request = new ReplicateClient.VideoGenerationRequest
                         {
                             prompt = combinedPrompt,
@@ -639,6 +640,13 @@
                             resolution = "1080p",
                             fps = 24,
                             camera_fixed = true
+                        }; */
+                        var request = new RunwayClient.VideoGenerationRequest
+                        {
+                            prompt = combinedPrompt,
+                            duration = selectedDuration,
+                            aspect_ratio = selectedAspectRatio,
+                            model = "gen3a_turbo"
                         };
 
                         statusMessage = $"영상 {i + 1}/{totalVideosToProcess} - API 요청 중...";
