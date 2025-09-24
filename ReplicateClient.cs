@@ -19,21 +19,39 @@ namespace YouTubeShortsWebApp
             _apiKey = apiKey;
             _httpClient = new HttpClient();
             
-            // Cloudflare가 좋아하는 헤더들로 설정
+            Console.WriteLine("=== ReplicateClient 초기화 - Cloudflare 우회 헤더 설정");
+            
+            // 기존 헤더 모두 제거
             _httpClient.DefaultRequestHeaders.Clear();
+            
+            // Cloudflare가 좋아하는 실제 브라우저처럼 보이는 헤더들
             _httpClient.DefaultRequestHeaders.Add("User-Agent", 
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+            
             _httpClient.DefaultRequestHeaders.Add("Accept", "application/json, text/plain, */*");
             _httpClient.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.9");
             _httpClient.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate, br");
             _httpClient.DefaultRequestHeaders.Add("Cache-Control", "no-cache");
+            _httpClient.DefaultRequestHeaders.Add("Pragma", "no-cache");
+            
+            // Chrome 보안 헤더들
+            _httpClient.DefaultRequestHeaders.Add("Sec-Ch-Ua", "\"Not_A Brand\";v=\"8\", \"Chromium\";v=\"120\", \"Google Chrome\";v=\"120\"");
+            _httpClient.DefaultRequestHeaders.Add("Sec-Ch-Ua-Mobile", "?0");
+            _httpClient.DefaultRequestHeaders.Add("Sec-Ch-Ua-Platform", "\"Windows\"");
             _httpClient.DefaultRequestHeaders.Add("Sec-Fetch-Dest", "empty");
             _httpClient.DefaultRequestHeaders.Add("Sec-Fetch-Mode", "cors");
             _httpClient.DefaultRequestHeaders.Add("Sec-Fetch-Site", "cross-site");
             
+            // Origin과 Referer 추가 (실제 웹사이트에서 오는 것처럼)
+            _httpClient.DefaultRequestHeaders.Add("Origin", "https://replicate.com");
+            _httpClient.DefaultRequestHeaders.Add("Referer", "https://replicate.com/");
+            
             // Authorization 헤더는 마지막에 추가
             _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_apiKey}");
+            
             _httpClient.Timeout = TimeSpan.FromMinutes(30);
+            
+            Console.WriteLine("=== ReplicateClient 헤더 설정 완료");
         }
 
         public class VideoGenerationRequest
@@ -73,6 +91,9 @@ namespace YouTubeShortsWebApp
         {
             try
             {
+                Console.WriteLine("=== 영상 생성 API 호출 전 지연 시작 (Cloudflare 우회)");
+                await Task.Delay(3000); // 3초 지연
+                Console.WriteLine("=== 지연 완료, API 호출 시작");
                 // null 값들을 제거하여 정리된 input 객체 생성
                 var input = new Dictionary<string, object>
                 {
@@ -123,6 +144,22 @@ namespace YouTubeShortsWebApp
 
                 if (!response.IsSuccessStatusCode)
                 {
+                    // 더 자세한 오류 정보 출력
+                    Console.WriteLine($"=== 상세 오류 정보 ===");
+                    Console.WriteLine($"Status Code: {response.StatusCode}");
+                    Console.WriteLine($"Reason Phrase: {response.ReasonPhrase}");
+                    Console.WriteLine($"Response Headers:");
+                    foreach (var header in response.Headers)
+                    {
+                        Console.WriteLine($"  {header.Key}: {string.Join(", ", header.Value)}");
+                    }
+                    Console.WriteLine($"Content Headers:");
+                    foreach (var header in response.Content.Headers)
+                    {
+                        Console.WriteLine($"  {header.Key}: {string.Join(", ", header.Value)}");
+                    }
+                    Console.WriteLine($"Full Response: {responseContent}");
+                    
                     throw new Exception($"API 요청 실패: {response.StatusCode} - {responseContent}");
                 }
 
@@ -139,7 +176,10 @@ namespace YouTubeShortsWebApp
         {
             try
             {
+                // 상태 확인 간 지연 (봇 감지 방지)
+                await Task.Delay(2000); // 2초 지연                
                 HttpResponseMessage response = await _httpClient.GetAsync($"{BaseUrl}/predictions/{predictionId}");
+                
                 string responseContent = await response.Content.ReadAsStringAsync();
 
                 System.Diagnostics.Debug.WriteLine($"상태 확인: {predictionId} - {responseContent}");
