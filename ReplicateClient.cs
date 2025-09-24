@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
@@ -11,12 +11,27 @@ namespace YouTubeShortsWebApp
     {
         private readonly HttpClient _httpClient;
         private readonly string _apiKey;
-        private const string BaseUrl = "https://api.replicate.com/v1";
+        private readonly string _baseUrl;
         private const string ModelPath = "bytedance/seedance-1-pro";
 
         public ReplicateClient(string apiKey)
         {
             _apiKey = apiKey;
+            
+            // 프록시 URL 확인
+            string proxyUrl = Environment.GetEnvironmentVariable("REPLICATE_PROXY_URL");
+            
+            if (!string.IsNullOrEmpty(proxyUrl))
+            {
+                _baseUrl = $"{proxyUrl.TrimEnd('/')}/api/replicate/v1";
+                Console.WriteLine($"=== Replicate 프록시 사용: {_baseUrl}");
+            }
+            else
+            {
+                _baseUrl = "https://api.replicate.com/v1";
+                Console.WriteLine($"=== Replicate 직접 접근: {_baseUrl}");
+            }
+            
             _httpClient = new HttpClient();
             
             Console.WriteLine("=== ReplicateClient 초기화 - Cloudflare 우회 헤더 설정");
@@ -42,10 +57,6 @@ namespace YouTubeShortsWebApp
             _httpClient.DefaultRequestHeaders.Add("Sec-Fetch-Mode", "cors");
             _httpClient.DefaultRequestHeaders.Add("Sec-Fetch-Site", "cross-site");
             
-            // Origin과 Referer 추가 (실제 웹사이트에서 오는 것처럼)
-            _httpClient.DefaultRequestHeaders.Add("Origin", "https://replicate.com");
-            _httpClient.DefaultRequestHeaders.Add("Referer", "https://replicate.com/");
-            
             // Authorization 헤더는 마지막에 추가
             _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_apiKey}");
             
@@ -57,7 +68,7 @@ namespace YouTubeShortsWebApp
         public class VideoGenerationRequest
         {
             public string prompt { get; set; }
-            public string image { get; set; } = null; // optional for image-to-video
+            public string image { get; set; } = null;
             public int duration { get; set; } = 5;
             public string resolution { get; set; } = "1080p";
             public string aspect_ratio { get; set; } = "16:9";
@@ -74,10 +85,9 @@ namespace YouTubeShortsWebApp
             public string error { get; set; }
             public DateTime created_at { get; set; }
             public DateTime? completed_at { get; set; }
-            public object logs { get; set; } // 로그 정보 추가
+            public object logs { get; set; }
         }
 
-        // 진행률 정보를 담는 클래스
         public class ProgressInfo
         {
             public int Percentage { get; set; }
@@ -86,7 +96,29 @@ namespace YouTubeShortsWebApp
             public string EstimatedTimeRemaining { get; set; }
         }
 
-        // 영상 생성 시작 - 공식 API 형식
+        // 연결 테스트 메서드
+        public async Task<bool> TestConnectionAsync()
+        {
+            try
+            {
+                Console.WriteLine($"=== 연결 테스트 시작: {_baseUrl}");
+                
+                // 단순한 GET 요청으로 연결 테스트
+                var response = await _httpClient.GetAsync($"{_baseUrl}/models");
+                var content = await response.Content.ReadAsStringAsync();
+                
+                Console.WriteLine($"=== 연결 테스트 결과: {response.StatusCode}");
+                Console.WriteLine($"=== 응답 내용 (일부): {content.Substring(0, Math.Min(200, content.Length))}");
+                
+                return response.IsSuccessStatusCode;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"=== 연결 테스트 실패: {ex.Message}");
+                return false;
+            }
+        }
+
         public async Task<PredictionResponse> StartVideoGeneration(VideoGenerationRequest request)
         {
             try
@@ -94,7 +126,7 @@ namespace YouTubeShortsWebApp
                 Console.WriteLine("=== 영상 생성 API 호출 전 지연 시작 (Cloudflare 우회)");
                 await Task.Delay(3000); // 3초 지연
                 Console.WriteLine("=== 지연 완료, API 호출 시작");
-                // null 값들을 제거하여 정리된 input 객체 생성
+                
                 var input = new Dictionary<string, object>
                 {
                     ["prompt"] = request.prompt,
@@ -105,7 +137,6 @@ namespace YouTubeShortsWebApp
                     ["camera_fixed"] = request.camera_fixed
                 };
 
-                // null이 아닌 값들만 추가
                 if (!string.IsNullOrEmpty(request.image))
                 {
                     input["image"] = request.image;
@@ -116,27 +147,18 @@ namespace YouTubeShortsWebApp
                     input["seed"] = request.seed.Value;
                 }
 
-                // 공식 API 형식: input 객체만 전달
-                var requestBody = new
-                {
-                    input = input
-                };
-
+                var requestBody = new { input = input };
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(requestBody, Newtonsoft.Json.Formatting.Indented);
 
-                // 디버깅용
                 System.Diagnostics.Debug.WriteLine("=== API 요청 ===");
-                System.Diagnostics.Debug.WriteLine($"URL: {BaseUrl}/models/{ModelPath}/predictions");
+                System.Diagnostics.Debug.WriteLine($"URL: {_baseUrl}/models/{ModelPath}/predictions");
                 System.Diagnostics.Debug.WriteLine("JSON:");
                 System.Diagnostics.Debug.WriteLine(json);
 
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                // 공식 API 경로 사용
-                HttpResponseMessage response = await _httpClient.PostAsync($"{BaseUrl}/models/{ModelPath}/predictions", content);
+                HttpResponseMessage response = await _httpClient.PostAsync($"{_baseUrl}/models/{ModelPath}/predictions", content);
                 string responseContent = await response.Content.ReadAsStringAsync();
 
-                // 디버깅용
                 System.Diagnostics.Debug.WriteLine("=== API 응답 ===");
                 System.Diagnostics.Debug.WriteLine($"상태 코드: {response.StatusCode}");
                 System.Diagnostics.Debug.WriteLine("응답 내용:");
@@ -171,18 +193,17 @@ namespace YouTubeShortsWebApp
             }
         }
 
-        // 생성 상태 확인
         public async Task<PredictionResponse> GetPredictionStatus(string predictionId)
         {
             try
             {
                 // 상태 확인 간 지연 (봇 감지 방지)
-                await Task.Delay(2000); // 2초 지연                
-                HttpResponseMessage response = await _httpClient.GetAsync($"{BaseUrl}/predictions/{predictionId}");
+                await Task.Delay(2000); // 2초 지연
                 
+                HttpResponseMessage response = await _httpClient.GetAsync($"{_baseUrl}/predictions/{predictionId}");
                 string responseContent = await response.Content.ReadAsStringAsync();
 
-                System.Diagnostics.Debug.WriteLine($"상태 확인: {predictionId} - {responseContent}");
+                System.Diagnostics.Debug.WriteLine($"상태 확인: {predictionId} - 상태코드: {response.StatusCode}");
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -197,7 +218,6 @@ namespace YouTubeShortsWebApp
             }
         }
 
-        // 개선된 진행률 계산
         private ProgressInfo CalculateProgress(PredictionResponse status, DateTime startTime, int attemptNumber, int maxAttempts)
         {
             var elapsed = DateTime.Now - startTime;
@@ -212,14 +232,11 @@ namespace YouTubeShortsWebApp
                     statusText = "초기화 중";
                     break;
                 case "processing":
-                    // 처리 단계에서는 시간 기반으로 진행률 추정
-                    // 이미지-투-비디오는 더 오래 걸리므로 다르게 계산
                     double processingProgress = Math.Min(90, (attemptNumber * 100.0 / maxAttempts) * 0.8 + 10);
                     percentage = (int)processingProgress;
                     statusText = "영상 생성 중";
 
-                    // 남은 시간 추정 (대략적)
-                    if (attemptNumber > 5) // 충분한 데이터가 있을 때만
+                    if (attemptNumber > 5)
                     {
                         double avgTimePerAttempt = elapsed.TotalSeconds / attemptNumber;
                         double estimatedTotalTime = avgTimePerAttempt * maxAttempts;
@@ -258,23 +275,17 @@ namespace YouTubeShortsWebApp
             };
         }
 
-        // 영상 생성 완료까지 대기 (폴링) - 개선된 버전
         public async Task<PredictionResponse> WaitForCompletion(string predictionId,
             IProgress<ProgressInfo> progress = null, CancellationToken cancellationToken = default)
         {
-            // 최대 대기 시간을 20분으로 증가 (이미지-투-비디오는 더 오래 걸림)
-            const int maxAttempts = 240; // 20분 (5초 간격)
+            const int maxAttempts = 240;
             int attempts = 0;
             DateTime startTime = DateTime.Now;
-
-            // 첫 번째 몇 번의 체크는 더 자주 하기 (1초 간격)
             int quickCheckCount = 10;
 
             while (attempts < maxAttempts && !cancellationToken.IsCancellationRequested)
             {
                 var status = await GetPredictionStatus(predictionId);
-
-                // 진행률 계산 및 업데이트
                 var progressInfo = CalculateProgress(status, startTime, attempts, maxAttempts);
                 progress?.Report(progressInfo);
 
@@ -282,7 +293,6 @@ namespace YouTubeShortsWebApp
 
                 if (status.status == "succeeded")
                 {
-                    // 최종 완료 진행률 업데이트
                     progress?.Report(new ProgressInfo
                     {
                         Percentage = 100,
@@ -297,8 +307,7 @@ namespace YouTubeShortsWebApp
                     throw new Exception($"영상 생성 실패: {status.error ?? "알 수 없는 오류"}");
                 }
 
-                // 대기 시간 조정 (처음에는 1초, 나중에는 5초)
-                int delaySeconds = attempts < quickCheckCount ? 1 : 5;
+                int delaySeconds = attempts < quickCheckCount ? 2 : 5; // 프록시 사용시 더 긴 간격
                 await Task.Delay(delaySeconds * 1000, cancellationToken);
                 attempts++;
             }
@@ -311,9 +320,7 @@ namespace YouTubeShortsWebApp
             throw new TimeoutException($"영상 생성 시간이 초과되었습니다. (최대 {maxAttempts * 5 / 60}분)");
         }
 
-
-        // ReplicateClient.cs에 추가할 메서드들
-
+        // 계정 정보 클래스
         public class AccountInfo
         {
             public decimal? credit_balance { get; set; }
@@ -322,17 +329,15 @@ namespace YouTubeShortsWebApp
         }
 
         // 계정 정보 및 크레딧 잔액 조회
-        // 계정 정보 및 크레딧 잔액 조회
         public async Task<AccountInfo> GetAccountInfoAsync()
         {
             try
             {
-                // 다양한 엔드포인트 시도
                 string[] endpoints = {
-            $"{BaseUrl}/account",
-            $"{BaseUrl}/user",
-            $"{BaseUrl}/billing/balance"
-        };
+                    $"{_baseUrl}/account",
+                    $"{_baseUrl}/user",
+                    $"{_baseUrl}/billing/balance"
+                };
 
                 foreach (string endpoint in endpoints)
                 {
@@ -381,10 +386,9 @@ namespace YouTubeShortsWebApp
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"크레딧 조회 오류: {ex.Message}");
-                return null; // 오류 시 null 반환
+                return null;
             }
         }
-
 
         // 리소스 정리
         public void Dispose()
