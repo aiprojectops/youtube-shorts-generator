@@ -19,7 +19,14 @@ namespace YouTubeShortsWebApp
             _apiKey = apiKey;
             _httpClient = new HttpClient();
             _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_apiKey}");
-            _httpClient.Timeout = TimeSpan.FromMinutes(30); // HTTP 클라이언트 타임아웃 증가
+    
+            // 브라우저처럼 보이게 하는 헤더들 추가
+            _httpClient.DefaultRequestHeaders.Add("User-Agent", 
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
+            _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
+            _httpClient.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.9");
+    
+            _httpClient.Timeout = TimeSpan.FromMinutes(30);
         }
 
         public class VideoGenerationRequest
