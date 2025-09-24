@@ -14,6 +14,7 @@ namespace YouTubeShortsWebApp
         public class Config
         {
             public string ReplicateApiKey { get; set; } = "";
+            public string RunwayApiKey { get; set; } = "";  // 추가
             public string YouTubeClientId { get; set; } = "";
             public string YouTubeClientSecret { get; set; } = "";
             public string LastOutputDirectory { get; set; } = "";
@@ -130,6 +131,20 @@ namespace YouTubeShortsWebApp
             return !string.IsNullOrEmpty(GetConfig().ReplicateApiKey);
         }
 
+        
+        // 메서드 추가
+        public static void SetRunwayApiKey(string apiKey)
+        {
+            GetConfig().RunwayApiKey = apiKey ?? "";
+            SaveConfig();
+        }
+
+        public static bool IsRunwayApiKeySet()
+        {
+            return !string.IsNullOrEmpty(GetConfig().RunwayApiKey);
+        }
+
+        
         // YouTube API 관련
         public static void SetYouTubeCredentials(string clientId, string clientSecret)
         {
