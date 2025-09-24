@@ -31,27 +31,6 @@
                 </div>
             </div>
 
-            <!-- RunwayML API 설정 추가 -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5>🎬 RunwayML API 설정</h5>
-                </div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        <label class="form-label"><strong>RunwayML API 키:</strong></label>
-                        <div class="input-group">
-                            <input type="@(showRunwayApiKey ? "text" : "password")" class="form-control" @bind="runwayApiKey" placeholder="rw_..." />
-                            <button type="button" class="btn btn-outline-secondary" @onclick="ToggleRunwayApiKeyVisibility">
-                                @(showRunwayApiKey ? "숨기기" : "보기")
-                            </button>
-                        </div>
-                        <div class="form-text">
-                            <a href="https://runwayml.com" target="_blank">RunwayML.com</a>에서 API 키를 발급받으세요.
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <!-- 기본 프롬프트 설정 -->
             <div class="card mb-4">
                 <div class="card-header">
@@ -156,14 +135,12 @@
 @code {
     // API 설정
     private string replicateApiKey = "";
-    private string runwayApiKey = "";
     private string youtubeClientId = "";
     private string youtubeClientSecret = "";
     private string basePrompt = "";
 
     // UI 상태
     private bool showApiKey = false;
-    private bool showRunwayApiKey = false;
     private bool isSaving = false;
     private string saveMessage = "";
     private string saveMessageClass = "";
@@ -184,7 +161,6 @@
         {
             var config = ConfigManager.GetConfig();
             replicateApiKey = config.ReplicateApiKey ?? "";
-            runwayApiKey = config.RunwayApiKey ?? "";
             youtubeClientId = config.YouTubeClientId ?? "";
             youtubeClientSecret = config.YouTubeClientSecret ?? "";
             basePrompt = config.BasePrompt ?? "";
@@ -210,7 +186,7 @@
         {
             // Replicate API 키 저장
             ConfigManager.SetReplicateApiKey(replicateApiKey.Trim());
-            ConfigManager.SetRunwayApiKey(runwayApiKey.Trim());
+
             // 기본 프롬프트 저장
             ConfigManager.SetBasePrompt(basePrompt.Trim());
 
@@ -233,12 +209,6 @@
             isSaving = false;
         }
     }
-
-    // 메서드 추가:
-    private void ToggleRunwayApiKeyVisibility()
-    {
-         showRunwayApiKey = !showRunwayApiKey;
-     }
 
     private async Task TestFFmpeg()
     {
