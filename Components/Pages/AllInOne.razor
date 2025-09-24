@@ -1,4 +1,4 @@
-@page "/all-in-one"
+﻿@page "/all-in-one"
 @rendermode InteractiveServer
 @using YouTubeShortsWebApp
 @inject IJSRuntime JSRuntime
@@ -456,19 +456,21 @@
     </div>
 }
 
+
 @code {
     
-    // 영상 소스 설정
-    private bool isGenerateVideo = true;
+    // 영상 소스 설정 (기존 변수들에 추가)
+    private bool isGenerateVideo = true;  // 기본값: 새로 생성
     private List<IBrowserFile> localVideoFiles = new List<IBrowserFile>();
 
     private bool CanStart =>
-    !hasActiveSchedule &&
+    !hasActiveSchedule && // 스케줄이 진행 중이 아닐 때만
     currentYouTubeAccount != null &&
     !string.IsNullOrWhiteSpace(titleTemplate) &&
     ((isGenerateVideo && csvPrompts.Count > 0) || (!isGenerateVideo && localVideoFiles.Count > 0));
 
     // 영상 생성 설정
+    // videoCount 바인딩을 수정
     private int _videoCount = 5;
     private int videoCount
     {
@@ -498,13 +500,13 @@
     private YouTubeUploader? youtubeUploader;
     private YouTubeUploader.YouTubeAccountInfo? currentYouTubeAccount;
     private bool isAuthenticating = false;
-    private string titleTemplate = "Runmoa #NUMBER";
+    private string titleTemplate = "Runmoa #NUMBER";  // 수정
     private string youtubeDescription = "www.runmoa.com";
     private string youtubeTags = "Runmoa, website, 1min";
     private string youtubePrivacy = "공개";
 
-    // 업로드 방식 설정
-    private bool isScheduleUpload = true;
+    // 업로드 방식 설정 (기존 변수들에 추가)
+    private bool isScheduleUpload = true;  // 기본값을 스케줄 업로드로
     private List<SchedulePreviewItem> schedulePreviewList = new List<SchedulePreviewItem>();
 
     public class SchedulePreviewItem
@@ -530,7 +532,6 @@
     // 스케줄 상태 추적
     private bool hasActiveSchedule = false;
     private System.Timers.Timer? scheduleStatusTimer;
-    private string nextUploadInfo = "";
 
     public class GeneratedVideo
     {
@@ -836,7 +837,7 @@
                     return "";
                 }
 
-                var fileToUpload = localVideoFiles[videoIndex - 1];
+                var fileToUpload = localVideoFiles[videoIndex - 1];  // videoIndex는 1부터 시작
 
                 // 임시 파일로 저장
                 string fileName = $"local_video_{DateTime.Now:yyyyMMdd_HHmmss}_{videoIndex:D2}_{fileToUpload.Name}";
@@ -879,12 +880,12 @@
                 {
                     Prompt = selectedPrompt,
                     FinalPrompt = combinedPrompt,
-                    Duration = 0,
+                    Duration = 0, // 로컬 파일은 길이 모름
                     AspectRatio = "로컬 파일",
                     VideoUrl = "",
                     IsRandomPrompt = false,
                     FileName = Path.GetFileName(finalPath),
-                    IsDownloaded = false,
+                    IsDownloaded = false, // All-in-One에서는 스케줄 등록
                     IsUploaded = false,
                     Status = "All-in-One (로컬 파일)"
                 };
@@ -907,25 +908,27 @@
 
                 combinedPrompt = ConfigManager.CombinePrompts(selectedPrompt);
 
-                // RunwayML API 클라이언트 생성
+                // API 클라이언트 생성
                 var config = ConfigManager.GetConfig();
-                var runwayClient = new RunwayClient(config.RunwayApiKey);
+                var replicateClient = new ReplicateClient(config.ReplicateApiKey);
 
-                var request = new RunwayClient.VideoGenerationRequest
+                var request = new ReplicateClient.VideoGenerationRequest
                 {
                     prompt = combinedPrompt,
                     duration = selectedDuration,
                     aspect_ratio = selectedAspectRatio,
-                    model = "gen3a_turbo"
+                    resolution = "1080p",
+                    fps = 24,
+                    camera_fixed = true
                 };
 
                 // 영상 생성
-                var task = await runwayClient.StartVideoGeneration(request);
-                var result = await runwayClient.WaitForCompletion(task.id);
+                var prediction = await replicateClient.StartVideoGeneration(request);
+                var result = await replicateClient.WaitForCompletion(prediction.id);
 
-                if (result.status == "SUCCEEDED" && result.output != null && result.output.Count > 0)
+                if (result.output != null)
                 {
-                    videoUrl = result.output[0].url;
+                    videoUrl = result.output.ToString();
 
                     // 다운로드
                     string fileName = $"allinone_video_{DateTime.Now:yyyyMMdd_HHmmss}_{videoIndex:D2}.mp4";
@@ -952,7 +955,7 @@
                         VideoUrl = videoUrl,
                         IsRandomPrompt = true,
                         FileName = Path.GetFileName(finalPath),
-                        IsDownloaded = false,
+                        IsDownloaded = false, // All-in-One에서는 스케줄 등록
                         IsUploaded = false,
                         Status = "All-in-One (AI 생성)"
                     };
@@ -1091,8 +1094,8 @@
             OutputVideoPath = outputPath,
             CaptionText = addCaption ? captionText : "",
             CaptionPosition = actualCaptionPosition,
-            FontSize = actualCaptionSize,
-            FontColor = actualCaptionColor,
+            FontSize = actualCaptionSize,        // 랜덤 처리된 크기 사용
+            FontColor = actualCaptionColor,      // 랜덤 처리된 색상 사용
             BackgroundMusicPath = addBackgroundMusic ? await VideoPostProcessor.DownloadSampleMusicAsync() : "",
             MusicVolume = musicVolume
         };
@@ -1116,7 +1119,7 @@
 
         schedulePreviewList.Clear();
         DateTime startTime = DateTime.Now.AddMinutes(5);
-        DateTime endTime = startTime.AddHours(scheduleHours);
+        DateTime endTime = startTime.AddHours(scheduleHours); // float이므로 문제없음
 
         for (int i = 0; i < videoCount; i++)
         {
@@ -1170,7 +1173,7 @@
         }
         else
         {
-            // 즉시 업로드
+            // 즉시 업로드 - 여기서는 스케줄에 등록하지 않고 바로 업로드
             await StartImmediateUpload();
         }
     }
@@ -1183,6 +1186,9 @@
         scheduleStatusTimer.AutoReset = true;
         scheduleStatusTimer.Start();
     }
+
+    // 스케줄 상태 추적에 추가
+    private string nextUploadInfo = "";
 
     private void CheckScheduleStatus(object sender, System.Timers.ElapsedEventArgs e)
     {
@@ -1309,7 +1315,7 @@
         double segmentMinutes = totalMinutes / totalCount;
 
         double segmentStart = index * segmentMinutes;
-        double segmentEnd = Math.Min((index + 1) * segmentMinutes, totalMinutes);
+        double segmentEnd = Math.Min((index + 1) * segmentMinutes, totalMinutes); // 전체 기간을 넘지 않도록
 
         Random random = new Random();
         double randomMinutes = segmentStart + (random.NextDouble() * (segmentEnd - segmentStart));
@@ -1331,4 +1337,5 @@
 
         return startTime.AddMinutes(randomMinutes);
     }
+
 }
