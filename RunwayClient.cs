@@ -66,52 +66,38 @@ namespace YouTubeShortsWebApp
             {
                 // 화면비율에 따른 해상도 설정
                 request.resolution = GetResolutionFromAspectRatio(request.aspect_ratio);
-
+                
+                // 항상 같은 구조를 유지하도록 수정
                 var requestBody = new
                 {
                     model = request.model,
                     prompt = request.prompt,
+                    image = !string.IsNullOrEmpty(request.image) ? request.image : (string?)null,
                     duration = request.duration,
                     resolution = request.resolution,
                     watermark = request.watermark
                 };
-
-                // 이미지가 있으면 추가
-                if (!string.IsNullOrEmpty(request.image))
-                {
-                    requestBody = new
-                    {
-                        model = request.model,
-                        prompt = request.prompt,
-                        image = request.image,
-                        duration = request.duration,
-                        resolution = request.resolution,
-                        watermark = request.watermark
-                    };
-                }
-
+        
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(requestBody, Newtonsoft.Json.Formatting.Indented);
-
                 System.Diagnostics.Debug.WriteLine("=== RunwayML API 요청 ===");
                 System.Diagnostics.Debug.WriteLine($"URL: {BaseUrl}/tasks");
                 System.Diagnostics.Debug.WriteLine("JSON:");
                 System.Diagnostics.Debug.WriteLine(json);
-
+                
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
-
                 HttpResponseMessage response = await _httpClient.PostAsync($"{BaseUrl}/tasks", content);
                 string responseContent = await response.Content.ReadAsStringAsync();
-
+                
                 System.Diagnostics.Debug.WriteLine("=== RunwayML API 응답 ===");
                 System.Diagnostics.Debug.WriteLine($"상태 코드: {response.StatusCode}");
                 System.Diagnostics.Debug.WriteLine("응답 내용:");
                 System.Diagnostics.Debug.WriteLine(responseContent);
-
+                
                 if (!response.IsSuccessStatusCode)
                 {
                     throw new Exception($"RunwayML API 요청 실패: {response.StatusCode} - {responseContent}");
                 }
-
+                
                 return Newtonsoft.Json.JsonConvert.DeserializeObject<TaskResponse>(responseContent);
             }
             catch (Exception ex)
