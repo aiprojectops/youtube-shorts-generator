@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace YouTubeShortsWebApp
 {
-    [Route("auth")]  // "api/auth" -> "auth"로 단순화
+    [Route("oauth")]  // "auth" -> "oauth"로 변경해서 충돌 방지
     public class AuthController : ControllerBase
     {
         [HttpGet("google/callback")]
