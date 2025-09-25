@@ -697,27 +697,34 @@
                         currentProgress = (i * 80 / totalVideosToProcess) + 10;
                         StateHasChanged();
 
-                        // 임시 파일로 저장
-                        string fileName = $"local_video_{DateTime.Now:yyyyMMdd_HHmmss}_{i + 1:D2}_{fileToProcess.Name}";
-                        string tempDir = Path.Combine(
-                            Environment.GetFolderPath(Environment.SpecialFolder.MyVideos),
-                            "YouTubeShortsGenerator",
-                            "VideoGenerator"
-                        );
-
-                        if (!Directory.Exists(tempDir))
-                        {
-                            Directory.CreateDirectory(tempDir);
-                        }
-
+                        // 시스템 임시 폴더 사용 (Render 환경에서 안전)
+                        string tempDir = Path.GetTempPath();
+                        string fileName = $"local_video_{Guid.NewGuid()}.mp4";
                         videoPath = Path.Combine(tempDir, fileName);
+                        
+                        Console.WriteLine($"=== 임시 디렉토리: {tempDir}");
+                        Console.WriteLine($"=== 생성할 파일 경로: {videoPath}");
 
                         // 브라우저 파일을 서버로 복사
                         using (var fileStream = new FileStream(videoPath, FileMode.Create))
                         {
                             await fileToProcess.OpenReadStream(maxAllowedSize: 2L * 1024 * 1024 * 1024).CopyToAsync(fileStream);
                         }
-
+                        // 파일 저장 검증 (새로 추가)
+                        if (!File.Exists(videoPath))
+                        {
+                            throw new Exception($"파일 저장 실패: {videoPath}");
+                        }
+                        
+                        var fileInfo = new FileInfo(videoPath);
+                        Console.WriteLine($"=== 저장된 파일 크기: {fileInfo.Length / (1024 * 1024)} MB");
+                        Console.WriteLine($"=== 파일 절대 경로: {Path.GetFullPath(videoPath)}");
+                        
+                        // 파일이 0바이트가 아닌지 확인
+                        if (fileInfo.Length == 0)
+                        {
+                            throw new Exception($"저장된 파일이 비어있습니다: {videoPath}");
+                        }
                         Console.WriteLine($"=== 로컬 파일 저장 완료: {videoPath}");
                     }
 
@@ -826,18 +833,12 @@
             using var httpClient = new System.Net.Http.HttpClient();
             httpClient.Timeout = TimeSpan.FromMinutes(10);
 
-            string tempFolder = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.MyVideos),
-                "YouTubeShortsGenerator",
-                "VideoGenerator"
-            );
-
-            if (!Directory.Exists(tempFolder))
-            {
-                Directory.CreateDirectory(tempFolder);
-            }
-
-            string localPath = Path.Combine(tempFolder, fileName);
+            // 시스템 임시 폴더 사용
+            string tempFolder = Path.GetTempPath();
+            string safeFileName = $"generated_{Guid.NewGuid()}.mp4";
+            string localPath = Path.Combine(tempFolder, safeFileName);
+            
+            Console.WriteLine($"=== AI 생성 영상 임시 저장 경로: {localPath}");
 
             // 기존 파일이 있으면 삭제
             if (File.Exists(localPath))
