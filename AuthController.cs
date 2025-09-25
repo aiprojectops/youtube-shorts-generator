@@ -1,35 +1,38 @@
 using Microsoft.AspNetCore.Mvc;
 
-[Route("auth")]
-public class AuthController : Controller
+namespace YouTubeShortsWebApp
 {
-    [HttpGet("google/callback")]
-    public async Task<IActionResult> GoogleCallback(string code, string state)
+    [Route("auth")]
+    public class AuthController : Controller
     {
-        if (string.IsNullOrEmpty(code))
+        [HttpGet("google/callback")]
+        public async Task<IActionResult> GoogleCallback(string code, string state)
         {
-            return BadRequest("Authorization code not received");
-        }
+            if (string.IsNullOrEmpty(code))
+            {
+                return BadRequest("Authorization code not received");
+            }
 
-        try
-        {
-            var uploader = new YouTubeUploader();
-            string baseUrl = $"{Request.Scheme}://{Request.Host}";
-            
-            bool success = await uploader.ExchangeCodeForTokenAsync(code, baseUrl);
-            
-            if (success)
+            try
             {
-                return Redirect("/youtube-upload?auth=success");
+                var uploader = new YouTubeUploader();
+                string baseUrl = $"{Request.Scheme}://{Request.Host}";
+                
+                bool success = await uploader.ExchangeCodeForTokenAsync(code, baseUrl);
+                
+                if (success)
+                {
+                    return Redirect("/youtube-upload?auth=success");
+                }
+                else
+                {
+                    return Redirect("/youtube-upload?auth=failed");
+                }
             }
-            else
+            catch (Exception ex)
             {
-                return Redirect("/youtube-upload?auth=failed");
+                return Redirect($"/youtube-upload?auth=error&message={Uri.EscapeDataString(ex.Message)}");
             }
-        }
-        catch (Exception ex)
-        {
-            return Redirect($"/youtube-upload?auth=error&message={Uri.EscapeDataString(ex.Message)}");
         }
     }
 }
