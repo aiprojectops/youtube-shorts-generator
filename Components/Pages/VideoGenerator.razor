@@ -933,6 +933,12 @@
                 catch (Exception ex)
                 {
                     Console.WriteLine($"=== 배경음악 준비 실패: {ex.Message}");
+                    // 사용자에게 알림 (새로 추가)
+                    await JSRuntime.InvokeVoidAsync("alert", 
+                        $"배경음악을 추가할 수 없습니다:\n{ex.Message}\n\n캡션만 추가하고 계속 진행합니다.");
+                    
+                    // 배경음악 없이 계속 진행
+                    addBackgroundMusic = false;
                 }
             }
 
