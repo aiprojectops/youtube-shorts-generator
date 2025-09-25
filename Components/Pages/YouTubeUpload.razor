@@ -387,7 +387,7 @@
     private async Task AuthenticateYouTube()
     {
         isAuthenticating = true;
-
+    
         try
         {
             var config = ConfigManager.GetConfig();
@@ -396,18 +396,21 @@
                 await JSRuntime.InvokeVoidAsync("alert", "먼저 설정에서 YouTube API 정보를 입력해주세요.");
                 return;
             }
-
+    
             youtubeUploader = new YouTubeUploader();
-            bool authSuccess = await youtubeUploader.AuthenticateAsync();
-
-            if (authSuccess)
-            {
-                currentYouTubeAccount = await youtubeUploader.GetCurrentAccountInfoAsync();
-            }
-            else
-            {
-                await JSRuntime.InvokeVoidAsync("alert", "YouTube 인증에 실패했습니다.");
-            }
+            
+            // 현재 URL 가져오기
+            string currentUrl = await JSRuntime.InvokeAsync<string>("eval", "window.location.origin");
+            
+            // 인증 URL 생성
+            string authUrl = await youtubeUploader.GetAuthorizationUrlAsync(currentUrl);
+            
+            // 새 탭에서 인증 페이지 열기
+            await JSRuntime.InvokeVoidAsync("open", authUrl, "_blank");
+            
+            await JSRuntime.InvokeVoidAsync("alert", 
+                "YouTube 인증 페이지가 새 탭에서 열렸습니다.\n" +
+                "인증을 완료한 후 이 페이지를 새로고침해주세요.");
         }
         catch (Exception ex)
         {
