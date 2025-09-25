@@ -85,7 +85,7 @@ namespace YouTubeShortsWebApp
                     DataStore = new MemoryDataStore() // 메모리 저장소 사용
                 });
 
-                var redirectUri = $"{baseUrl.TrimEnd('/')}/auth/google/callback";
+                var redirectUri = $"{baseUrl.TrimEnd('/')}/api/auth/google/callback";  // 경로 수정
                 var request = flow.CreateAuthorizationCodeRequest(redirectUri);
 
                 System.Diagnostics.Debug.WriteLine($"인증 URL 생성: {request.Build()}");
@@ -116,7 +116,7 @@ namespace YouTubeShortsWebApp
                     DataStore = new MemoryDataStore()
                 });
 
-                var redirectUri = $"{baseUrl.TrimEnd('/')}/auth/google/callback";
+                var redirectUri = $"{baseUrl.TrimEnd('/')}/api/auth/google/callback";  // 경로 수정
                 
                 System.Diagnostics.Debug.WriteLine($"토큰 교환 시작: 코드={code.Substring(0, 10)}..., 리디렉션 URI={redirectUri}");
                 
