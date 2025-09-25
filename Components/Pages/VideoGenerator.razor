@@ -788,29 +788,46 @@
         }
     }
 
+
     // 개별 영상 처리 메서드 (비디오 생성기용)
     private async Task ProcessIndividualVideoGen(string videoPath, int videoIndex, string originalPrompt, string combinedPrompt)
     {
         try
         {
             Console.WriteLine($"=== 영상 {videoIndex} 처리 시작");
-
+    
             string finalVideoPath = videoPath;
-
+    
             // 후처리 수행
             if (enablePostProcessing && (addCaption || addBackgroundMusic))
             {
+                // 처리 전 메모리 정리
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+                
                 string processedPath = await ProcessVideoGen(videoPath, originalPrompt);
-
+    
                 // 원본 삭제, 처리된 파일 사용
-                if (File.Exists(videoPath)) File.Delete(videoPath);
+                if (File.Exists(videoPath)) 
+                {
+                    File.Delete(videoPath);
+                }
                 finalVideoPath = processedPath;
+                
+                // 처리 후 메모리 정리
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
             }
-
+    
+            // 다운로드 전에도 메모리 정리
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+    
             // 브라우저 다운로드 트리거
             string downloadFileName = $"video_{DateTime.Now:yyyyMMdd_HHmmss}_{videoIndex:D2}.mp4";
             await TriggerBrowserDownloadFromFileGen(finalVideoPath, downloadFileName);
-
+    
             // 히스토리에 기록 추가
             var historyItem = new VideoHistoryManager.VideoHistoryItem
             {
@@ -825,10 +842,13 @@
                 Status = enablePostProcessing ? "후처리 완료" : "완료"
             };
             VideoHistoryManager.AddHistoryItem(historyItem);
-
+    
             // 최종 파일 정리
-            if (File.Exists(finalVideoPath)) File.Delete(finalVideoPath);
-
+            if (File.Exists(finalVideoPath)) 
+            {
+                File.Delete(finalVideoPath);
+            }
+    
             Console.WriteLine($"=== 영상 {videoIndex} 처리 완료");
         }
         catch (Exception ex)
@@ -837,6 +857,7 @@
             throw;
         }
     }
+
 
     // 후처리를 위한 영상 다운로드 (비디오 생성기용)
     private async Task<string> DownloadVideoForGen(string videoUrl, string fileName)
@@ -988,26 +1009,41 @@
     {
         try
         {
-            if (!File.Exists(filePath))
+            var fileInfo = new FileInfo(filePath);
+            Console.WriteLine($"=== 다운로드할 파일 크기: {fileInfo.Length / (1024 * 1024)} MB");
+            
+            // 사용 가능한 메모리 확인
+            GC.Collect();
+            long availableMemory = GC.GetTotalMemory(false);
+            Console.WriteLine($"=== 현재 메모리 사용량: {availableMemory / (1024 * 1024)} MB");
+            
+            // 파일 크기의 2배 메모리가 필요 (원본 + Base64)
+            if (fileInfo.Length * 2 > 200 * 1024 * 1024) // 200MB 제한
             {
-                throw new Exception("처리된 영상 파일을 찾을 수 없습니다.");
+                await JSRuntime.InvokeVoidAsync("alert", 
+                    "파일이 너무 커서 메모리 제한으로 다운로드할 수 없습니다.");
+                return;
             }
-
-            // 파일을 Base64로 변환해서 브라우저에 전송
+    
+            // 기존 Base64 다운로드 코드...
             byte[] fileBytes = await File.ReadAllBytesAsync(filePath);
             string base64String = Convert.ToBase64String(fileBytes);
+            
+            // 원본 바이트 배열 메모리 해제
+            fileBytes = null;
+            GC.Collect();
+            
             string dataUrl = $"data:video/mp4;base64,{base64String}";
-
             bool success = await JSRuntime.InvokeAsync<bool>("downloadFile", dataUrl, fileName);
-
+            
             if (!success)
             {
                 throw new Exception("브라우저 다운로드 실행 실패");
             }
         }
-        catch (Exception ex)
+        catch (OutOfMemoryException)
         {
-            throw new Exception($"처리된 영상 다운로드 실패: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("alert", "메모리 부족으로 다운로드할 수 없습니다.");
         }
     }
 
