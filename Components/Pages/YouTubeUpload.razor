@@ -3,6 +3,7 @@
 @using YouTubeShortsWebApp
 @inject IJSRuntime JSRuntime
 @inject ScheduledUploadService ScheduledUploadService
+@using System.Web
 
 <PageTitle>YouTube 업로드</PageTitle>
 
@@ -335,7 +336,7 @@
         }
     }
 
-    protected override async Task OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         LoadDefaultSettings();
         
