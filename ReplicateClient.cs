@@ -33,7 +33,13 @@ namespace YouTubeShortsWebApp
                 Console.WriteLine($"=== Replicate 직접 접근: {_baseUrl}");
             }
             
-            _httpClient = new HttpClient();
+            // HttpClientHandler로 압축 자동 해제 설정
+            var handler = new HttpClientHandler()
+            {
+                AutomaticDecompression = System.Net.DecompressionMethods.All
+            };
+            
+            _httpClient = new HttpClient(handler);
             
             Console.WriteLine("=== ReplicateClient 초기화 - Cloudflare 우회 헤더 설정");
             
@@ -46,7 +52,11 @@ namespace YouTubeShortsWebApp
             
             _httpClient.DefaultRequestHeaders.Add("Accept", "application/json, text/plain, */*");
             _httpClient.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.9");
-            _httpClient.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate, br");
+            
+            // Accept-Encoding 헤더는 제거하거나 gzip만 허용
+            // _httpClient.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate, br"); // 이 줄 제거
+            _httpClient.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate"); // br 제거
+            
             _httpClient.DefaultRequestHeaders.Add("Cache-Control", "no-cache");
             _httpClient.DefaultRequestHeaders.Add("Pragma", "no-cache");
             
