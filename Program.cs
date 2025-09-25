@@ -6,6 +6,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+builder.Services.AddControllers(); // 컨트롤러 서비스 추가
 
 // ScheduledUploadService 등록
 builder.Services.AddSingleton<ScheduledUploadService>();
@@ -24,6 +25,7 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseAntiforgery();
+app.MapControllers(); // 컨트롤러 라우팅 추가
 
 // YouTube OAuth 콜백 라우트 추가
 app.MapGet("/auth/google/callback", async (HttpContext context) =>
