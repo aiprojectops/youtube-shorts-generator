@@ -500,35 +500,37 @@ namespace YouTubeShortsWebApp
             }
         }
 
-        // 배경음악 파일 - 현재 구조에 맞게 music 폴더 사용
         public static async Task<string> DownloadSampleMusicAsync()
         {
             try
             {
                 Console.WriteLine("=== 배경음악 파일 선택 시작");
-
-                string musicDir = Path.Combine(Directory.GetCurrentDirectory(), "music");
-                Console.WriteLine($"=== 현재 디렉토리: {Directory.GetCurrentDirectory()}");
+        
+                // 사용자 바탕화면의 music 폴더 사용
+                string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+                string musicDir = Path.Combine(desktopPath, "music");
+                
+                Console.WriteLine($"=== 바탕화면 경로: {desktopPath}");
                 Console.WriteLine($"=== 음악 폴더 경로: {musicDir}");
                 Console.WriteLine($"=== 음악 폴더 존재: {Directory.Exists(musicDir)}");
-
+        
                 if (!Directory.Exists(musicDir))
                 {
-                    throw new Exception($"음악 폴더가 존재하지 않습니다: {musicDir}");
+                    throw new Exception($"바탕화면에 music 폴더가 없습니다: {musicDir}");
                 }
-
+        
                 string[] supportedExtensions = { "*.mp3", "*.wav", "*.m4a", "*.aac" };
                 var musicFiles = new List<string>();
-
+        
                 foreach (string extension in supportedExtensions)
                 {
                     var files = Directory.GetFiles(musicDir, extension);
                     Console.WriteLine($"=== {extension} 파일 {files.Length}개 발견");
                     musicFiles.AddRange(files);
                 }
-
+        
                 Console.WriteLine($"=== 총 음악 파일 개수: {musicFiles.Count}");
-
+        
                 if (musicFiles.Count == 0)
                 {
                     // 실제 파일들 확인
@@ -538,24 +540,23 @@ namespace YouTubeShortsWebApp
                     {
                         Console.WriteLine($"    - {Path.GetFileName(file)}");
                     }
-
-                    throw new Exception($"음악 폴더에 음악 파일이 없습니다: {musicDir}");
+        
+                    throw new Exception($"music 폴더에 음악 파일이 없습니다. 지원 형식: mp3, wav, m4a, aac");
                 }
-
+        
                 Random random = new Random();
                 string selectedMusic = musicFiles[random.Next(musicFiles.Count)];
-
-                Console.WriteLine($"=== 선택된 배경음악 전체 경로: {selectedMusic}");
-                Console.WriteLine($"=== 선택된 배경음악 파일명: {Path.GetFileName(selectedMusic)}");
+        
+                Console.WriteLine($"=== 선택된 배경음악: {Path.GetFileName(selectedMusic)}");
                 Console.WriteLine($"=== 선택된 파일 존재: {File.Exists(selectedMusic)}");
-
+        
                 // 파일 크기 확인
                 if (File.Exists(selectedMusic))
                 {
                     var fileInfo = new FileInfo(selectedMusic);
                     Console.WriteLine($"=== 음악 파일 크기: {fileInfo.Length / 1024} KB");
                 }
-
+        
                 return selectedMusic;
             }
             catch (Exception ex)
