@@ -124,10 +124,10 @@ namespace YouTubeShortsWebApp
                     Scopes = Scopes,
                     DataStore = new MemoryDataStore()
                 });
-
-                var redirectUri = $"{baseUrl.TrimEnd('/')}/oauth/google/callback";  // oauth로 변경
+        
+                var redirectUri = $"{baseUrl.TrimEnd('/')}/oauth/google/callback";  // 여기도 oauth로 변경
                 
-                System.Diagnostics.Debug.WriteLine($"토큰 교환 시작: 코드={code.Substring(0, 10)}..., 리디렉션 URI={redirectUri}");
+                Console.WriteLine($"=== ExchangeCodeForTokenAsync 리디렉션 URI: {redirectUri}");
                 
                 var token = await flow.ExchangeCodeForTokenAsync("user", code, redirectUri, CancellationToken.None);
 
