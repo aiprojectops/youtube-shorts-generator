@@ -693,7 +693,7 @@
                         currentPromptUsed = $"로컬 파일: {fileToProcess.Name}";
                         combinedPrompt = currentPromptUsed; // 로컬 파일 모드에서는 파일명을 사용
 
-                        statusMessage = $"파일 {i + 1}/{totalVideosToProcess} - 업로드 중... {fileToProcess.Name}";
+                        statusMessage = $"파일 {i + 1}/{totalVideosToProcess} - 처리 중... {fileToProcess.Name}";
                         currentProgress = (i * 80 / totalVideosToProcess) + 10;
                         StateHasChanged();
 
