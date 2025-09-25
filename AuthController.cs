@@ -2,9 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace YouTubeShortsWebApp
 {
-    [ApiController]
-    [Route("api/auth")]  // "auth" -> "api/auth"로 변경
-    public class AuthController : ControllerBase  // Controller -> ControllerBase
+    [Route("auth")]  // "api/auth" -> "auth"로 단순화
+    public class AuthController : ControllerBase
     {
         [HttpGet("google/callback")]
         public async Task<IActionResult> GoogleCallback([FromQuery] string code, [FromQuery] string? state = null)
