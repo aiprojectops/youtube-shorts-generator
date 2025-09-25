@@ -193,24 +193,41 @@ namespace YouTubeShortsWebApp
             }
         }
 
+        
         public async Task<PredictionResponse> GetPredictionStatus(string predictionId)
         {
             try
             {
-                // 상태 확인 간 지연 (봇 감지 방지)
                 await Task.Delay(2000); // 2초 지연
                 
-                HttpResponseMessage response = await _httpClient.GetAsync($"{_baseUrl}/predictions/{predictionId}");
+                string requestUrl = $"{_baseUrl}/predictions/{predictionId}";
+                Console.WriteLine($"=== 상태 확인 요청 URL: {requestUrl}");
+                
+                HttpResponseMessage response = await _httpClient.GetAsync(requestUrl);
                 string responseContent = await response.Content.ReadAsStringAsync();
-
-                System.Diagnostics.Debug.WriteLine($"상태 확인: {predictionId} - 상태코드: {response.StatusCode}");
-
+        
+                Console.WriteLine($"=== 상태 확인 응답 ===");
+                Console.WriteLine($"Status Code: {response.StatusCode}");
+                Console.WriteLine($"Content-Type: {response.Content.Headers.ContentType}");
+                Console.WriteLine($"Raw Response: {responseContent.Substring(0, Math.Min(500, responseContent.Length))}");
+        
                 if (!response.IsSuccessStatusCode)
                 {
                     throw new Exception($"상태 확인 실패: {response.StatusCode} - {responseContent}");
                 }
-
-                return Newtonsoft.Json.JsonConvert.DeserializeObject<PredictionResponse>(responseContent);
+        
+                // JSON 파싱 시도
+                try
+                {
+                    return Newtonsoft.Json.JsonConvert.DeserializeObject<PredictionResponse>(responseContent);
+                }
+                catch (Exception jsonEx)
+                {
+                    Console.WriteLine($"=== JSON 파싱 실패 ===");
+                    Console.WriteLine($"JSON Error: {jsonEx.Message}");
+                    Console.WriteLine($"Raw content: {responseContent}");
+                    throw new Exception($"JSON 파싱 실패: {jsonEx.Message}. Response: {responseContent.Substring(0, Math.Min(200, responseContent.Length))}");
+                }
             }
             catch (Exception ex)
             {
@@ -218,6 +235,7 @@ namespace YouTubeShortsWebApp
             }
         }
 
+        
         private ProgressInfo CalculateProgress(PredictionResponse status, DateTime startTime, int attemptNumber, int maxAttempts)
         {
             var elapsed = DateTime.Now - startTime;
