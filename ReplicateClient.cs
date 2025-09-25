@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Linq; // Take 메서드를 위해
 
 namespace YouTubeShortsWebApp
 {
@@ -204,33 +205,93 @@ namespace YouTubeShortsWebApp
                 Console.WriteLine($"=== 상태 확인 요청 URL: {requestUrl}");
                 
                 HttpResponseMessage response = await _httpClient.GetAsync(requestUrl);
-                string responseContent = await response.Content.ReadAsStringAsync();
-        
+                
+                // 응답 정보 상세 로깅
                 Console.WriteLine($"=== 상태 확인 응답 ===");
                 Console.WriteLine($"Status Code: {response.StatusCode}");
                 Console.WriteLine($"Content-Type: {response.Content.Headers.ContentType}");
-                Console.WriteLine($"Raw Response: {responseContent.Substring(0, Math.Min(500, responseContent.Length))}");
+                Console.WriteLine($"Content-Length: {response.Content.Headers.ContentLength}");
+                Console.WriteLine($"Content-Encoding: {response.Content.Headers.ContentEncoding}");
+                
+                // 바이트로 먼저 받기
+                var responseBytes = await response.Content.ReadAsByteArrayAsync();
+                Console.WriteLine($"=== 실제 응답 크기: {responseBytes.Length} bytes");
+                
+                // 바이너리 데이터 확인 (처음 50바이트만)
+                var hexString = BitConverter.ToString(responseBytes.Take(Math.Min(50, responseBytes.Length)).ToArray());
+                Console.WriteLine($"=== 응답 바이트 (HEX): {hexString}");
+                
+                string responseContent;
+                try 
+                {
+                    // UTF-8로 디코딩 시도
+                    responseContent = System.Text.Encoding.UTF8.GetString(responseBytes);
+                    Console.WriteLine($"=== UTF-8 디코딩 성공");
+                }
+                catch (Exception encodingEx)
+                {
+                    Console.WriteLine($"=== UTF-8 디코딩 실패: {encodingEx.Message}");
+                    // ASCII로 재시도
+                    responseContent = System.Text.Encoding.ASCII.GetString(responseBytes);
+                    Console.WriteLine($"=== ASCII 디코딩으로 재시도");
+                }
+                
+                // 응답 내용의 유효성 검사
+                var cleanContent = responseContent.Trim();
+                Console.WriteLine($"=== 정리된 응답 (처음 500자): {cleanContent.Substring(0, Math.Min(500, cleanContent.Length))}");
+                
+                // 응답이 JSON인지 확인
+                if (string.IsNullOrEmpty(cleanContent))
+                {
+                    throw new Exception("빈 응답을 받았습니다.");
+                }
+                
+                // BOM 제거 (UTF-8 BOM이 있을 수 있음)
+                if (cleanContent.StartsWith("\uFEFF"))
+                {
+                    cleanContent = cleanContent.Substring(1);
+                    Console.WriteLine("=== UTF-8 BOM 제거됨");
+                }
+                
+                // JSON 시작 문자 확인
+                if (!cleanContent.StartsWith("{") && !cleanContent.StartsWith("["))
+                {
+                    Console.WriteLine($"=== 유효하지 않은 JSON 형식:");
+                    Console.WriteLine($"첫 문자: '{cleanContent[0]}' (ASCII: {(int)cleanContent[0]})");
+                    Console.WriteLine($"전체 내용: {cleanContent}");
+                    throw new Exception($"유효하지 않은 JSON 응답: {cleanContent.Substring(0, Math.Min(100, cleanContent.Length))}");
+                }
         
                 if (!response.IsSuccessStatusCode)
                 {
-                    throw new Exception($"상태 확인 실패: {response.StatusCode} - {responseContent}");
+                    throw new Exception($"상태 확인 실패: {response.StatusCode} - {cleanContent}");
                 }
         
                 // JSON 파싱 시도
                 try
                 {
-                    return Newtonsoft.Json.JsonConvert.DeserializeObject<PredictionResponse>(responseContent);
+                    return Newtonsoft.Json.JsonConvert.DeserializeObject<PredictionResponse>(cleanContent);
                 }
                 catch (Exception jsonEx)
                 {
                     Console.WriteLine($"=== JSON 파싱 실패 ===");
                     Console.WriteLine($"JSON Error: {jsonEx.Message}");
-                    Console.WriteLine($"Raw content: {responseContent}");
-                    throw new Exception($"JSON 파싱 실패: {jsonEx.Message}. Response: {responseContent.Substring(0, Math.Min(200, responseContent.Length))}");
+                    Console.WriteLine($"Raw content: {cleanContent}");
+                    Console.WriteLine($"Content length: {cleanContent.Length}");
+                    
+                    // JSON 구조 분석을 위한 추가 정보
+                    for (int i = 0; i < Math.Min(20, cleanContent.Length); i++)
+                    {
+                        char c = cleanContent[i];
+                        Console.WriteLine($"Char {i}: '{c}' (ASCII: {(int)c})");
+                    }
+                    
+                    throw new Exception($"JSON 파싱 실패: {jsonEx.Message}. Response: {cleanContent.Substring(0, Math.Min(200, cleanContent.Length))}");
                 }
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"=== GetPredictionStatus 전체 오류: {ex.Message}");
                 throw new Exception($"상태 확인 중 오류 발생: {ex.Message}");
             }
         }
