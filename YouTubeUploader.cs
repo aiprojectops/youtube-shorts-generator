@@ -62,18 +62,18 @@ namespace YouTubeShortsWebApp
             public string PrivacyStatus { get; set; }
         }
 
-        // 웹 기반 인증을 위한 새로운 메서드
+         // 웹 기반 인증을 위한 새로운 메서드
         public async Task<string> GetAuthorizationUrlAsync(string baseUrl)
         {
             try
             {
                 var config = ConfigManager.GetConfig();
-
+        
                 if (string.IsNullOrEmpty(config.YouTubeClientId) || string.IsNullOrEmpty(config.YouTubeClientSecret))
                 {
                     throw new Exception("YouTube API 클라이언트 ID와 시크릿이 설정되지 않았습니다.");
                 }
-
+        
                 var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
                 {
                     ClientSecrets = new ClientSecrets
@@ -84,20 +84,29 @@ namespace YouTubeShortsWebApp
                     Scopes = Scopes,
                     DataStore = new MemoryDataStore() // 메모리 저장소 사용
                 });
-
-                var redirectUri = $"{baseUrl.TrimEnd('/')}/api/auth/google/callback";  // 경로 수정
+        
+                var redirectUri = $"{baseUrl.TrimEnd('/')}/auth/google/callback";  // /api/ 제거
+                
+                // 디버깅용 로그 추가
+                Console.WriteLine($"=== 실제 리디렉션 URI: {redirectUri}");
+                Console.WriteLine($"=== Base URL: {baseUrl}");
+                
                 var request = flow.CreateAuthorizationCodeRequest(redirectUri);
-
-                System.Diagnostics.Debug.WriteLine($"인증 URL 생성: {request.Build()}");
+                
+                // 생성된 전체 인증 URL도 확인
+                var authUrl = request.Build().ToString();
+                Console.WriteLine($"=== 생성된 인증 URL: {authUrl}");
+                
+                System.Diagnostics.Debug.WriteLine($"인증 URL 생성: {authUrl}");
                 System.Diagnostics.Debug.WriteLine($"리디렉션 URI: {redirectUri}");
-
-                return request.Build().ToString();
+        
+                return authUrl;
             }
             catch (Exception ex)
             {
                 throw new Exception($"인증 URL 생성 실패: {ex.Message}");
             }
-        }
+        }                    
 
         // 콜백에서 받은 코드로 토큰 교환
         public async Task<bool> ExchangeCodeForTokenAsync(string code, string baseUrl)
