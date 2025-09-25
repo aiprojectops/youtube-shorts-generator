@@ -75,87 +75,66 @@ namespace YouTubeShortsWebApp
             }
         }
 
+        
         public static async Task<string> ProcessVideoAsync(ProcessingOptions options, IProgress<string> progress = null)
         {
-            if (!await IsFFmpegAvailableAsync())
-            {
-                throw new Exception("FFmpeg를 찾을 수 없습니다. 시스템에 FFmpeg를 설치하거나 wwwroot/tools/ 폴더에 ffmpeg.exe를 배치해주세요.");
-            }
-
-            progress?.Report("영상 처리 시작...");
-            Console.WriteLine("=== ProcessVideoAsync 시작");
-
             var tempFiles = new List<string>();
             string currentInput = options.InputVideoPath;
-
+        
             try
             {
-                if (!File.Exists(currentInput))
-                {
-                    throw new Exception($"입력 파일을 찾을 수 없습니다: {currentInput}");
-                }
-
                 // 1. 캡션 추가
                 if (!string.IsNullOrEmpty(options.CaptionText))
                 {
-                    progress?.Report("캡션 추가 중...");
                     string captionOutput = Path.GetTempFileName() + ".mp4";
                     tempFiles.Add(captionOutput);
-
+                    
                     await AddCaptionAsync(currentInput, captionOutput, options);
-
+                    
                     if (File.Exists(captionOutput))
                     {
                         currentInput = captionOutput;
+                        
+                        // 원본 파일 즉시 삭제 (메모리 절약)
+                        if (currentInput != options.InputVideoPath && File.Exists(options.InputVideoPath))
+                        {
+                            try { File.Delete(options.InputVideoPath); } catch { }
+                        }
                     }
                 }
-
+        
                 // 2. 배경음악 추가
                 if (!string.IsNullOrEmpty(options.BackgroundMusicPath) && File.Exists(options.BackgroundMusicPath))
                 {
-                    try
+                    string musicOutput = Path.GetTempFileName() + ".mp4";
+                    tempFiles.Add(musicOutput);
+        
+                    await AddBackgroundMusicAsync(currentInput, musicOutput, options.BackgroundMusicPath, options.MusicVolume);
+        
+                    if (File.Exists(musicOutput))
                     {
-                        progress?.Report("배경음악 추가 중...");
-                        string musicOutput = Path.GetTempFileName() + ".mp4";
-                        tempFiles.Add(musicOutput);
-
-                        await AddBackgroundMusicAsync(currentInput, musicOutput, options.BackgroundMusicPath, options.MusicVolume);
-
-                        if (File.Exists(musicOutput))
+                        // 이전 단계 파일 즉시 삭제
+                        if (File.Exists(currentInput) && currentInput != options.InputVideoPath)
                         {
-                            currentInput = musicOutput;
+                            try { File.Delete(currentInput); } catch { }
+                            tempFiles.Remove(currentInput);
                         }
+                        
+                        currentInput = musicOutput;
                     }
-                    catch (Exception bgMusicEx)
-                    {
-                        Console.WriteLine($"=== 배경음악 추가 실패: {bgMusicEx.Message}");
-                    }
+                    
+                    // 업로드된 음악 파일도 삭제
+                    try { File.Delete(options.BackgroundMusicPath); } catch { }
                 }
-
+        
                 // 3. 최종 출력
-                progress?.Report("최종 파일 생성 중...");
-                string outputDir = Path.GetDirectoryName(options.OutputVideoPath);
-                if (!Directory.Exists(outputDir))
-                {
-                    Directory.CreateDirectory(outputDir);
-                }
-
-                if (currentInput != options.InputVideoPath)
-                {
-                    File.Copy(currentInput, options.OutputVideoPath, true);
-                }
-                else
-                {
-                    File.Copy(options.InputVideoPath, options.OutputVideoPath, true);
-                }
-
-                progress?.Report("영상 처리 완료!");
+                File.Copy(currentInput, options.OutputVideoPath, true);
+                
                 return options.OutputVideoPath;
             }
             finally
             {
-                // 임시 파일 정리
-                await Task.Delay(3000);
+                // 임시 파일 정리는 지연 없이 즉시
                 foreach (string tempFile in tempFiles)
                 {
                     try
@@ -165,13 +144,11 @@ namespace YouTubeShortsWebApp
                             File.Delete(tempFile);
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"=== 임시 파일 삭제 오류: {tempFile}, 에러: {ex.Message}");
-                    }
+                    catch { } // 에러 무시하고 계속
                 }
             }
         }
+        
 
         // 캡션 추가 (개선된 버전)
         private static async Task AddCaptionAsync(string inputPath, string outputPath, ProcessingOptions options)
