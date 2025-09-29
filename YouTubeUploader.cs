@@ -62,7 +62,7 @@ namespace YouTubeShortsWebApp
             public string PrivacyStatus { get; set; }
         }
 
-         // 웹 기반 인증을 위한 새로운 메서드
+        // 웹 기반 인증을 위한 새로운 메서드
         public async Task<string> GetAuthorizationUrlAsync(string baseUrl)
         {
             try
@@ -85,10 +85,20 @@ namespace YouTubeShortsWebApp
                     DataStore = new MemoryDataStore() // 메모리 저장소 사용
                 });
         
-                var redirectUri = $"{baseUrl.TrimEnd('/')}/oauth/google/callback";  // oauth로 변경
+                // HTTPS로 강제 변환 (Render.com은 HTTPS를 사용)
+                string redirectUri;
+                if (baseUrl.StartsWith("http://") && !baseUrl.Contains("localhost"))
+                {
+                    // 프로덕션 환경에서는 HTTPS로 강제 변환
+                    redirectUri = baseUrl.Replace("http://", "https://") + "/oauth/google/callback";
+                }
+                else
+                {
+                    redirectUri = $"{baseUrl.TrimEnd('/')}/oauth/google/callback";
+                }
                 
                 // 디버깅용 로그 추가
-                Console.WriteLine($"=== 실제 리디렉션 URI: {redirectUri}");
+                Console.WriteLine($"=== GetAuthorizationUrlAsync 최종 리디렉션 URI: {redirectUri}");
                 Console.WriteLine($"=== Base URL: {baseUrl}");
                 
                 var request = flow.CreateAuthorizationCodeRequest(redirectUri);
@@ -106,7 +116,8 @@ namespace YouTubeShortsWebApp
             {
                 throw new Exception($"인증 URL 생성 실패: {ex.Message}");
             }
-        }                    
+        }
+                      
 
         // 콜백에서 받은 코드로 토큰 교환
         public async Task<bool> ExchangeCodeForTokenAsync(string code, string baseUrl)
@@ -125,23 +136,33 @@ namespace YouTubeShortsWebApp
                     DataStore = new MemoryDataStore()
                 });
         
-                var redirectUri = $"{baseUrl.TrimEnd('/')}/oauth/google/callback";  // 여기도 oauth로 변경
+                // HTTPS로 강제 변환 (Render.com은 HTTPS를 사용)
+                string redirectUri;
+                if (baseUrl.StartsWith("http://") && !baseUrl.Contains("localhost"))
+                {
+                    // 프로덕션 환경에서는 HTTPS로 강제 변환
+                    redirectUri = baseUrl.Replace("http://", "https://") + "/oauth/google/callback";
+                }
+                else
+                {
+                    redirectUri = $"{baseUrl.TrimEnd('/')}/oauth/google/callback";
+                }
                 
-                Console.WriteLine($"=== ExchangeCodeForTokenAsync 리디렉션 URI: {redirectUri}");
+                Console.WriteLine($"=== ExchangeCodeForTokenAsync 최종 리디렉션 URI: {redirectUri}");
                 
                 var token = await flow.ExchangeCodeForTokenAsync("user", code, redirectUri, CancellationToken.None);
-
+        
                 // 메모리에 토큰 저장
                 _memoryTokenStore["user"] = token;
-
+        
                 credential = new UserCredential(flow, "user", token);
-
+        
                 youtubeService = new YouTubeService(new BaseClientService.Initializer()
                 {
                     HttpClientInitializer = credential,
                     ApplicationName = ApplicationName,
                 });
-
+        
                 System.Diagnostics.Debug.WriteLine("토큰 교환 성공!");
                 return true;
             }
