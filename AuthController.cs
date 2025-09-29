@@ -14,7 +14,7 @@ namespace YouTubeShortsWebApp
             // 현재 요청의 기본 URL 가져오기
             string baseUrl = $"{Request.Scheme}://{Request.Host}";
             
-            // 로깅 추가
+            // 로깅
             Console.WriteLine($"=== OAuth 콜백 수신 ===");
             Console.WriteLine($"Base URL: {baseUrl}");
             Console.WriteLine($"Code: {(string.IsNullOrEmpty(code) ? "없음" : "있음")}");
@@ -24,13 +24,14 @@ namespace YouTubeShortsWebApp
             if (!string.IsNullOrEmpty(error))
             {
                 Console.WriteLine($"OAuth 에러: {error}");
-                return Redirect($"/youtube-upload?auth=error&message={Uri.EscapeDataString(error)}");
+                // 원래 페이지로 리디렉션 (새 탭이 아님)
+                return Redirect($"/all-in-one?auth=error&message={Uri.EscapeDataString(error)}");
             }
 
             if (string.IsNullOrEmpty(code))
             {
                 Console.WriteLine("Authorization code가 없음");
-                return Redirect("/youtube-upload?auth=error&message=Authorization+code+not+received");
+                return Redirect("/all-in-one?auth=error&message=Authorization+code+not+received");
             }
 
             try
@@ -43,19 +44,20 @@ namespace YouTubeShortsWebApp
                 if (success)
                 {
                     Console.WriteLine("토큰 교환 성공!");
-                    return Redirect("/youtube-upload?auth=success");
+                    // 원래 페이지로 리디렉션 (새 탭이 아님)
+                    return Redirect("/all-in-one?auth=success");
                 }
                 else
                 {
                     Console.WriteLine("토큰 교환 실패");
-                    return Redirect("/youtube-upload?auth=failed");
+                    return Redirect("/all-in-one?auth=failed");
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"콜백 처리 오류: {ex.Message}");
                 Console.WriteLine($"스택 트레이스: {ex.StackTrace}");
-                return Redirect($"/youtube-upload?auth=error&message={Uri.EscapeDataString(ex.Message)}");
+                return Redirect($"/all-in-one?auth=error&message={Uri.EscapeDataString(ex.Message)}");
             }
         }
     }
