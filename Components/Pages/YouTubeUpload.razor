@@ -336,43 +336,63 @@
         }
     }
 
+    
     protected override async Task OnInitializedAsync()
     {
         LoadDefaultSettings();
         
-        // URL 매개변수 확인
-        var uri = new Uri(await JSRuntime.InvokeAsync<string>("eval", "window.location.href"));
-        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
-        
-        if (query["auth"] == "success")
+        // URL 매개변수 확인을 OnAfterRenderAsync로 이동
+    }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
         {
-            // 인증 성공 - 계정 정보 가져오기
             try
             {
-                youtubeUploader = new YouTubeUploader();
-                bool authCheck = await youtubeUploader.AuthenticateAsync();
+                // URL 매개변수 확인
+                var uri = new Uri(await JSRuntime.InvokeAsync<string>("eval", "window.location.href"));
+                var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
                 
-                if (authCheck)
+                if (query["auth"] == "success")
                 {
-                    currentYouTubeAccount = await youtubeUploader.GetCurrentAccountInfoAsync();
-                    await JSRuntime.InvokeVoidAsync("alert", "YouTube 인증이 완료되었습니다!");
+                    // 인증 성공 - 계정 정보 가져오기
+                    try
+                    {
+                        youtubeUploader = new YouTubeUploader();
+                        bool authCheck = await youtubeUploader.AuthenticateAsync();
+                        
+                        if (authCheck)
+                        {
+                            currentYouTubeAccount = await youtubeUploader.GetCurrentAccountInfoAsync();
+                            await JSRuntime.InvokeVoidAsync("alert", "YouTube 인증이 완료되었습니다!");
+                            StateHasChanged();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        await JSRuntime.InvokeVoidAsync("alert", $"인증 처리 오류: {ex.Message}");
+                    }
+                }
+                else if (query["auth"] == "failed")
+                {
+                    await JSRuntime.InvokeVoidAsync("alert", "YouTube 인증에 실패했습니다.");
+                }
+                else if (query["auth"] == "error")
+                {
+                    string errorMsg = query["message"] ?? "알 수 없는 오류";
+                    await JSRuntime.InvokeVoidAsync("alert", $"인증 오류: {errorMsg}");
                 }
             }
             catch (Exception ex)
             {
-                await JSRuntime.InvokeVoidAsync("alert", $"인증 처리 오류: {ex.Message}");
+                Console.WriteLine($"URL 파라미터 처리 오류: {ex.Message}");
             }
         }
-        else if (query["auth"] == "failed")
-        {
-            await JSRuntime.InvokeVoidAsync("alert", "YouTube 인증에 실패했습니다.");
-        }
-        else if (query["auth"] == "error")
-        {
-            string errorMsg = query["message"] ?? "알 수 없는 오류";
-            await JSRuntime.InvokeVoidAsync("alert", $"인증 오류: {errorMsg}");
-        }
     }
+
+
+    
 
     private void LoadDefaultSettings()
     {
