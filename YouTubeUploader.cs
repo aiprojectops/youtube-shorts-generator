@@ -63,7 +63,7 @@ namespace YouTubeShortsWebApp
         }
 
         // 웹 기반 인증을 위한 새로운 메서드
-        public async Task<string> GetAuthorizationUrlAsync(string baseUrl)
+        public async Task<string> GetAuthorizationUrlAsync(string baseUrl, string returnPage = "youtube-upload")
         {
             try
             {
@@ -82,14 +82,13 @@ namespace YouTubeShortsWebApp
                         ClientSecret = config.YouTubeClientSecret
                     },
                     Scopes = Scopes,
-                    DataStore = new MemoryDataStore() // 메모리 저장소 사용
+                    DataStore = new MemoryDataStore()
                 });
         
                 // HTTPS로 강제 변환 (Render.com은 HTTPS를 사용)
                 string redirectUri;
                 if (baseUrl.StartsWith("http://") && !baseUrl.Contains("localhost"))
                 {
-                    // 프로덕션 환경에서는 HTTPS로 강제 변환
                     redirectUri = baseUrl.Replace("http://", "https://") + "/oauth/google/callback";
                 }
                 else
@@ -97,18 +96,16 @@ namespace YouTubeShortsWebApp
                     redirectUri = $"{baseUrl.TrimEnd('/')}/oauth/google/callback";
                 }
                 
-                // 디버깅용 로그 추가
                 Console.WriteLine($"=== GetAuthorizationUrlAsync 최종 리디렉션 URI: {redirectUri}");
-                Console.WriteLine($"=== Base URL: {baseUrl}");
+                Console.WriteLine($"=== Return Page: {returnPage}");
                 
                 var request = flow.CreateAuthorizationCodeRequest(redirectUri);
                 
-                // 생성된 전체 인증 URL도 확인
+                // state 파라미터에 돌아갈 페이지 정보 추가
+                request.State = returnPage;
+                
                 var authUrl = request.Build().ToString();
                 Console.WriteLine($"=== 생성된 인증 URL: {authUrl}");
-                
-                System.Diagnostics.Debug.WriteLine($"인증 URL 생성: {authUrl}");
-                System.Diagnostics.Debug.WriteLine($"리디렉션 URI: {redirectUri}");
         
                 return authUrl;
             }
