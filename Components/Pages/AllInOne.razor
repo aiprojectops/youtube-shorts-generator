@@ -255,15 +255,11 @@
                                 <div class="form-text">#NUMBER는 자동으로 #1, #2, #3... 으로 변환됩니다</div>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label"><strong>태그:</strong></label>
-                                <input type="text" class="form-control" @bind="youtubeTags" placeholder="태그1, 태그2, 태그3" disabled="@(isRunning || hasActiveSchedule)" />
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
                                 <label class="form-label"><strong>설명:</strong></label>
                                 <textarea class="form-control" rows="3" @bind="youtubeDescription" placeholder="영상 설명" disabled="@(isRunning || hasActiveSchedule)"></textarea>
                             </div>
+                        </div>
+                        <div class="col-md-6">
                             <div class="mb-3">
                                 <label class="form-label"><strong>공개 설정:</strong></label>
                                 <select class="form-select" @bind="youtubePrivacy" disabled="@(isRunning || hasActiveSchedule)">
@@ -271,6 +267,10 @@
                                     <option value="공개">공개</option>
                                     <option value="링크 공유">링크 공유</option>
                                 </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label"><strong>태그:</strong></label>
+                                <input type="text" class="form-control" @bind="youtubeTags" placeholder="태그1, 태그2, 태그3" disabled="@(isRunning || hasActiveSchedule)" />
                             </div>
                         </div>
                     </div>
@@ -443,8 +443,8 @@
             <!-- 완료 결과 -->
             @if (!string.IsNullOrEmpty(resultMessage))
             {
-                <div class="alert alert-success">
-                    <h5>All-in-One 완료!</h5>
+                <div class="alert @GetResultAlertClass()">
+                    <h5>@GetResultTitle()</h5>
                     <p>@resultMessage</p>
                 </div>
             }
@@ -548,6 +548,7 @@
     private string statusMessage = "";
     private string currentPromptUsed = "";
     private string resultMessage = "";
+    private bool isResultError = false;  // 에러 여부 추가
     private List<GeneratedVideo> generatedVideos = new List<GeneratedVideo>();
 
     // 스케줄 상태 추적
@@ -1038,6 +1039,7 @@
             {
                 statusMessage = "처리된 영상이 없습니다.";
                 resultMessage = "처리할 수 있는 영상이 없었습니다.";
+                isResultError = true;
             }
         }
         catch (Exception ex)
@@ -1045,12 +1047,23 @@
             await JSRuntime.InvokeVoidAsync("alert", $"All-in-One 실행 오류: {ex.Message}");
             statusMessage = $"오류 발생: {ex.Message}";
             resultMessage = $"오류로 인해 중단되었습니다: {ex.Message}";
+            isResultError = true;
         }
         finally
         {
             isRunning = false;
             StateHasChanged();
         }
+    }
+
+    private string GetResultAlertClass()
+    {
+        return isResultError ? "alert-danger" : "alert-success";
+    }
+
+    private string GetResultTitle()
+    {
+        return isResultError ? "오류 발생" : "All-in-One 완료!";
     }
 
     private void StopAllInOne()
