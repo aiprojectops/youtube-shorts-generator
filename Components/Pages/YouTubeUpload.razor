@@ -455,13 +455,12 @@
     
             youtubeUploader = new YouTubeUploader();
             
-            // 현재 URL 가져오기
             string currentUrl = await JSRuntime.InvokeAsync<string>("eval", "window.location.origin");
             
-            // 인증 URL 생성
-            string authUrl = await youtubeUploader.GetAuthorizationUrlAsync(currentUrl);
+            // returnPage를 "youtube-upload"로 지정
+            string authUrl = await youtubeUploader.GetAuthorizationUrlAsync(currentUrl, "youtube-upload");
             
-            // 같은 탭에서 인증 페이지로 이동 (새 탭이 아님)
+            // 같은 탭에서 인증 페이지로 이동
             await JSRuntime.InvokeVoidAsync("eval", $"window.location.href = '{authUrl}'");
         }
         catch (Exception ex)
