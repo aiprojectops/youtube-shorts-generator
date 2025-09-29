@@ -827,10 +827,12 @@
         showCsvPreview = true;
     }
 
+
+    // AllInOne.razor - AuthenticateYouTube 메서드 수정 부분
     private async Task AuthenticateYouTube()
     {
         isAuthenticating = true;
-
+    
         try
         {
             var config = ConfigManager.GetConfig();
@@ -839,7 +841,7 @@
                 await JSRuntime.InvokeVoidAsync("alert", "먼저 설정에서 YouTube API 정보를 입력해주세요.");
                 return;
             }
-
+    
             youtubeUploader = new YouTubeUploader();
             
             // 현재 URL 가져오기
@@ -848,12 +850,8 @@
             // 인증 URL 생성
             string authUrl = await youtubeUploader.GetAuthorizationUrlAsync(currentUrl);
             
-            // 새 탭에서 인증 페이지 열기
-            await JSRuntime.InvokeVoidAsync("open", authUrl, "_blank");
-            
-            await JSRuntime.InvokeVoidAsync("alert", 
-                "YouTube 인증 페이지가 새 탭에서 열렸습니다.\n" +
-                "인증을 완료한 후 이 페이지를 새로고침해주세요.");
+            // 같은 탭에서 인증 페이지로 이동 (새 탭이 아님)
+            await JSRuntime.InvokeVoidAsync("eval", $"window.location.href = '{authUrl}'");
         }
         catch (Exception ex)
         {
@@ -864,6 +862,7 @@
             isAuthenticating = false;
         }
     }
+
 
     private async Task SwitchYouTubeAccount()
     {
