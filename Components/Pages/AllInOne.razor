@@ -207,12 +207,6 @@
                                                                 </ul>
                                                             </div>
                                                         }
-                                                        else if (selectedMusicFile != null)
-                                                        {
-                                                            <div class="mt-1 text-warning small">
-                                                                파일 준비 중...
-                                                            </div>
-                                                        }
                                                     </div>
                                                     <label class="form-label form-label-sm">음량: @musicVolume</label>
                                                     <input type="range" class="form-range" min="0.1" max="1.0" step="0.1" @bind="musicVolume" disabled="@(isRunning || hasActiveSchedule)" />
