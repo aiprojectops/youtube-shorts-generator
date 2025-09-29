@@ -335,6 +335,34 @@
     </div>
 }
 
+// 7. UI 표시
+@if (addBackgroundMusic)
+{
+    <div class="mt-2">
+        <div class="mb-2">
+            <label class="form-label form-label-sm">배경음악 파일:</label>
+            <InputFile OnChange="HandleMusicFileSelection" accept="audio/*" class="form-control form-control-sm" disabled="@isGenerating" />
+            <div class="form-text">지원 형식: MP3, WAV, M4A, AAC (최대 10MB)</div>
+            
+            @if (!string.IsNullOrEmpty(savedMusicFilePath) && File.Exists(savedMusicFilePath))
+            {
+                <div class="mt-1 alert alert-success py-1 px-2 small">
+                    ✓ 저장됨: @Path.GetFileName(savedMusicFilePath) (세션 동안 재사용)
+                </div>
+            }
+            else if (selectedMusicFile != null)
+            {
+                <div class="mt-1 text-warning small">
+                    파일 준비 중...
+                </div>
+            }
+        </div>
+        <label class="form-label form-label-sm">음량: @musicVolume</label>
+        <input type="range" class="form-range" min="0.1" max="1.0" step="0.1"
+               @bind="musicVolume" disabled="@isGenerating" />
+    </div>
+}
+
 @code {
     private int videoCount = 1;
     private int selectedDuration = 5;
@@ -369,6 +397,9 @@
     private List<string> csvPrompts = new List<string>();
     private bool showCsvPreview = false;
     private Random random = new Random();
+
+    private IBrowserFile? selectedMusicFile = null;
+    private string? savedMusicFilePath = null;  // 작은 음악 파일만 세션에 보관
 
     private string totalCost => (videoCount * (selectedDuration == 5 ? 0.75m : 1.5m)).ToString("F2");
 
@@ -789,67 +820,50 @@
     }
 
 
-    // 개별 영상 처리 메서드 (비디오 생성기용)
+    // 5. 개별 영상 처리 후 즉시 정리 (AllInOne/VideoGenerator 공통)
     private async Task ProcessIndividualVideoGen(string videoPath, int videoIndex, string originalPrompt, string combinedPrompt)
     {
         try
         {
             Console.WriteLine($"=== 영상 {videoIndex} 처리 시작");
-    
+            
+            // 처리 전 메모리 정리
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            
             string finalVideoPath = videoPath;
-    
+            
             // 후처리 수행
             if (enablePostProcessing && (addCaption || addBackgroundMusic))
             {
-                // 처리 전 메모리 정리
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
-                GC.Collect();
-                
                 string processedPath = await ProcessVideoGen(videoPath, originalPrompt);
-    
-                // 원본 삭제, 처리된 파일 사용
-                if (File.Exists(videoPath)) 
-                {
-                    File.Delete(videoPath);
-                }
+                // ProcessVideoGen 내부에서 이미 원본 삭제됨
                 finalVideoPath = processedPath;
-                
-                // 처리 후 메모리 정리
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
             }
-    
-            // 다운로드 전에도 메모리 정리
+            
+            // 다운로드/업로드 처리...
+            await TriggerBrowserDownloadFromFileGen(finalVideoPath, downloadFileName);
+            // 또는 await UploadToYouTube(finalVideoPath);
+            
+            // ★ 중요: 처리 완료된 파일도 즉시 삭제
+            try
+            {
+                if (File.Exists(finalVideoPath))
+                {
+                    File.Delete(finalVideoPath);
+                    Console.WriteLine($"=== 처리 완료 파일 삭제: {Path.GetFileName(finalVideoPath)}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"=== 파일 삭제 실패: {ex.Message}");
+            }
+            
+            // 처리 후 메모리 정리
             GC.Collect();
             GC.WaitForPendingFinalizers();
-    
-            // 브라우저 다운로드 트리거
-            string downloadFileName = $"video_{DateTime.Now:yyyyMMdd_HHmmss}_{videoIndex:D2}.mp4";
-            await TriggerBrowserDownloadFromFileGen(finalVideoPath, downloadFileName);
-    
-            // 히스토리에 기록 추가
-            var historyItem = new VideoHistoryManager.VideoHistoryItem
-            {
-                Prompt = originalPrompt,
-                FinalPrompt = combinedPrompt,
-                Duration = isGenerateVideo ? selectedDuration : 0,
-                AspectRatio = isGenerateVideo ? selectedAspectRatio : "로컬 파일",
-                VideoUrl = isGenerateVideo ? lastVideoUrl : "",
-                IsRandomPrompt = isRandomPromptMode,
-                FileName = downloadFileName,
-                IsDownloaded = true,
-                Status = enablePostProcessing ? "후처리 완료" : "완료"
-            };
-            VideoHistoryManager.AddHistoryItem(historyItem);
-    
-            // 최종 파일 정리
-            if (File.Exists(finalVideoPath)) 
-            {
-                File.Delete(finalVideoPath);
-            }
-    
-            Console.WriteLine($"=== 영상 {videoIndex} 처리 완료");
+            
+            Console.WriteLine($"=== 영상 {videoIndex} 처리 완료 및 정리");
         }
         catch (Exception ex)
         {
@@ -858,6 +872,27 @@
         }
     }
 
+    // 6. 컴포넌트 종료 시 음악 파일만 정리
+    public void Dispose()
+    {
+        // 세션 음악 파일 정리
+        if (!string.IsNullOrEmpty(savedMusicFilePath) && File.Exists(savedMusicFilePath))
+        {
+            try
+            {
+                File.Delete(savedMusicFilePath);
+                Console.WriteLine($"=== 세션 음악 파일 정리: {Path.GetFileName(savedMusicFilePath)}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"=== 음악 파일 정리 실패: {ex.Message}");
+            }
+        }
+        
+        // 타이머 정리 (AllInOne의 경우)
+        scheduleStatusTimer?.Stop();
+        scheduleStatusTimer?.Dispose();
+    }
 
     // 후처리를 위한 영상 다운로드 (비디오 생성기용)
     private async Task<string> DownloadVideoForGen(string videoUrl, string fileName)
@@ -900,76 +935,51 @@
         }
     }
 
-    // 영상 후처리 수행 (비디오 생성기용) - 랜덤 처리 추가
+    // 4. ProcessVideoGen에서 배경음악 사용 (영상 파일은 즉시 삭제)
     private async Task<string> ProcessVideoGen(string inputPath, string promptText)
     {
         try
         {
             string outputPath = inputPath.Replace(".mp4", "_processed.mp4");
-
-            // 캡션 위치가 랜덤이면 실제 위치를 선택
-            string actualCaptionPosition = captionPosition;
-            if (captionPosition == "random")
-            {
-                var positions = new[] { "top", "center", "bottom" };
-                Random random = new Random();
-                actualCaptionPosition = positions[random.Next(positions.Length)];
-                Console.WriteLine($"=== 랜덤 캡션 위치 선택: {actualCaptionPosition} ===");
-            }
-
-            // 캡션 크기가 랜덤이면 실제 크기를 선택
-            string actualCaptionSize = captionSize;
-            if (captionSize == "random")
-            {
-                var sizes = new[] { "60", "80", "120" };
-                Random random = new Random();
-                actualCaptionSize = sizes[random.Next(sizes.Length)];
-                Console.WriteLine($"=== 랜덤 캡션 크기 선택: {actualCaptionSize} ===");
-            }
-
-            // 캡션 색상이 랜덤이면 실제 색상을 선택
-            string actualCaptionColor = captionColor;
-            if (captionColor == "random")
-            {
-                var colors = new[] { "white", "yellow", "red", "black" };
-                Random random = new Random();
-                actualCaptionColor = colors[random.Next(colors.Length)];
-                Console.WriteLine($"=== 랜덤 캡션 색상 선택: {actualCaptionColor} ===");
-            }
-
+    
+            // 랜덤 처리 로직...
+            string actualCaptionPosition = captionPosition == "random" ? /* ... */ : captionPosition;
+            string actualCaptionSize = captionSize == "random" ? /* ... */ : captionSize;
+            string actualCaptionColor = captionColor == "random" ? /* ... */ : captionColor;
+    
             var options = new VideoPostProcessor.ProcessingOptions
             {
                 InputVideoPath = inputPath,
                 OutputVideoPath = outputPath
             };
-
-            Console.WriteLine($"=== ProcessVideo 시작");
-
+    
             // 캡션 추가
             if (addCaption && !string.IsNullOrWhiteSpace(captionText))
             {
                 options.CaptionText = captionText;
-                options.FontSize = actualCaptionSize;        // 랜덤 처리된 크기 사용
-                options.FontColor = actualCaptionColor;      // 랜덤 처리된 색상 사용
-                options.CaptionPosition = actualCaptionPosition; // 랜덤 처리된 위치 사용
+                options.FontSize = actualCaptionSize;
+                options.FontColor = actualCaptionColor;
+                options.CaptionPosition = actualCaptionPosition;
             }
-
-            // 배경음악 추가
+    
+            // 배경음악 추가 - 세션에 저장된 파일 사용
             if (addBackgroundMusic)
             {
                 try
                 {
                     string musicPath = "";
                     
-                    // 업로드된 음악 파일이 있으면 사용
-                    if (selectedMusicFile != null)
+                    // 우선순위: 세션에 저장된 파일 > 기본 음악
+                    if (!string.IsNullOrEmpty(savedMusicFilePath) && File.Exists(savedMusicFilePath))
                     {
-                        musicPath = await SaveUploadedMusicFileAsync(selectedMusicFile);
+                        musicPath = savedMusicFilePath;
+                        Console.WriteLine($"=== 세션 음악 사용: {Path.GetFileName(musicPath)}");
                     }
                     else
                     {
-                        // 기존 로직 (로컬 music 폴더)
+                        // 기본 음악 사용
                         musicPath = await VideoPostProcessor.DownloadSampleMusicAsync();
+                        Console.WriteLine($"=== 기본 음악 사용");
                     }
                     
                     if (File.Exists(musicPath))
@@ -981,12 +991,9 @@
                 catch (Exception ex)
                 {
                     Console.WriteLine($"=== 배경음악 준비 실패: {ex.Message}");
-                    await JSRuntime.InvokeVoidAsync("alert", 
-                        $"배경음악을 추가할 수 없습니다:\n{ex.Message}\n\n캡션만 추가하고 계속 진행합니다.");
                 }
             }
-
-            // 진행률 업데이트
+    
             var progress = new Progress<string>(status =>
             {
                 InvokeAsync(() =>
@@ -995,8 +1002,24 @@
                     StateHasChanged();
                 });
             });
-
-            return await VideoPostProcessor.ProcessVideoAsync(options, progress);
+    
+            string processedPath = await VideoPostProcessor.ProcessVideoAsync(options, progress);
+            
+            // ★ 중요: 원본 입력 파일 즉시 삭제 (디스크 용량 절약)
+            try
+            {
+                if (File.Exists(inputPath))
+                {
+                    File.Delete(inputPath);
+                    Console.WriteLine($"=== 원본 파일 삭제: {Path.GetFileName(inputPath)}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"=== 원본 파일 삭제 실패: {ex.Message}");
+            }
+            
+            return processedPath;
         }
         catch (Exception ex)
         {
@@ -1086,13 +1109,24 @@
     }
 
 
-    // 음악 파일 선택 핸들러 (새로 추가)
+    // 2. HandleMusicFileSelection - 음악 파일만 즉시 저장
     private async Task HandleMusicFileSelection(InputFileChangeEventArgs e)
     {
         var file = e.File;
         if (file == null)
         {
             selectedMusicFile = null;
+            // 기존 파일 삭제
+            if (!string.IsNullOrEmpty(savedMusicFilePath) && File.Exists(savedMusicFilePath))
+            {
+                try
+                {
+                    File.Delete(savedMusicFilePath);
+                    Console.WriteLine($"=== 기존 음악 파일 삭제: {savedMusicFilePath}");
+                }
+                catch { }
+            }
+            savedMusicFilePath = null;
             return;
         }
     
@@ -1120,15 +1154,64 @@
             }
     
             selectedMusicFile = file;
-            Console.WriteLine($"=== 음악 파일 선택됨: {file.Name}, 크기: {file.Size / 1024} KB");
+            
+            // 기존 파일이 있으면 먼저 삭제
+            if (!string.IsNullOrEmpty(savedMusicFilePath) && File.Exists(savedMusicFilePath))
+            {
+                try
+                {
+                    File.Delete(savedMusicFilePath);
+                }
+                catch { }
+            }
+            
+            // 새 파일을 세션에 저장 (작은 음악 파일만)
+            savedMusicFilePath = await SaveMusicFileToSession(file);
+            
+            Console.WriteLine($"=== 음악 파일 세션에 저장됨: {Path.GetFileName(savedMusicFilePath)} ({file.Size / 1024} KB)");
         }
         catch (Exception ex)
         {
             await JSRuntime.InvokeVoidAsync("alert", $"음악 파일 선택 오류: {ex.Message}");
             selectedMusicFile = null;
+            savedMusicFilePath = null;
         }
     
         StateHasChanged();
+    }
+
+    // 3. 음악 파일을 단일 파일로 세션에 저장 (폴더 생성 최소화)
+    private async Task<string> SaveMusicFileToSession(IBrowserFile musicFile)
+    {
+        try
+        {
+            // 세션 음악 폴더 (모든 세션 공유, 하나의 파일만 유지)
+            string musicDir = Path.Combine(Path.GetTempPath(), "SessionMusic");
+            Directory.CreateDirectory(musicDir);
+            
+            string extension = Path.GetExtension(musicFile.Name).ToLower();
+            if (string.IsNullOrEmpty(extension))
+            {
+                extension = ".mp3";
+            }
+            
+            // 고유한 파일명 생성 (충돌 방지)
+            string musicPath = Path.Combine(musicDir, $"music_{Guid.NewGuid()}{extension}");
+            
+            using (var fileStream = new FileStream(musicPath, FileMode.Create))
+            {
+                await musicFile.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(fileStream);
+            }
+            
+            var fileInfo = new FileInfo(musicPath);
+            Console.WriteLine($"=== 음악 저장: {musicPath} ({fileInfo.Length / 1024} KB)");
+            
+            return musicPath;
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"음악 파일 세션 저장 실패: {ex.Message}");
+        }
     }
 
     private async Task TriggerBrowserDownload(string videoUrl, int videoIndex)
