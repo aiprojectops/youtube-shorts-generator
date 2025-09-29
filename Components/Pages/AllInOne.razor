@@ -868,14 +868,24 @@ await CheckExistingYouTubeAuth();
     {
         try
         {
+            bool confirm = await JSRuntime.InvokeAsync<bool>("confirm", 
+                "현재 계정 연동을 해제하고 다른 계정으로 전환하시겠습니까?");
+            
+            if (!confirm) return;
+            
             if (youtubeUploader != null)
             {
-                bool success = await youtubeUploader.SwitchAccountAsync();
-                if (success)
-                {
-                    currentYouTubeAccount = await youtubeUploader.GetCurrentAccountInfoAsync();
-                }
+                // 기존 인증 해제
+                await youtubeUploader.RevokeAuthenticationAsync();
             }
+            
+            // 상태 초기화
+            youtubeUploader = null;
+            currentYouTubeAccount = null;
+            StateHasChanged();
+            
+            // 재인증 시작
+            await AuthenticateYouTube();
         }
         catch (Exception ex)
         {
