@@ -185,11 +185,69 @@
                                     @if (addCaption)
                                     {
                                         <div class="mt-2">
-                                            <input type="text" class="form-control form-control-sm" @bind="captionText" disabled="@isGenerating"
-                                                   placeholder="캡션 텍스트 입력..." />
+                                            <!-- 🔥 추가: 랜덤 캡션 체크박스 -->
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="checkbox" @bind="useRandomCaption" @bind:after="OnRandomCaptionChanged" id="useRandomCaption" disabled="@isGenerating">
+                                                <label class="form-check-label" for="useRandomCaption">
+                                                    <strong>랜덤 캡션 (CSV 파일)</strong>
+                                                </label>
+                                            </div>
+                                    
+                                            @if (useRandomCaption)
+                                            {
+                                                <!-- CSV 파일 업로드 -->
+                                                <div class="mb-2">
+                                                    <label class="form-label form-label-sm">캡션 CSV 파일:</label>
+                                                    <InputFile OnChange="HandleCaptionCsvSelection" accept=".csv" class="form-control form-control-sm" disabled="@isGenerating" />
+                                                    <div class="form-text">CSV 형식: 첫 번째 열은 번호, 두 번째 열은 캡션 텍스트</div>
+                                                    
+                                                    @if (captionCsvList.Count > 0)
+                                                    {
+                                                        <div class="mt-1 alert alert-success py-1 px-2 small">
+                                                            ✓ @captionCsvList.Count 개 캡션 로드됨
+                                                            <button type="button" class="btn btn-sm btn-outline-primary ms-2" @onclick="ShowCaptionCsvPreview" disabled="@isGenerating">
+                                                                미리보기
+                                                            </button>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <!-- 수동 입력 -->
+                                                <input type="text" class="form-control form-control-sm mb-2" @bind="captionText" disabled="@isGenerating"
+                                                       placeholder="캡션 텍스트 입력..." />
+                                            }
+                                    
                                             <div class="row mt-2">
                                                 <div class="col-md-4">
                                                     <select class="form-select form-select-sm" @bind="captionPosition" disabled="@isGenerating">
+                                                        <option value="top">상단</option>
+                                                        <option value="center">중앙</option>
+                                                        <option value="bottom">하단</option>
+                                                        <option value="random">랜덤</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <select class="form-select form-select-sm" @bind="captionSize" disabled="@isGenerating">
+                                                        <option value="60">작게</option>
+                                                        <option value="80">보통</option>
+                                                        <option value="120">크게</option>
+                                                        <option value="random">랜덤</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <select class="form-select form-select-sm" @bind="captionColor" disabled="@isGenerating">
+                                                        <option value="white">흰색</option>
+                                                        <option value="yellow">노란색</option>
+                                                        <option value="red">빨간색</option>
+                                                        <option value="black">검정색</option>
+                                                        <option value="random">랜덤</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
                                                         <option value="top">상단</option>
                                                         <option value="center">중앙</option>
                                                         <option value="bottom">하단</option>
@@ -342,6 +400,39 @@
         </div>
     </div>
 }
+<!-- 🔥 추가: 캡션 CSV 미리보기 모달 -->
+@if (showCaptionCsvPreview)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">캡션 미리보기</h5>
+                    <button type="button" class="btn-close" @onclick="() => showCaptionCsvPreview = false"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>총 @captionCsvList.Count 개의 캡션이 로드되었습니다.</strong></p>
+                    <div style="max-height: 300px; overflow-y: auto;">
+                        @for (int i = 0; i < Math.Min(10, captionCsvList.Count); i++)
+                        {
+                            <div class="mb-2">
+                                <strong>@(i + 1).</strong> @captionCsvList[i]
+                            </div>
+                        }
+                        @if (captionCsvList.Count > 10)
+                        {
+                            <div class="text-muted">... 외 @(captionCsvList.Count - 10) 개 더</div>
+                        }
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => showCaptionCsvPreview = false">닫기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 
 @code {
     // 기본 설정
@@ -368,6 +459,12 @@
     private string captionPosition = "top";
     private string captionSize = "120";
     private string captionColor = "white";
+
+    // 🔥 추가: 랜덤 캡션 관련
+    private bool useRandomCaption = false;
+    private List<string> captionCsvList = new List<string>();
+    private bool showCaptionCsvPreview = false;
+
     private bool addBackgroundMusic = false;
     private float musicVolume = 0.7f;
 
@@ -502,6 +599,65 @@
         return csvPrompts[index];
     }
 
+
+    // 🔥 추가: 랜덤 캡션 관련 메서드들
+    private void OnRandomCaptionChanged()
+    {
+        if (!useRandomCaption)
+        {
+            captionCsvList.Clear();
+        }
+    }
+    
+    private async Task HandleCaptionCsvSelection(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file == null) return;
+    
+        try
+        {
+            const long maxSize = 5 * 1024 * 1024;
+            if (file.Size > maxSize)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "CSV 파일이 너무 큽니다. 5MB 이하의 파일을 선택해주세요.");
+                return;
+            }
+    
+            using var stream = file.OpenReadStream(maxSize);
+            using var reader = new StreamReader(stream);
+            var content = await reader.ReadToEndAsync();
+    
+            captionCsvList = ParseCsvContent(content);
+    
+            if (captionCsvList.Count == 0)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "CSV 파일에서 유효한 캡션을 찾을 수 없습니다.");
+            }
+            else
+            {
+                Console.WriteLine($"=== {captionCsvList.Count}개 캡션 로드됨");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"CSV 파일 읽기 실패: {ex.Message}");
+            captionCsvList.Clear();
+        }
+    }
+    
+    private void ShowCaptionCsvPreview()
+    {
+        showCaptionCsvPreview = true;
+    }
+    
+    private string GetRandomCaption()
+    {
+        if (captionCsvList.Count == 0) return captionText;
+        return captionCsvList[random.Next(captionCsvList.Count)];
+    }
+
+
+
     private async Task HandleMusicFileSelection(InputFileChangeEventArgs e)
     {
         selectedMusicFiles.Clear();
@@ -574,14 +730,21 @@
             return;
         }
 
+        // 🔥 수정: 랜덤 캡션 검증 추가
+        if (enablePostProcessing && addCaption && useRandomCaption && captionCsvList.Count == 0)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "랜덤 캡션을 사용하려면 캡션 CSV 파일을 업로드해주세요.");
+            return;
+        }
+        
         if (enablePostProcessing)
         {
-            if (addCaption && string.IsNullOrWhiteSpace(captionText))
+            if (addCaption && !useRandomCaption && string.IsNullOrWhiteSpace(captionText))
             {
                 await JSRuntime.InvokeVoidAsync("alert", "캡션 텍스트를 입력해주세요.");
                 return;
             }
-
+        
             bool ffmpegAvailable = await VideoPostProcessor.IsFFmpegAvailableAsync();
             if (!ffmpegAvailable)
             {
@@ -854,10 +1017,15 @@
 
             if (addCaption && !string.IsNullOrWhiteSpace(captionText))
             {
-                options.CaptionText = captionText;
+                // 🔥 수정: 랜덤 캡션 사용
+                string finalCaptionText = useRandomCaption ? GetRandomCaption() : captionText;
+                
+                options.CaptionText = finalCaptionText;
                 options.FontSize = actualCaptionSize;
                 options.FontColor = actualCaptionColor;
                 options.CaptionPosition = actualCaptionPosition;
+            
+                Console.WriteLine($"=== 사용된 캡션: {finalCaptionText}");
             }
 
             if (addBackgroundMusic)
