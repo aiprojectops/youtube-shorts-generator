@@ -6,12 +6,15 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
-builder.Services.AddControllers(); // 컨트롤러 서비스 추가
+builder.Services.AddControllers();
 
 // ScheduledUploadService 등록
 builder.Services.AddSingleton<ScheduledUploadService>();
 builder.Services.AddHostedService<ScheduledUploadService>(provider =>
     provider.GetRequiredService<ScheduledUploadService>());
+
+// 🔥 Self-Ping 서비스 추가
+builder.Services.AddHostedService<SelfPingService>();
 
 var app = builder.Build();
 
@@ -26,9 +29,7 @@ app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseAntiforgery();
 
-app.MapControllers(); // 컨트롤러 라우팅 추가 - 이게 AuthController를 처리함
-
-// 기존의 MapGet 콜백 제거 - AuthController가 대신 처리함
+app.MapControllers();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
