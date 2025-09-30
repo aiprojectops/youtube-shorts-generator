@@ -2,8 +2,11 @@
 @rendermode InteractiveServer
 @implements IDisposable
 @using YouTubeShortsWebApp
+@using YouTubeShortsWebApp.Services
 @inject IJSRuntime JSRuntime
 @inject ScheduledUploadService ScheduledUploadService
+@inject VideoGenerationService VideoGenService
+@inject YouTubeUploadService YouTubeService
 @using System.Web
 
 <PageTitle>All-in-One 자동화</PageTitle>
@@ -26,42 +29,42 @@
                         <label class="form-label"><strong>영상 소스:</strong></label>
                         <div class="form-check">
                             <input class="form-check-input" type="radio" name="videoSource" id="generateVideo"
-                                   @onchange="() => SetVideoSource(true)" checked="@isGenerateVideo" disabled="@(isRunning || hasActiveSchedule)">
+                                   @onchange="() => genOptions.IsGenerateVideo = true" checked="@genOptions.IsGenerateVideo" disabled="@(isRunning || hasActiveSchedule)">
                             <label class="form-check-label" for="generateVideo">
                                 <strong>새로 생성</strong> - AI로 영상을 생성합니다
                             </label>
                         </div>
                         <div class="form-check">
                             <input class="form-check-input" type="radio" name="videoSource" id="useLocalVideo"
-                                   @onchange="() => SetVideoSource(false)" checked="@(!isGenerateVideo)" disabled="@(isRunning || hasActiveSchedule)">
+                                   @onchange="() => genOptions.IsGenerateVideo = false" checked="@(!genOptions.IsGenerateVideo)" disabled="@(isRunning || hasActiveSchedule)">
                             <label class="form-check-label" for="useLocalVideo">
                                 <strong>로컬 파일 사용</strong> - 기존에 있는 영상 파일들을 업로드합니다
                             </label>
                         </div>
                     </div>
 
-                    @if (isGenerateVideo)
+                    @if (genOptions.IsGenerateVideo)
                     {
                         <!-- AI 영상 생성 옵션들 -->
                         <div class="row mb-3">
                             <div class="col-md-4">
-                                <label class="form-label"><strong>생성할 영상 개수: @videoCount 개</strong></label>
-                                <input type="range" class="form-range" min="1" max="10" @bind="videoCount" @bind:after="OnVideoCountChanged" disabled="@(isRunning || hasActiveSchedule)" />
+                                <label class="form-label"><strong>생성할 영상 개수: @genOptions.VideoCount 개</strong></label>
+                                <input type="range" class="form-range" min="1" max="10" @bind="genOptions.VideoCount" @bind:after="OnVideoCountChanged" disabled="@(isRunning || hasActiveSchedule)" />
                                 <div class="text-primary">총 예상 비용: $@totalCost</div>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label"><strong>영상 길이:</strong></label>
                                 <div>
-                                    <button type="button" class="btn @GetDurationClass(5)" @onclick="@(() => selectedDuration = 5)" disabled="@(isRunning || hasActiveSchedule)">5초</button>
-                                    <button type="button" class="btn @GetDurationClass(10)" @onclick="@(() => selectedDuration = 10)" disabled="@(isRunning || hasActiveSchedule)">10초</button>
+                                    <button type="button" class="btn @GetDurationClass(5)" @onclick="@(() => genOptions.SelectedDuration = 5)" disabled="@(isRunning || hasActiveSchedule)">5초</button>
+                                    <button type="button" class="btn @GetDurationClass(10)" @onclick="@(() => genOptions.SelectedDuration = 10)" disabled="@(isRunning || hasActiveSchedule)">10초</button>
                                 </div>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label"><strong>화면 비율:</strong></label>
                                 <div>
-                                    <button type="button" class="btn @GetAspectClass("9:16")" @onclick="@(() => selectedAspectRatio = "9:16")" disabled="@(isRunning || hasActiveSchedule)">9:16</button>
-                                    <button type="button" class="btn @GetAspectClass("16:9")" @onclick="@(() => selectedAspectRatio = "16:9")" disabled="@(isRunning || hasActiveSchedule)">16:9</button>
-                                    <button type="button" class="btn @GetAspectClass("1:1")" @onclick="@(() => selectedAspectRatio = "1:1")" disabled="@(isRunning || hasActiveSchedule)">1:1</button>
+                                    <button type="button" class="btn @GetAspectClass("9:16")" @onclick="@(() => genOptions.SelectedAspectRatio = "9:16")" disabled="@(isRunning || hasActiveSchedule)">9:16</button>
+                                    <button type="button" class="btn @GetAspectClass("16:9")" @onclick="@(() => genOptions.SelectedAspectRatio = "16:9")" disabled="@(isRunning || hasActiveSchedule)">16:9</button>
+                                    <button type="button" class="btn @GetAspectClass("1:1")" @onclick="@(() => genOptions.SelectedAspectRatio = "1:1")" disabled="@(isRunning || hasActiveSchedule)">1:1</button>
                                 </div>
                             </div>
                         </div>
@@ -72,10 +75,10 @@
                             <InputFile OnChange="HandleCsvFileSelection" accept=".csv" class="form-control" disabled="@(isRunning || hasActiveSchedule)" />
                             <div class="form-text">CSV 파일 형식: 첫 번째 열은 번호, 두 번째 열은 프롬프트 내용</div>
 
-                            @if (csvPrompts.Count > 0)
+                            @if (genOptions.CsvPrompts.Count > 0)
                             {
                                 <div class="mt-2 alert alert-success">
-                                    <strong>로드된 프롬프트:</strong> @csvPrompts.Count 개
+                                    <strong>로드된 프롬프트:</strong> @genOptions.CsvPrompts.Count 개
                                     <button type="button" class="btn btn-sm btn-outline-primary ms-2" @onclick="ShowCsvPreview" disabled="@(isRunning || hasActiveSchedule)">
                                         미리보기
                                     </button>
@@ -91,18 +94,18 @@
                             <InputFile OnChange="HandleLocalVideoSelection" accept="video/*" multiple class="form-control" disabled="@(isRunning || hasActiveSchedule)" />
                             <div class="form-text">하나 또는 여러 개의 비디오 파일을 선택하세요 (각각 최대 2GB)</div>
 
-                            @if (localVideoFiles.Count > 0)
+                            @if (genOptions.LocalVideoFiles.Count > 0)
                             {
                                 <div class="mt-2 alert alert-success">
-                                    <strong>선택된 파일:</strong> @localVideoFiles.Count 개
+                                    <strong>선택된 파일:</strong> @genOptions.LocalVideoFiles.Count 개
                                     <ul class="mb-0 mt-2">
-                                        @foreach (var file in localVideoFiles.Take(5))
+                                        @foreach (var file in genOptions.LocalVideoFiles.Take(5))
                                         {
-                                            <li>@file.Name (@FormatFileSize(file.Size))</li>
+                                            <li>@file.Name (@VideoGenerationService.FormatFileSize(file.Size))</li>
                                         }
-                                        @if (localVideoFiles.Count > 5)
+                                        @if (genOptions.LocalVideoFiles.Count > 5)
                                         {
-                                            <li>... 외 @(localVideoFiles.Count - 5)개 더</li>
+                                            <li>... 외 @(genOptions.LocalVideoFiles.Count - 5)개 더</li>
                                         }
                                     </ul>
                                 </div>
@@ -120,14 +123,14 @@
                 <div class="card-body">
                     <div class="mb-3">
                         <div class="form-check">
-                            <input class="form-check-input" type="checkbox" @bind="enablePostProcessing" id="enablePostProcessing" disabled="@(isRunning || hasActiveSchedule)">
+                            <input class="form-check-input" type="checkbox" @bind="postOptions.EnablePostProcessing" id="enablePostProcessing" disabled="@(isRunning || hasActiveSchedule)">
                             <label class="form-check-label" for="enablePostProcessing">
                                 <strong>영상 후처리 사용</strong>
                             </label>
                         </div>
                     </div>
 
-                    @if (enablePostProcessing)
+                    @if (postOptions.EnablePostProcessing)
                     {
                         <div class="card bg-light">
                             <div class="card-body">
@@ -135,34 +138,32 @@
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <div class="form-check">
-                                                <input class="form-check-input" type="checkbox" @bind="addCaption" id="addCaption" disabled="@(isRunning || hasActiveSchedule)">
+                                                <input class="form-check-input" type="checkbox" @bind="postOptions.AddCaption" id="addCaption" disabled="@(isRunning || hasActiveSchedule)">
                                                 <label class="form-check-label" for="addCaption">
                                                     <strong>캡션 추가</strong>
                                                 </label>
                                             </div>
-                                            @if (addCaption)
+                                            @if (postOptions.AddCaption)
                                             {
                                                 <div class="mt-2">
-                                                    <!-- 🔥 추가: 랜덤 캡션 체크박스 -->
                                                     <div class="form-check mb-2">
-                                                        <input class="form-check-input" type="checkbox" @bind="useRandomCaption" @bind:after="OnRandomCaptionChanged" id="useRandomCaptionAllinone" disabled="@(isRunning || hasActiveSchedule)">
+                                                        <input class="form-check-input" type="checkbox" @bind="postOptions.UseRandomCaption" @bind:after="OnRandomCaptionChanged" id="useRandomCaptionAllinone" disabled="@(isRunning || hasActiveSchedule)">
                                                         <label class="form-check-label" for="useRandomCaptionAllinone">
                                                             <strong>랜덤 캡션 (CSV 파일)</strong>
                                                         </label>
                                                     </div>
                                             
-                                                    @if (useRandomCaption)
+                                                    @if (postOptions.UseRandomCaption)
                                                     {
-                                                        <!-- 🔥 추가: CSV 파일 업로드 -->
                                                         <div class="mb-2">
                                                             <label class="form-label form-label-sm">캡션 CSV 파일:</label>
                                                             <InputFile OnChange="HandleCaptionCsvSelection" accept=".csv" class="form-control form-control-sm" disabled="@(isRunning || hasActiveSchedule)" />
                                                             <div class="form-text">CSV 형식: 첫 번째 열은 번호, 두 번째 열은 캡션 텍스트</div>
                                                             
-                                                            @if (captionCsvList.Count > 0)
+                                                            @if (postOptions.CaptionCsvList.Count > 0)
                                                             {
                                                                 <div class="mt-1 alert alert-success py-1 px-2 small">
-                                                                    ✓ @captionCsvList.Count 개 캡션 로드됨
+                                                                    ✓ @postOptions.CaptionCsvList.Count 개 캡션 로드됨
                                                                     <button type="button" class="btn btn-sm btn-outline-primary ms-2" @onclick="ShowCaptionCsvPreview" disabled="@(isRunning || hasActiveSchedule)">
                                                                         미리보기
                                                                     </button>
@@ -172,13 +173,12 @@
                                                     }
                                                     else
                                                     {
-                                                        <!-- 🔥 추가: 수동 입력 -->
-                                                        <input type="text" class="form-control form-control-sm mb-2" @bind="captionText" placeholder="캡션 텍스트" disabled="@(isRunning || hasActiveSchedule)" />
+                                                        <input type="text" class="form-control form-control-sm mb-2" @bind="postOptions.CaptionText" placeholder="캡션 텍스트" disabled="@(isRunning || hasActiveSchedule)" />
                                                     }
                                             
                                                     <div class="row mt-2">
                                                         <div class="col-4">
-                                                            <select class="form-select form-select-sm" @bind="captionPosition" disabled="@(isRunning || hasActiveSchedule)">
+                                                            <select class="form-select form-select-sm" @bind="postOptions.CaptionPosition" disabled="@(isRunning || hasActiveSchedule)">
                                                                 <option value="top">상단</option>
                                                                 <option value="center">중앙</option>
                                                                 <option value="bottom">하단</option>
@@ -186,7 +186,7 @@
                                                             </select>
                                                         </div>
                                                         <div class="col-4">
-                                                            <select class="form-select form-select-sm" @bind="captionSize" disabled="@(isRunning || hasActiveSchedule)">
+                                                            <select class="form-select form-select-sm" @bind="postOptions.CaptionSize" disabled="@(isRunning || hasActiveSchedule)">
                                                                 <option value="60">작게</option>
                                                                 <option value="80">보통</option>
                                                                 <option value="120">크게</option>
@@ -194,7 +194,7 @@
                                                             </select>
                                                         </div>
                                                         <div class="col-4">
-                                                            <select class="form-select form-select-sm" @bind="captionColor" disabled="@(isRunning || hasActiveSchedule)">
+                                                            <select class="form-select form-select-sm" @bind="postOptions.CaptionColor" disabled="@(isRunning || hasActiveSchedule)">
                                                                 <option value="white">흰색</option>
                                                                 <option value="yellow">노란색</option>
                                                                 <option value="red">빨간색</option>
@@ -211,12 +211,12 @@
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <div class="form-check">
-                                                <input class="form-check-input" type="checkbox" @bind="addBackgroundMusic" id="addBackgroundMusic" disabled="@(isRunning || hasActiveSchedule)">
+                                                <input class="form-check-input" type="checkbox" @bind="postOptions.AddBackgroundMusic" id="addBackgroundMusic" disabled="@(isRunning || hasActiveSchedule)">
                                                 <label class="form-check-label" for="addBackgroundMusic">
                                                     <strong>배경음악 추가</strong>
                                                 </label>
                                             </div>
-                                            @if (addBackgroundMusic)
+                                            @if (postOptions.AddBackgroundMusic)
                                             {
                                                 <div class="mt-2">
                                                     <div class="mb-2">
@@ -224,25 +224,25 @@
                                                         <InputFile OnChange="HandleMusicFileSelection" accept="audio/*" multiple class="form-control form-control-sm" disabled="@(isRunning || hasActiveSchedule)" />
                                                         <div class="form-text">여러 개 선택 가능. 지원 형식: MP3, WAV, M4A, AAC (각 최대 10MB)</div>
                                                         
-                                                        @if (selectedMusicFiles.Count > 0)
+                                                        @if (postOptions.SelectedMusicFiles.Count > 0)
                                                         {
                                                             <div class="mt-1 alert alert-success py-1 px-2 small">
-                                                                ✓ @selectedMusicFiles.Count 개 파일 선택됨
+                                                                ✓ @postOptions.SelectedMusicFiles.Count 개 파일 선택됨
                                                                 <ul class="mb-0 mt-1">
-                                                                    @foreach (var file in selectedMusicFiles.Take(3))
+                                                                    @foreach (var file in postOptions.SelectedMusicFiles.Take(3))
                                                                     {
-                                                                        <li>@file.Name (@FormatFileSize(file.Size))</li>
+                                                                        <li>@file.Name (@VideoGenerationService.FormatFileSize(file.Size))</li>
                                                                     }
-                                                                    @if (selectedMusicFiles.Count > 3)
+                                                                    @if (postOptions.SelectedMusicFiles.Count > 3)
                                                                     {
-                                                                        <li>... 외 @(selectedMusicFiles.Count - 3)개 더</li>
+                                                                        <li>... 외 @(postOptions.SelectedMusicFiles.Count - 3)개 더</li>
                                                                     }
                                                                 </ul>
                                                             </div>
                                                         }
                                                     </div>
-                                                    <label class="form-label form-label-sm">음량: @musicVolume</label>
-                                                    <input type="range" class="form-range" min="0.1" max="1.0" step="0.1" @bind="musicVolume" disabled="@(isRunning || hasActiveSchedule)" />
+                                                    <label class="form-label form-label-sm">음량: @postOptions.MusicVolume</label>
+                                                    <input type="range" class="form-range" min="0.1" max="1.0" step="0.1" @bind="postOptions.MusicVolume" disabled="@(isRunning || hasActiveSchedule)" />
                                                 </div>
                                             }
                                         </div>
@@ -260,9 +260,8 @@
                     <h4>3. YouTube 업로드 설정</h4>
                 </div>
                 <div class="card-body">
-                    <!-- YouTube 계정 상태 -->
                     <div class="mb-3">
-                        @if (currentYouTubeAccount == null)
+                        @if (YouTubeService.CurrentAccount == null)
                         {
                             <div class="alert alert-warning">
                                 <strong>YouTube 계정 연동 필요</strong>
@@ -281,8 +280,8 @@
                         else
                         {
                             <div class="alert alert-success">
-                                <strong>연동된 계정:</strong> @currentYouTubeAccount.ChannelTitle
-                                <small class="text-muted ms-2">구독자: @FormatSubscriberCount(currentYouTubeAccount.SubscriberCount)명</small>
+                                <strong>연동된 계정:</strong> @YouTubeService.CurrentAccount.ChannelTitle
+                                <small class="text-muted ms-2">구독자: @YouTubeUploadService.FormatSubscriberCount(YouTubeService.CurrentAccount.SubscriberCount)명</small>
                                 <button type="button" class="btn btn-outline-secondary btn-sm ms-2" @onclick="SwitchYouTubeAccount" disabled="@(isRunning || hasActiveSchedule)">
                                     계정 전환
                                 </button>
@@ -294,18 +293,18 @@
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label class="form-label"><strong>제목 템플릿:</strong></label>
-                                <input type="text" class="form-control" @bind="titleTemplate" placeholder="예: Runmoa #NUMBER" disabled="@(isRunning || hasActiveSchedule)" />
+                                <input type="text" class="form-control" @bind="uploadOptions.TitleTemplate" placeholder="예: Runmoa #NUMBER" disabled="@(isRunning || hasActiveSchedule)" />
                                 <div class="form-text">#NUMBER는 자동으로 #1, #2, #3... 으로 변환됩니다</div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label"><strong>설명:</strong></label>
-                                <textarea class="form-control" rows="3" @bind="youtubeDescription" placeholder="영상 설명" disabled="@(isRunning || hasActiveSchedule)"></textarea>
+                                <textarea class="form-control" rows="3" @bind="uploadOptions.Description" placeholder="영상 설명" disabled="@(isRunning || hasActiveSchedule)"></textarea>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label class="form-label"><strong>공개 설정:</strong></label>
-                                <select class="form-select" @bind="youtubePrivacy" disabled="@(isRunning || hasActiveSchedule)">
+                                <select class="form-select" @bind="uploadOptions.PrivacySetting" disabled="@(isRunning || hasActiveSchedule)">
                                     <option value="비공개">비공개</option>
                                     <option value="공개">공개</option>
                                     <option value="링크 공유">링크 공유</option>
@@ -313,7 +312,7 @@
                             </div>
                             <div class="mb-3">
                                 <label class="form-label"><strong>태그:</strong></label>
-                                <input type="text" class="form-control" @bind="youtubeTags" placeholder="태그1, 태그2, 태그3" disabled="@(isRunning || hasActiveSchedule)" />
+                                <input type="text" class="form-control" @bind="uploadOptions.Tags" placeholder="태그1, 태그2, 태그3" disabled="@(isRunning || hasActiveSchedule)" />
                             </div>
                         </div>
                     </div>
@@ -329,14 +328,14 @@
                     <div class="mb-3">
                         <div class="form-check">
                             <input class="form-check-input" type="radio" name="uploadMode" id="immediateUpload"
-                                   @onchange="() => SetUploadMode(false)" checked="@(!isScheduleUpload)" disabled="@(isRunning || hasActiveSchedule)">
+                                   @onchange="() => isScheduleUpload = false" checked="@(!isScheduleUpload)" disabled="@(isRunning || hasActiveSchedule)">
                             <label class="form-check-label" for="immediateUpload">
                                 <strong>즉시 업로드</strong> - 영상 생성 완료 후 바로 순차 업로드
                             </label>
                         </div>
                         <div class="form-check">
                             <input class="form-check-input" type="radio" name="uploadMode" id="scheduleUpload"
-                                   @onchange="() => SetUploadMode(true)" checked="@isScheduleUpload" disabled="@(isRunning || hasActiveSchedule)">
+                                   @onchange="() => isScheduleUpload = true" checked="@isScheduleUpload" disabled="@(isRunning || hasActiveSchedule)">
                             <label class="form-check-label" for="scheduleUpload">
                                 <strong>스케줄 업로드</strong> - 지정된 시간에 랜덤하게 자동 업로드
                             </label>
@@ -366,7 +365,6 @@
                             </div>
                         </div>
 
-                        <!-- 스케줄 미리보기 -->
                         @if (schedulePreviewList.Count > 0)
                         {
                             <div class="mt-3 alert alert-info">
@@ -436,7 +434,6 @@
                             <div class="text-muted small mt-1">현재 프롬프트: @currentPromptUsed</div>
                         }
 
-                        <!-- 생성된 영상 목록 -->
                         @if (generatedVideos.Count > 0)
                         {
                             <div class="mt-3">
@@ -506,17 +503,17 @@
                     <button type="button" class="btn-close" @onclick="() => showCsvPreview = false" disabled="@(isRunning || hasActiveSchedule)"></button>
                 </div>
                 <div class="modal-body">
-                    <p><strong>총 @csvPrompts.Count 개의 프롬프트가 로드되었습니다.</strong></p>
+                    <p><strong>총 @genOptions.CsvPrompts.Count 개의 프롬프트가 로드되었습니다.</strong></p>
                     <div style="max-height: 300px; overflow-y: auto;">
-                        @for (int i = 0; i < Math.Min(10, csvPrompts.Count); i++)
+                        @for (int i = 0; i < Math.Min(10, genOptions.CsvPrompts.Count); i++)
                         {
                             <div class="mb-2">
-                                <strong>@(i + 1).</strong> @csvPrompts[i]
+                                <strong>@(i + 1).</strong> @genOptions.CsvPrompts[i]
                             </div>
                         }
-                        @if (csvPrompts.Count > 10)
+                        @if (genOptions.CsvPrompts.Count > 10)
                         {
-                            <div class="text-muted">... 외 @(csvPrompts.Count - 10) 개 더</div>
+                            <div class="text-muted">... 외 @(genOptions.CsvPrompts.Count - 10) 개 더</div>
                         }
                     </div>
                 </div>
@@ -527,7 +524,8 @@
         </div>
     </div>
 }
-<!-- 🔥 추가: 캡션 CSV 미리보기 모달 -->
+
+<!-- 캡션 CSV 미리보기 모달 -->
 @if (showCaptionCsvPreview)
 {
     <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
@@ -538,17 +536,17 @@
                     <button type="button" class="btn-close" @onclick="() => showCaptionCsvPreview = false" disabled="@(isRunning || hasActiveSchedule)"></button>
                 </div>
                 <div class="modal-body">
-                    <p><strong>총 @captionCsvList.Count 개의 캡션이 로드되었습니다.</strong></p>
+                    <p><strong>총 @postOptions.CaptionCsvList.Count 개의 캡션이 로드되었습니다.</strong></p>
                     <div style="max-height: 300px; overflow-y: auto;">
-                        @for (int i = 0; i < Math.Min(10, captionCsvList.Count); i++)
+                        @for (int i = 0; i < Math.Min(10, postOptions.CaptionCsvList.Count); i++)
                         {
                             <div class="mb-2">
-                                <strong>@(i + 1).</strong> @captionCsvList[i]
+                                <strong>@(i + 1).</strong> @postOptions.CaptionCsvList[i]
                             </div>
                         }
-                        @if (captionCsvList.Count > 10)
+                        @if (postOptions.CaptionCsvList.Count > 10)
                         {
-                            <div class="text-muted">... 외 @(captionCsvList.Count - 10) 개 더</div>
+                            <div class="text-muted">... 외 @(postOptions.CaptionCsvList.Count - 10) 개 더</div>
                         }
                     </div>
                 </div>
@@ -562,52 +560,24 @@
 
 
 @code {
-    
-    // 영상 소스 설정
-    private bool isGenerateVideo = true;
-    private List<IBrowserFile> localVideoFiles = new List<IBrowserFile>();
+    // 🔥 서비스의 Options 클래스 사용
+    private VideoGenerationService.VideoGenerationOptions genOptions = new();
+    private VideoGenerationService.PostProcessingOptions postOptions = new();
+    private YouTubeUploadService.UploadOptions uploadOptions = new();
 
     private bool CanStart =>
         !hasActiveSchedule && 
-        currentYouTubeAccount != null &&
-        !string.IsNullOrWhiteSpace(titleTemplate) &&
-        ((isGenerateVideo && csvPrompts.Count > 0) || (!isGenerateVideo && localVideoFiles.Count > 0));
+        YouTubeService.IsAuthenticated &&
+        !string.IsNullOrWhiteSpace(uploadOptions.TitleTemplate) &&
+        ((genOptions.IsGenerateVideo && genOptions.CsvPrompts.Count > 0) || 
+         (!genOptions.IsGenerateVideo && genOptions.LocalVideoFiles.Count > 0));
 
-    // 영상 생성 설정
-    private int videoCount = 5;
-    private int selectedDuration = 5;
-    private string selectedAspectRatio = "9:16";
-    private List<string> csvPrompts = new List<string>();
+    // UI 상태
     private bool showCsvPreview = false;
-    private Random random = new Random();
-
-    // 후처리 설정
-    private bool enablePostProcessing = true;
-    private bool addCaption = true;
-    private string captionText = "Runmoa.com";
-    private string captionPosition = "random";
-    private string captionSize = "random";
-    private string captionColor = "random";
-
-    // 🔥 추가: 랜덤 캡션 관련
-    private bool useRandomCaption = false;
-    private List<string> captionCsvList = new List<string>();
     private bool showCaptionCsvPreview = false;
 
-    private bool addBackgroundMusic = true;
-    private float musicVolume = 0.7f;
-    
-    // 음악 파일 (세션 유지)
-    private List<IBrowserFile> selectedMusicFiles = new List<IBrowserFile>();
-
-    // YouTube 설정
-    private YouTubeUploader? youtubeUploader;
-    private YouTubeUploader.YouTubeAccountInfo? currentYouTubeAccount;
+    // YouTube 인증
     private bool isAuthenticating = false;
-    private string titleTemplate = "Runmoa #NUMBER";
-    private string youtubeDescription = "www.runmoa.com";
-    private string youtubeTags = "Runmoa, website, 1min";
-    private string youtubePrivacy = "공개";
 
     // 업로드 방식 설정
     private bool isScheduleUpload = true;
@@ -646,21 +616,21 @@
         public bool IsScheduled { get; set; } = false;
     }
 
-    private string totalCost => (videoCount * (selectedDuration == 5 ? 0.75m : 1.5m)).ToString("F2");
+    private string totalCost => (genOptions.VideoCount * (genOptions.SelectedDuration == 5 ? 0.75m : 1.5m)).ToString("F2");
 
     private string GetDurationClass(int duration)
     {
-        return selectedDuration == duration ? "btn-primary" : "btn-outline-primary";
+        return genOptions.SelectedDuration == duration ? "btn-primary" : "btn-outline-primary";
     }
 
     private string GetAspectClass(string ratio)
     {
-        return selectedAspectRatio == ratio ? "btn-success" : "btn-outline-success";
+        return genOptions.SelectedAspectRatio == ratio ? "btn-success" : "btn-outline-success";
     }
 
     protected override async Task OnInitializedAsync()
     {
-await CheckExistingYouTubeAuth();
+        await YouTubeService.CheckExistingAuthAsync();
         UpdateSchedulePreview();
     }
 
@@ -677,12 +647,9 @@ await CheckExistingYouTubeAuth();
                 {
                     try
                     {
-                        youtubeUploader = new YouTubeUploader();
-                        bool authCheck = await youtubeUploader.AuthenticateAsync();
-                        
+                        bool authCheck = await YouTubeService.CheckExistingAuthAsync();
                         if (authCheck)
                         {
-                            currentYouTubeAccount = await youtubeUploader.GetCurrentAccountInfoAsync();
                             await JSRuntime.InvokeVoidAsync("alert", "YouTube 인증이 완료되었습니다!");
                             StateHasChanged();
                         }
@@ -706,48 +673,6 @@ await CheckExistingYouTubeAuth();
             {
                 Console.WriteLine($"URL 파라미터 처리 오류: {ex.Message}");
             }
-        }
-    }
-
-    private async Task CheckExistingYouTubeAuth()
-    {
-        try
-        {
-            var config = ConfigManager.GetConfig();
-            if (!string.IsNullOrEmpty(config.YouTubeClientId) && !string.IsNullOrEmpty(config.YouTubeClientSecret))
-            {
-                youtubeUploader = new YouTubeUploader();
-                bool authSuccess = await youtubeUploader.AuthenticateAsync();
-
-                if (authSuccess)
-                {
-                    currentYouTubeAccount = await youtubeUploader.GetCurrentAccountInfoAsync();
-                    StateHasChanged();
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"기존 YouTube 인증 확인 실패: {ex.Message}");
-        }
-    }
-
-    private void SetVideoSource(bool generateVideo)
-    {
-        isGenerateVideo = generateVideo;
-        if (!generateVideo && localVideoFiles.Count > 0)
-        {
-            videoCount = localVideoFiles.Count;
-        }
-        OnVideoCountChanged();
-    }
-
-    private void SetUploadMode(bool scheduleUpload)
-    {
-        isScheduleUpload = scheduleUpload;
-        if (scheduleUpload)
-        {
-            UpdateSchedulePreview();
         }
     }
 
@@ -778,9 +703,9 @@ await CheckExistingYouTubeAuth();
             using var reader = new StreamReader(stream);
             var content = await reader.ReadToEndAsync();
 
-            csvPrompts = ParseCsvContent(content);
+            genOptions.CsvPrompts = VideoGenService.ParseCsvContent(content);
 
-            if (csvPrompts.Count == 0)
+            if (genOptions.CsvPrompts.Count == 0)
             {
                 await JSRuntime.InvokeVoidAsync("alert", "CSV 파일에서 유효한 프롬프트를 찾을 수 없습니다.");
             }
@@ -792,53 +717,29 @@ await CheckExistingYouTubeAuth();
         catch (Exception ex)
         {
             await JSRuntime.InvokeVoidAsync("alert", $"CSV 파일 읽기 실패: {ex.Message}");
-            csvPrompts.Clear();
+            genOptions.CsvPrompts.Clear();
         }
-    }
-
-    private List<string> ParseCsvContent(string content)
-    {
-        var prompts = new List<string>();
-        var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-
-        for (int i = 1; i < lines.Length; i++)
-        {
-            var line = lines[i].Trim();
-            if (string.IsNullOrEmpty(line)) continue;
-
-            var columns = line.Split(',');
-            if (columns.Length >= 2)
-            {
-                var prompt = columns[1].Trim().Trim('"');
-                if (!string.IsNullOrWhiteSpace(prompt))
-                {
-                    prompts.Add(prompt);
-                }
-            }
-        }
-
-        return prompts;
     }
 
     private async Task HandleLocalVideoSelection(InputFileChangeEventArgs e)
     {
-        localVideoFiles.Clear();
-        localVideoFiles.AddRange(e.GetMultipleFiles(20));
+        genOptions.LocalVideoFiles.Clear();
+        genOptions.LocalVideoFiles.AddRange(e.GetMultipleFiles(20));
 
         const long maxSizePerFile = 2L * 1024 * 1024 * 1024;
-        var invalidFiles = localVideoFiles.Where(f => f.Size > maxSizePerFile).ToList();
+        var invalidFiles = genOptions.LocalVideoFiles.Where(f => f.Size > maxSizePerFile).ToList();
 
         if (invalidFiles.Any())
         {
             await JSRuntime.InvokeVoidAsync("alert",
                 $"다음 파일들이 2GB를 초과합니다:\n{string.Join("\n", invalidFiles.Select(f => f.Name))}");
 
-            localVideoFiles = localVideoFiles.Where(f => f.Size <= maxSizePerFile).ToList();
+            genOptions.LocalVideoFiles = genOptions.LocalVideoFiles.Where(f => f.Size <= maxSizePerFile).ToList();
         }
 
-        if (!isGenerateVideo)
+        if (!genOptions.IsGenerateVideo)
         {
-            videoCount = localVideoFiles.Count;
+            genOptions.VideoCount = genOptions.LocalVideoFiles.Count;
         }
 
         OnVideoCountChanged();
@@ -847,13 +748,13 @@ await CheckExistingYouTubeAuth();
 
     private async Task HandleMusicFileSelection(InputFileChangeEventArgs e)
     {
-        selectedMusicFiles.Clear();
+        postOptions.SelectedMusicFiles.Clear();
         
-        var files = e.GetMultipleFiles(10); // 최대 10개
+        var files = e.GetMultipleFiles(10);
         
         try
         {
-            const long maxSize = 10 * 1024 * 1024; // 10MB per file
+            const long maxSize = 10 * 1024 * 1024;
             
             foreach (var file in files)
             {
@@ -874,35 +775,66 @@ await CheckExistingYouTubeAuth();
                     continue;
                 }
                 
-                selectedMusicFiles.Add(file);
+                postOptions.SelectedMusicFiles.Add(file);
             }
-            
-            Console.WriteLine($"=== 음악 파일 선택됨: 총 {selectedMusicFiles.Count}개");
         }
         catch (Exception ex)
         {
             await JSRuntime.InvokeVoidAsync("alert", $"음악 파일 선택 오류: {ex.Message}");
-            selectedMusicFiles.Clear();
+            postOptions.SelectedMusicFiles.Clear();
         }
     
         StateHasChanged();
     }
 
-    private string FormatFileSize(long bytes)
-    {
-        if (bytes >= 1024 * 1024 * 1024)
-            return $"{bytes / 1024.0 / 1024.0 / 1024.0:F2} GB";
-        else if (bytes >= 1024 * 1024)
-            return $"{bytes / 1024.0 / 1024.0:F2} MB";
-        else if (bytes >= 1024)
-            return $"{bytes / 1024.0:F2} KB";
-        else
-            return $"{bytes} bytes";
-    }
-
     private void ShowCsvPreview()
     {
         showCsvPreview = true;
+    }
+
+    private void OnRandomCaptionChanged()
+    {
+        if (!postOptions.UseRandomCaption)
+        {
+            postOptions.CaptionCsvList.Clear();
+        }
+    }
+    
+    private async Task HandleCaptionCsvSelection(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file == null) return;
+    
+        try
+        {
+            const long maxSize = 5 * 1024 * 1024;
+            if (file.Size > maxSize)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "CSV 파일이 너무 큽니다. 5MB 이하의 파일을 선택해주세요.");
+                return;
+            }
+    
+            using var stream = file.OpenReadStream(maxSize);
+            using var reader = new StreamReader(stream);
+            var content = await reader.ReadToEndAsync();
+    
+            postOptions.CaptionCsvList = VideoGenService.ParseCsvContent(content);
+    
+            if (postOptions.CaptionCsvList.Count == 0)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "CSV 파일에서 유효한 캡션을 찾을 수 없습니다.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"CSV 파일 읽기 실패: {ex.Message}");
+            postOptions.CaptionCsvList.Clear();
+        }
+    }
+    
+    private void ShowCaptionCsvPreview()
+    {
+        showCaptionCsvPreview = true;
     }
 
     private async Task AuthenticateYouTube()
@@ -911,19 +843,7 @@ await CheckExistingYouTubeAuth();
     
         try
         {
-            var config = ConfigManager.GetConfig();
-            if (string.IsNullOrEmpty(config.YouTubeClientId) || string.IsNullOrEmpty(config.YouTubeClientSecret))
-            {
-                await JSRuntime.InvokeVoidAsync("alert", "먼저 설정에서 YouTube API 정보를 입력해주세요.");
-                return;
-            }
-    
-            youtubeUploader = new YouTubeUploader();
-            
-            string currentUrl = await JSRuntime.InvokeAsync<string>("eval", "window.location.origin");
-            
-            string authUrl = await youtubeUploader.GetAuthorizationUrlAsync(currentUrl, "all-in-one");
-            
+            string authUrl = await YouTubeService.GetAuthorizationUrlAsync(JSRuntime, "all-in-one");
             await JSRuntime.InvokeVoidAsync("eval", $"window.location.href = '{authUrl}'");
         }
         catch (Exception ex)
@@ -945,18 +865,9 @@ await CheckExistingYouTubeAuth();
             
             if (!confirm) return;
             
-            if (youtubeUploader != null)
-            {
-                // 기존 인증 해제
-                await youtubeUploader.RevokeAuthenticationAsync();
-            }
-            
-            // 상태 초기화
-            youtubeUploader = null;
-            currentYouTubeAccount = null;
+            await YouTubeService.SwitchAccountAsync();
             StateHasChanged();
             
-            // 재인증 시작
             await AuthenticateYouTube();
         }
         catch (Exception ex)
@@ -965,30 +876,27 @@ await CheckExistingYouTubeAuth();
         }
     }
 
-    private string FormatSubscriberCount(ulong count)
-    {
-        if (count >= 1000000)
-            return $"{count / 1000000.0:F1}M";
-        else if (count >= 1000)
-            return $"{count / 1000.0:F1}K";
-        else
-            return count.ToString();
-    }
-
     private void UpdateSchedulePreview()
     {
         if (!isScheduleUpload) return;
     
         schedulePreviewList.Clear();
-        // 🔥 DateTime.Now 사용
         DateTime startTime = DateTime.Now.AddMinutes(5);
         DateTime endTime = startTime.AddHours(scheduleHours);
     
-        int totalVideos = isGenerateVideo ? videoCount : localVideoFiles.Count;
+        int totalVideos = genOptions.IsGenerateVideo ? genOptions.VideoCount : genOptions.LocalVideoFiles.Count;
     
+        var random = new Random();
         for (int i = 0; i < totalVideos; i++)
         {
-            DateTime scheduledTime = CalculateRandomUploadTime(startTime, endTime, i, totalVideos);
+            double totalMinutes = (endTime - startTime).TotalMinutes;
+            double segmentMinutes = totalMinutes / totalVideos;
+            double segmentStart = i * segmentMinutes;
+            double segmentEnd = Math.Min((i + 1) * segmentMinutes, totalMinutes);
+            double randomMinutes = segmentStart + (random.NextDouble() * (segmentEnd - segmentStart));
+            
+            DateTime scheduledTime = startTime.AddMinutes(randomMinutes);
+            
             schedulePreviewList.Add(new SchedulePreviewItem
             {
                 Index = i + 1,
@@ -998,13 +906,13 @@ await CheckExistingYouTubeAuth();
     
         schedulePreviewList = schedulePreviewList.OrderBy(x => x.ScheduledTime).ToList();
         StateHasChanged();
-    }    
+    }
 
     private async Task StartAllInOne()
     {
         if (!CanStart) return;
 
-        if (isGenerateVideo)
+        if (genOptions.IsGenerateVideo)
         {
             var config = ConfigManager.GetConfig();
             if (string.IsNullOrEmpty(config.ReplicateApiKey))
@@ -1013,7 +921,7 @@ await CheckExistingYouTubeAuth();
                 return;
             }
 
-            if (csvPrompts.Count == 0)
+            if (genOptions.CsvPrompts.Count == 0)
             {
                 await JSRuntime.InvokeVoidAsync("alert", "먼저 CSV 파일을 업로드해주세요.");
                 return;
@@ -1021,23 +929,22 @@ await CheckExistingYouTubeAuth();
         }
         else
         {
-            if (localVideoFiles.Count == 0)
+            if (genOptions.LocalVideoFiles.Count == 0)
             {
                 await JSRuntime.InvokeVoidAsync("alert", "처리할 영상 파일을 선택해주세요!");
                 return;
             }
         }
 
-        if (enablePostProcessing)
+        if (postOptions.EnablePostProcessing)
         {
-            // 🔥 수정: 랜덤 캡션 검증 추가
-            if (addCaption && useRandomCaption && captionCsvList.Count == 0)
+            if (postOptions.AddCaption && postOptions.UseRandomCaption && postOptions.CaptionCsvList.Count == 0)
             {
                 await JSRuntime.InvokeVoidAsync("alert", "랜덤 캡션을 사용하려면 캡션 CSV 파일을 업로드해주세요.");
                 return;
             }
             
-            if (addCaption && !useRandomCaption && string.IsNullOrWhiteSpace(captionText))
+            if (postOptions.AddCaption && !postOptions.UseRandomCaption && string.IsNullOrWhiteSpace(postOptions.CaptionText))
             {
                 await JSRuntime.InvokeVoidAsync("alert", "캡션 텍스트를 입력해주세요.");
                 return;
@@ -1053,7 +960,7 @@ await CheckExistingYouTubeAuth();
                 {
                     return;
                 }
-                enablePostProcessing = false;
+                postOptions.EnablePostProcessing = false;
             }
         }
 
@@ -1066,8 +973,8 @@ await CheckExistingYouTubeAuth();
 
         try
         {
-            int totalVideos = isGenerateVideo ? videoCount : localVideoFiles.Count;
-            statusMessage = isGenerateVideo ? "영상 생성을 시작합니다..." : "로컬 파일 처리를 시작합니다...";
+            int totalVideos = genOptions.IsGenerateVideo ? genOptions.VideoCount : genOptions.LocalVideoFiles.Count;
+            statusMessage = genOptions.IsGenerateVideo ? "영상 생성을 시작합니다..." : "로컬 파일 처리를 시작합니다...";
             StateHasChanged();
 
             for (int i = 0; i < totalVideos; i++)
@@ -1075,20 +982,34 @@ await CheckExistingYouTubeAuth();
                 if (isCancelled) break;
 
                 currentProgress = (i * 80 / totalVideos);
-                statusMessage = $"영상 {i + 1}/{totalVideos} {(isGenerateVideo ? "생성" : "처리")} 중...";
+                statusMessage = $"영상 {i + 1}/{totalVideos} {(genOptions.IsGenerateVideo ? "생성" : "처리")} 중...";
                 StateHasChanged();
 
-                string videoPath = await GenerateOrProcessVideo(i + 1);
+                // 🔥 서비스 사용
+                var result = await VideoGenService.GenerateOrProcessVideoAsync(
+                    i + 1,
+                    genOptions,
+                    postOptions,
+                    (status) => {
+                        statusMessage = status;
+                        currentPromptUsed = status;
+                        StateHasChanged();
+                    }
+                );
 
-                if (!string.IsNullOrEmpty(videoPath))
+                if (result.Success)
                 {
                     var generatedVideo = new GeneratedVideo
                     {
-                        FileName = Path.GetFileName(videoPath),
-                        FilePath = videoPath,
+                        FileName = result.FileName,
+                        FilePath = result.VideoPath,
                         IsScheduled = false
                     };
                     generatedVideos.Add(generatedVideo);
+                    
+                    // 히스토리 저장
+                    var historyItem = VideoGenService.CreateHistoryItem(result, genOptions, "All-in-One");
+                    VideoHistoryManager.AddHistoryItem(historyItem);
                 }
 
                 StateHasChanged();
@@ -1107,13 +1028,13 @@ await CheckExistingYouTubeAuth();
 
                 if (isScheduleUpload)
                 {
-                    resultMessage = $"{generatedVideos.Count}개 영상이 {(isGenerateVideo ? "생성되고" : "처리되고")} YouTube 스케줄에 등록되었습니다.";
+                    resultMessage = $"{generatedVideos.Count}개 영상이 {(genOptions.IsGenerateVideo ? "생성되고" : "처리되고")} YouTube 스케줄에 등록되었습니다.";
                     hasActiveSchedule = true;
                     StartScheduleStatusTracking();
                 }
                 else
                 {
-                    resultMessage = $"{generatedVideos.Count}개 영상이 {(isGenerateVideo ? "생성되고" : "처리되고")} 즉시 업로드되었습니다.";
+                    resultMessage = $"{generatedVideos.Count}개 영상이 {(genOptions.IsGenerateVideo ? "생성되고" : "처리되고")} 즉시 업로드되었습니다.";
                 }
             }
             else if (isCancelled)
@@ -1158,340 +1079,28 @@ await CheckExistingYouTubeAuth();
         statusMessage = "중지 중...";
     }
 
-    private async Task<string> GenerateOrProcessVideo(int videoIndex)
-    {
-        string selectedPrompt = "";
-        string combinedPrompt = "";
-        string videoUrl = "";
-
-        try
-        {
-            if (!isGenerateVideo)
-            {
-                if (videoIndex > localVideoFiles.Count)
-                {
-                    return "";
-                }
-
-                var fileToUpload = localVideoFiles[videoIndex - 1];
-                currentPromptUsed = $"로컬 파일: {fileToUpload.Name}";
-
-                string tempDir = Path.GetTempPath();
-                string fileName = $"allinone_local_{DateTime.Now:yyyyMMdd_HHmmss}_{videoIndex:D2}.mp4";
-                string localPath = Path.Combine(tempDir, fileName);
-
-                using (var fileStream = new FileStream(localPath, FileMode.Create))
-                {
-                    await fileToUpload.OpenReadStream(maxAllowedSize: 2L * 1024 * 1024 * 1024).CopyToAsync(fileStream);
-                }
-
-                selectedPrompt = fileToUpload.Name;
-                combinedPrompt = currentPromptUsed;
-
-                string finalPath = localPath;
-                if (enablePostProcessing && (addCaption || addBackgroundMusic))
-                {
-                    string processedPath = await ProcessVideoGen(localPath, fileToUpload.Name);
-                    if (File.Exists(localPath)) File.Delete(localPath);
-                    finalPath = processedPath;
-                }
-
-                var historyItem = new VideoHistoryManager.VideoHistoryItem
-                {
-                    Prompt = selectedPrompt,
-                    FinalPrompt = combinedPrompt,
-                    Duration = 0,
-                    AspectRatio = "로컬 파일",
-                    VideoUrl = "",
-                    IsRandomPrompt = false,
-                    FileName = Path.GetFileName(finalPath),
-                    IsDownloaded = false,
-                    IsUploaded = false,
-                    Status = "All-in-One (로컬 파일)"
-                };
-                VideoHistoryManager.AddHistoryItem(historyItem);
-
-                return finalPath;
-            }
-            else
-            {
-                if (csvPrompts.Count == 0)
-                {
-                    throw new Exception("CSV 프롬프트가 로드되지 않았습니다.");
-                }
-
-                selectedPrompt = csvPrompts[random.Next(csvPrompts.Count)];
-                currentPromptUsed = selectedPrompt.Length > 50 ? selectedPrompt.Substring(0, 50) + "..." : selectedPrompt;
-
-                combinedPrompt = ConfigManager.CombinePrompts(selectedPrompt);
-
-                var config = ConfigManager.GetConfig();
-                var replicateClient = new ReplicateClient(config.ReplicateApiKey);
-
-                var request = new ReplicateClient.VideoGenerationRequest
-                {
-                    prompt = combinedPrompt,
-                    duration = selectedDuration,
-                    aspect_ratio = selectedAspectRatio,
-                    resolution = "1080p",
-                    fps = 24,
-                    camera_fixed = true
-                };
-
-                var prediction = await replicateClient.StartVideoGeneration(request);
-
-                var progress = new Progress<ReplicateClient.ProgressInfo>(progressInfo =>
-                {
-                    InvokeAsync(() =>
-                    {
-                        int baseProgress = ((videoIndex - 1) * 80 / videoCount);
-                        int videoProgress = Math.Min(60, progressInfo.Percentage * 60 / 100);
-                        currentProgress = baseProgress + (videoProgress / videoCount);
-                        statusMessage = $"영상 {videoIndex}/{videoCount} - {progressInfo.Status}";
-                        StateHasChanged();
-                    });
-                });
-
-                var result = await replicateClient.WaitForCompletion(prediction.id, progress);
-
-                if (result.output != null)
-                {
-                    videoUrl = result.output.ToString();
-
-                    string fileName = $"allinone_ai_{DateTime.Now:yyyyMMdd_HHmmss}_{videoIndex:D2}.mp4";
-                    string localPath = await DownloadVideoForGen(videoUrl, fileName);
-
-                    string finalPath = localPath;
-                    if (enablePostProcessing && (addCaption || addBackgroundMusic))
-                    {
-                        string processedPath = await ProcessVideoGen(localPath, selectedPrompt);
-                        if (File.Exists(localPath)) File.Delete(localPath);
-                        finalPath = processedPath;
-                    }
-
-                    var historyItem = new VideoHistoryManager.VideoHistoryItem
-                    {
-                        Prompt = selectedPrompt,
-                        FinalPrompt = combinedPrompt,
-                        Duration = selectedDuration,
-                        AspectRatio = selectedAspectRatio,
-                        VideoUrl = videoUrl,
-                        IsRandomPrompt = true,
-                        FileName = Path.GetFileName(finalPath),
-                        IsDownloaded = false,
-                        IsUploaded = false,
-                        Status = "All-in-One (AI 생성)"
-                    };
-                    VideoHistoryManager.AddHistoryItem(historyItem);
-
-                    return finalPath;
-                }
-
-                return "";
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"영상 {videoIndex} 생성/처리 실패: {ex.Message}");
-
-            if (!string.IsNullOrEmpty(selectedPrompt))
-            {
-                var historyItem = new VideoHistoryManager.VideoHistoryItem
-                {
-                    Prompt = selectedPrompt,
-                    FinalPrompt = combinedPrompt,
-                    Duration = isGenerateVideo ? selectedDuration : 0,
-                    AspectRatio = isGenerateVideo ? selectedAspectRatio : "로컬 파일",
-                    VideoUrl = videoUrl,
-                    IsRandomPrompt = isGenerateVideo,
-                    FileName = $"실패_{DateTime.Now:HHmmss}",
-                    IsDownloaded = false,
-                    IsUploaded = false,
-                    Status = $"All-in-One 실패: {ex.Message.Substring(0, Math.Min(50, ex.Message.Length))}"
-                };
-                VideoHistoryManager.AddHistoryItem(historyItem);
-            }
-
-            return "";
-        }
-    }
-
-    private async Task<string> DownloadVideoForGen(string videoUrl, string fileName)
-    {
-        try
-        {
-            using var httpClient = new System.Net.Http.HttpClient();
-            httpClient.Timeout = TimeSpan.FromMinutes(10);
-
-            string tempFolder = Path.GetTempPath();
-            string safeFileName = $"allinone_{Guid.NewGuid()}.mp4";
-            string localPath = Path.Combine(tempFolder, safeFileName);
-
-            byte[] videoBytes = await httpClient.GetByteArrayAsync(videoUrl);
-            await File.WriteAllBytesAsync(localPath, videoBytes);
-
-            return localPath;
-        }
-        catch (Exception ex)
-        {
-            throw new Exception($"후처리용 영상 다운로드 실패: {ex.Message}");
-        }
-    }
-
-    private async Task<string> ProcessVideoGen(string inputPath, string promptText)
-    {
-        try
-        {
-            string outputPath = inputPath.Replace(".mp4", "_processed.mp4");
-
-            string actualCaptionPosition = captionPosition;
-            if (captionPosition == "random")
-            {
-                var positions = new[] { "top", "center", "bottom" };
-                actualCaptionPosition = positions[random.Next(positions.Length)];
-            }
-
-            string actualCaptionSize = captionSize;
-            if (captionSize == "random")
-            {
-                var sizes = new[] { "60", "80", "120" };
-                actualCaptionSize = sizes[random.Next(sizes.Length)];
-            }
-
-            string actualCaptionColor = captionColor;
-            if (captionColor == "random")
-            {
-                var colors = new[] { "white", "yellow", "red", "black" };
-                actualCaptionColor = colors[random.Next(colors.Length)];
-            }
-
-            var options = new VideoPostProcessor.ProcessingOptions
-            {
-                InputVideoPath = inputPath,
-                OutputVideoPath = outputPath
-            };
-
-           if (addCaption && !string.IsNullOrWhiteSpace(captionText))
-            {
-                // 🔥 수정: 랜덤 캡션 사용
-                string finalCaptionText = useRandomCaption ? GetRandomCaption() : captionText;
-                
-                options.CaptionText = finalCaptionText;
-                options.FontSize = actualCaptionSize;
-                options.FontColor = actualCaptionColor;
-                options.CaptionPosition = actualCaptionPosition;
-            
-                Console.WriteLine($"=== 사용된 캡션: {finalCaptionText}");
-            }
-
-            if (addBackgroundMusic)
-            {
-                try
-                {
-                    string musicPath = "";
-                    
-                    // 선택된 음악 파일이 있으면 랜덤으로 하나 선택
-                    if (selectedMusicFiles.Count > 0)
-                    {
-                        var randomMusic = selectedMusicFiles[random.Next(selectedMusicFiles.Count)];
-                        
-                        // 임시 폴더에 저장
-                        string tempDir = Path.Combine(Path.GetTempPath(), "TempMusic");
-                        Directory.CreateDirectory(tempDir);
-                        
-                        string extension = Path.GetExtension(randomMusic.Name).ToLower();
-                        if (string.IsNullOrEmpty(extension)) extension = ".mp3";
-                        
-                        musicPath = Path.Combine(tempDir, $"music_{Guid.NewGuid()}{extension}");
-                        
-                        using (var fileStream = new FileStream(musicPath, FileMode.Create))
-                        {
-                            await randomMusic.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(fileStream);
-                        }
-                        
-                        Console.WriteLine($"=== 선택된 음악 사용: {randomMusic.Name}");
-                    }
-                    else
-                    {
-                        musicPath = await VideoPostProcessor.DownloadSampleMusicAsync();
-                        Console.WriteLine($"=== 기본 음악 사용");
-                    }
-                    
-                    if (File.Exists(musicPath))
-                    {
-                        options.BackgroundMusicPath = musicPath;
-                        options.MusicVolume = musicVolume;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"=== 배경음악 준비 실패: {ex.Message}");
-                }
-            }
-
-            var progress = new Progress<string>(status =>
-            {
-                InvokeAsync(() =>
-                {
-                    statusMessage = status;
-                    StateHasChanged();
-                });
-            });
-
-            string processedPath = await VideoPostProcessor.ProcessVideoAsync(options, progress);
-            
-            try
-            {
-                if (File.Exists(inputPath))
-                {
-                    File.Delete(inputPath);
-                    Console.WriteLine($"=== 원본 파일 삭제: {Path.GetFileName(inputPath)}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"=== 원본 파일 삭제 실패: {ex.Message}");
-            }
-            
-            return processedPath;
-        }
-        catch (Exception ex)
-        {
-            throw new Exception($"영상 후처리 실패: {ex.Message}");
-        }
-    }
-
     private async Task RegisterToSchedule()
     {
         if (isScheduleUpload)
         {
-            // 🔥 DateTime.Now 사용
             DateTime startTime = DateTime.Now.AddMinutes(5);
-            DateTime endTime = startTime.AddHours(scheduleHours);
-    
-            var filesToSchedule = randomizeOrder
-                ? generatedVideos.OrderBy(x => Guid.NewGuid()).ToList()
-                : generatedVideos.ToList();
-    
-            for (int i = 0; i < filesToSchedule.Count; i++)
+            
+            var filePaths = generatedVideos.Select(v => v.FilePath).ToList();
+            
+            // 🔥 서비스 사용
+            YouTubeService.RegisterScheduledUploads(
+                filePaths,
+                uploadOptions,
+                startTime,
+                scheduleHours,
+                minIntervalMinutes,
+                randomizeOrder,
+                ScheduledUploadService
+            );
+            
+            foreach (var video in generatedVideos)
             {
-                DateTime scheduledTime = CalculateRandomUploadTime(startTime, endTime, i, filesToSchedule.Count);
-    
-                string title = titleTemplate.Replace("#NUMBER", $"#{i + 1}");
-    
-                var uploadItem = new ScheduledUploadItem
-                {
-                    FileName = filesToSchedule[i].FileName,
-                    FilePath = filesToSchedule[i].FilePath,
-                    ScheduledTime = scheduledTime,
-                    Title = title,
-                    Description = youtubeDescription,
-                    Tags = youtubeTags,
-                    PrivacySetting = youtubePrivacy
-                };
-    
-                ScheduledUploadService.AddScheduledUpload(uploadItem);
-                filesToSchedule[i].IsScheduled = true;
+                video.IsScheduled = true;
             }
         }
         else
@@ -1503,65 +1112,36 @@ await CheckExistingYouTubeAuth();
     private async Task StartImmediateUpload()
     {
         statusMessage = "즉시 업로드 시작...";
-        var uploadedUrls = new List<string>();
 
-        for (int i = 0; i < generatedVideos.Count; i++)
+        try
         {
-            if (isCancelled) break;
-
-            try
-            {
-                var video = generatedVideos[i];
-                string title = titleTemplate.Replace("#NUMBER", $"#{i + 1}");
-
-                statusMessage = $"업로드 중... ({i + 1}/{generatedVideos.Count}) {title}";
-StateHasChanged();
-
-                string tempFilePath = Path.GetTempFileName();
-                string actualTempPath = Path.ChangeExtension(tempFilePath, ".mp4");
-                File.Copy(video.FilePath, actualTempPath, true);
-
-                var uploadInfo = new YouTubeUploader.VideoUploadInfo
-                {
-                    FilePath = actualTempPath,
-                    Title = title,
-                    Description = youtubeDescription,
-                    Tags = youtubeTags,
-                    PrivacyStatus = youtubePrivacy
-                };
-
-                var progress = new Progress<YouTubeUploader.UploadProgressInfo>(progressInfo =>
-                {
-                    InvokeAsync(() =>
-                    {
-                        int baseProgress = 85 + (i * 15 / generatedVideos.Count);
-                        int uploadProgress = progressInfo.Percentage * 15 / 100 / generatedVideos.Count;
-                        currentProgress = Math.Max(currentProgress, baseProgress + uploadProgress);
-                        statusMessage = $"업로드 중... ({i + 1}/{generatedVideos.Count}) {title} - {progressInfo.Status}";
+            var filePaths = generatedVideos.Select(v => v.FilePath).ToList();
+            
+            // 🔥 서비스 사용
+            await YouTubeService.UploadMultipleVideosAsync(
+                filePaths,
+                uploadOptions,
+                (current, total, title) => {
+                    InvokeAsync(() => {
+                        statusMessage = $"업로드 중... ({current}/{total}) {title}";
+                        currentProgress = 85 + (current * 15 / total);
                         StateHasChanged();
                     });
-                });
-
-                string videoUrl = await youtubeUploader.UploadVideoAsync(uploadInfo, progress);
-                uploadedUrls.Add(videoUrl);
-
-                video.IsScheduled = true;
-
-                if (File.Exists(actualTempPath))
-                {
-                    File.Delete(actualTempPath);
                 }
-            }
-            catch (Exception ex)
+            );
+
+            foreach (var video in generatedVideos)
             {
-                Console.WriteLine($"영상 {i + 1} 업로드 실패: {ex.Message}");
-                await JSRuntime.InvokeVoidAsync("alert", $"영상 {i + 1} 업로드 실패: {ex.Message}");
+                video.IsScheduled = true;
             }
 
-            StateHasChanged();
+            statusMessage = $"즉시 업로드 완료!";
         }
-
-        statusMessage = $"즉시 업로드 완료! 성공: {uploadedUrls.Count}개";
+        catch (Exception ex)
+        {
+            Console.WriteLine($"즉시 업로드 실패: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("alert", $"업로드 실패: {ex.Message}");
+        }
     }
 
     private void StartScheduleStatusTracking()
@@ -1571,7 +1151,6 @@ StateHasChanged();
         scheduleStatusTimer.AutoReset = true;
         scheduleStatusTimer.Start();
     }
-
 
     private void CheckScheduleStatus(object sender, System.Timers.ElapsedEventArgs e)
     {
@@ -1604,7 +1183,6 @@ StateHasChanged();
     
                     if (nextUpload != null)
                     {
-                        // 🔥 DateTime.Now 사용
                         var timeUntil = nextUpload.ScheduledTime - DateTime.Now;
                         if (timeUntil.TotalMinutes > 0)
                         {
@@ -1641,94 +1219,9 @@ StateHasChanged();
         }
     }
 
-
-    private DateTime CalculateRandomUploadTime(DateTime startTime, DateTime endTime, int index, int totalCount)
-    {
-        double totalMinutes = (endTime - startTime).TotalMinutes;
-        double segmentMinutes = totalMinutes / totalCount;
-
-        double segmentStart = index * segmentMinutes;
-        double segmentEnd = Math.Min((index + 1) * segmentMinutes, totalMinutes);
-
-        double randomMinutes = segmentStart + (random.NextDouble() * (segmentEnd - segmentStart));
-
-        if (index > 0 && totalMinutes > (totalCount * minIntervalMinutes))
-        {
-            var previousTime = startTime.AddMinutes(segmentStart);
-            var proposedTime = startTime.AddMinutes(randomMinutes);
-
-            if ((proposedTime - previousTime).TotalMinutes < minIntervalMinutes)
-            {
-                randomMinutes = segmentStart + minIntervalMinutes;
-            }
-        }
-
-        randomMinutes = Math.Min(randomMinutes, totalMinutes);
-
-        return startTime.AddMinutes(randomMinutes);
-    }
-
-
-    // 🔥 추가: 랜덤 캡션 관련 메서드들
-    private void OnRandomCaptionChanged()
-    {
-        if (!useRandomCaption)
-        {
-            captionCsvList.Clear();
-        }
-    }
-    
-    private async Task HandleCaptionCsvSelection(InputFileChangeEventArgs e)
-    {
-        var file = e.File;
-        if (file == null) return;
-    
-        try
-        {
-            const long maxSize = 5 * 1024 * 1024;
-            if (file.Size > maxSize)
-            {
-                await JSRuntime.InvokeVoidAsync("alert", "CSV 파일이 너무 큽니다. 5MB 이하의 파일을 선택해주세요.");
-                return;
-            }
-    
-            using var stream = file.OpenReadStream(maxSize);
-            using var reader = new StreamReader(stream);
-            var content = await reader.ReadToEndAsync();
-    
-            captionCsvList = ParseCsvContent(content);
-    
-            if (captionCsvList.Count == 0)
-            {
-                await JSRuntime.InvokeVoidAsync("alert", "CSV 파일에서 유효한 캡션을 찾을 수 없습니다.");
-            }
-            else
-            {
-                Console.WriteLine($"=== {captionCsvList.Count}개 캡션 로드됨");
-            }
-        }
-        catch (Exception ex)
-        {
-            await JSRuntime.InvokeVoidAsync("alert", $"CSV 파일 읽기 실패: {ex.Message}");
-            captionCsvList.Clear();
-        }
-    }
-    
-    private void ShowCaptionCsvPreview()
-    {
-        showCaptionCsvPreview = true;
-    }
-    
-    private string GetRandomCaption()
-    {
-        if (captionCsvList.Count == 0) return captionText;
-        return captionCsvList[random.Next(captionCsvList.Count)];
-    }                                                
-
     public void Dispose()
     {
         scheduleStatusTimer?.Stop();
         scheduleStatusTimer?.Dispose();
     }
-
 }
