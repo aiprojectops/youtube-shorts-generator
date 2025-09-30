@@ -1,8 +1,10 @@
-﻿@page "/youtube-upload"
+@page "/youtube-upload"
 @rendermode InteractiveServer
 @using YouTubeShortsWebApp
+@using YouTubeShortsWebApp.Services
 @inject IJSRuntime JSRuntime
 @inject ScheduledUploadService ScheduledUploadService
+@inject YouTubeUploadService YouTubeService
 @using System.Web
 
 <PageTitle>YouTube 업로드</PageTitle>
@@ -32,7 +34,7 @@
                             <ul class="mb-0 mt-2">
                                 @foreach (var file in selectedFiles.Take(5))
                                 {
-                                    <li>@file.Name (@FormatFileSize(file.Size))</li>
+                                    <li>@file.Name (@YouTubeUploadService.FormatFileSize(file.Size))</li>
                                 }
                                 @if (selectedFiles.Count > 5)
                                 {
@@ -50,7 +52,7 @@
                     <h4>YouTube 계정 연동</h4>
                 </div>
                 <div class="card-body">
-                    @if (currentYouTubeAccount == null)
+                    @if (YouTubeService.CurrentAccount == null)
                     {
                         <button type="button" class="btn btn-danger" @onclick="AuthenticateYouTube" disabled="@(isAuthenticating || isUploading || isScheduleRunning)">
                             @if (isAuthenticating)
@@ -66,9 +68,9 @@
                     else
                     {
                         <div class="alert alert-success">
-                            <strong>연동된 계정:</strong> @currentYouTubeAccount.ChannelTitle
+                            <strong>연동된 계정:</strong> @YouTubeService.CurrentAccount.ChannelTitle
                             <br />
-                            <small>구독자: @FormatSubscriberCount(currentYouTubeAccount.SubscriberCount)명</small>
+                            <small>구독자: @YouTubeUploadService.FormatSubscriberCount(YouTubeService.CurrentAccount.SubscriberCount)명</small>
                         </div>
                         <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="SwitchYouTubeAccount" disabled="@(isUploading || isScheduleRunning)">
                             계정 전환
@@ -85,7 +87,7 @@
                 <div class="card-body">
                     <div class="mb-3">
                         <label class="form-label"><strong>제목:</strong></label>
-                        <input type="text" class="form-control" @bind="videoTitle" placeholder="영상 제목을 입력하세요" disabled="@(isUploading || isScheduleRunning)" />
+                        <input type="text" class="form-control" @bind="uploadOptions.TitleTemplate" placeholder="영상 제목을 입력하세요" disabled="@(isUploading || isScheduleRunning)" />
                         @if (enableScheduleUpload && selectedFiles.Count > 1)
                         {
                             <div class="form-text">여러 파일의 경우 자동으로 번호가 추가됩니다 (예: 제목 #1, 제목 #2)</div>
@@ -93,16 +95,16 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label"><strong>설명:</strong></label>
-                        <textarea class="form-control" rows="4" @bind="videoDescription" placeholder="영상 설명을 입력하세요" disabled="@(isUploading || isScheduleRunning)"></textarea>
+                        <textarea class="form-control" rows="4" @bind="uploadOptions.Description" placeholder="영상 설명을 입력하세요" disabled="@(isUploading || isScheduleRunning)"></textarea>
                     </div>
                     <div class="mb-3">
                         <label class="form-label"><strong>태그:</strong></label>
-                        <input type="text" class="form-control" @bind="videoTags" placeholder="태그1, 태그2, 태그3" disabled="@(isUploading || isScheduleRunning)" />
+                        <input type="text" class="form-control" @bind="uploadOptions.Tags" placeholder="태그1, 태그2, 태그3" disabled="@(isUploading || isScheduleRunning)" />
                         <div class="form-text">쉼표로 구분해서 입력하세요</div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label"><strong>공개 설정:</strong></label>
-                        <select class="form-select" @bind="privacySetting" disabled="@(isUploading || isScheduleRunning)">
+                        <select class="form-select" @bind="uploadOptions.PrivacySetting" disabled="@(isUploading || isScheduleRunning)">
                             <option value="비공개">비공개</option>
                             <option value="공개">공개</option>
                             <option value="링크 공유">링크 공유</option>
@@ -236,7 +238,7 @@
                 </div>
             }
 
-            <!-- 활성화된 스케줄 정보 표시 (추가) -->
+            <!-- 활성화된 스케줄 정보 표시 -->
             @if (!isScheduleRunning && !isUploading && HasActiveSchedules())
             {
                 <div class="mt-3">
@@ -281,19 +283,14 @@
 </div>
 
 @code {
+    // 🔥 서비스의 Options 클래스 사용
+    private YouTubeUploadService.UploadOptions uploadOptions = new();
+
     // 파일 관련
     private List<IBrowserFile> selectedFiles = new List<IBrowserFile>();
 
-    // YouTube 관련
-    private YouTubeUploader? youtubeUploader;
-    private YouTubeUploader.YouTubeAccountInfo? currentYouTubeAccount;
+    // 인증
     private bool isAuthenticating = false;
-
-    // 업로드 설정
-    private string videoTitle = "";
-    private string videoDescription = "";
-    private string videoTags = "";
-    private string privacySetting = "공개";
 
     // 업로드 상태
     private bool isUploading = false;
@@ -304,15 +301,15 @@
 
     // 스케줄 업로드 관련
     private bool enableScheduleUpload = false;
-    private float scheduleHours = 2.0f;  // int -> float로 변경
-    private int minIntervalMinutes = 30; // 기본값은 그대로
+    private float scheduleHours = 2.0f;
+    private int minIntervalMinutes = 30;
     private bool randomizeOrder = true;
     private bool isScheduleRunning = false;
     private List<ScheduleItem> scheduleList = new List<ScheduleItem>();
     private string scheduleStatus = "";
     private int scheduleProgress = 0;
 
-    // 스케줄 정보 추적 관련 변수 추가
+    // 스케줄 정보 추적
     private string nextScheduleInfo = "";
     private System.Timers.Timer? scheduleInfoTimer;
 
@@ -329,19 +326,16 @@
     {
         get
         {
-            if (currentYouTubeAccount == null || string.IsNullOrWhiteSpace(videoTitle))
+            if (YouTubeService.CurrentAccount == null || string.IsNullOrWhiteSpace(uploadOptions.TitleTemplate))
                 return false;
 
-            return selectedFiles.Count > 0;  // 항상 selectedFiles로 확인
+            return selectedFiles.Count > 0;
         }
     }
 
-    
     protected override async Task OnInitializedAsync()
     {
         LoadDefaultSettings();
-        
-        // URL 매개변수 확인을 OnAfterRenderAsync로 이동
     }
     
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -350,21 +344,17 @@
         {
             try
             {
-                // URL 매개변수 확인
                 var uri = new Uri(await JSRuntime.InvokeAsync<string>("eval", "window.location.href"));
                 var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
                 
                 if (query["auth"] == "success")
                 {
-                    // 인증 성공 - 계정 정보 가져오기
                     try
                     {
-                        youtubeUploader = new YouTubeUploader();
-                        bool authCheck = await youtubeUploader.AuthenticateAsync();
+                        bool authCheck = await YouTubeService.CheckExistingAuthAsync();
                         
                         if (authCheck)
                         {
-                            currentYouTubeAccount = await youtubeUploader.GetCurrentAccountInfoAsync();
                             await JSRuntime.InvokeVoidAsync("alert", "YouTube 인증이 완료되었습니다!");
                             StateHasChanged();
                         }
@@ -391,34 +381,29 @@
         }
     }
 
-
-    
-
     private void LoadDefaultSettings()
     {
-        videoTitle = "Runmoa";
-        videoDescription = "www.runmoa.com";
-        videoTags = "Runmoa, website, 1min";
+        uploadOptions.TitleTemplate = "Runmoa";
+        uploadOptions.Description = "www.runmoa.com";
+        uploadOptions.Tags = "Runmoa, website, 1min";
     }
 
     private void OnScheduleModeChanged()
     {
-        // selectedFiles.Clear(); // <- 이 줄을 제거하거나 주석처리
-        scheduleList.Clear(); // 스케줄 리스트만 초기화
+        scheduleList.Clear();
 
-        // 파일이 있으면 스케줄 자동 생성
         if (selectedFiles.Count > 0)
         {
             CreateUploadSchedule();
         }
     }
 
-        private async Task HandleMultipleFileSelection(InputFileChangeEventArgs e)
+    private async Task HandleMultipleFileSelection(InputFileChangeEventArgs e)
     {
         selectedFiles.Clear();
-        selectedFiles.AddRange(e.GetMultipleFiles(10)); // 최대 10개 파일
+        selectedFiles.AddRange(e.GetMultipleFiles(10));
 
-        const long maxSizePerFile = 2L * 1024 * 1024 * 1024; // 2GB
+        const long maxSizePerFile = 2L * 1024 * 1024 * 1024;
         var invalidFiles = selectedFiles.Where(f => f.Size > maxSizePerFile).ToList();
 
         if (invalidFiles.Any())
@@ -429,7 +414,6 @@
             selectedFiles = selectedFiles.Where(f => f.Size <= maxSizePerFile).ToList();
         }
 
-        // 파일 선택 후 자동으로 스케줄 생성
         if (selectedFiles.Count > 0)
         {
             CreateUploadSchedule();
@@ -438,29 +422,13 @@
         StateHasChanged();
     }
 
-
-    // YouTubeUpload.razor의 AuthenticateYouTube 메서드 수정
     private async Task AuthenticateYouTube()
     {
         isAuthenticating = true;
     
         try
         {
-            var config = ConfigManager.GetConfig();
-            if (string.IsNullOrEmpty(config.YouTubeClientId) || string.IsNullOrEmpty(config.YouTubeClientSecret))
-            {
-                await JSRuntime.InvokeVoidAsync("alert", "먼저 설정에서 YouTube API 정보를 입력해주세요.");
-                return;
-            }
-    
-            youtubeUploader = new YouTubeUploader();
-            
-            string currentUrl = await JSRuntime.InvokeAsync<string>("eval", "window.location.origin");
-            
-            // returnPage를 "youtube-upload"로 지정
-            string authUrl = await youtubeUploader.GetAuthorizationUrlAsync(currentUrl, "youtube-upload");
-            
-            // 같은 탭에서 인증 페이지로 이동
+            string authUrl = await YouTubeService.GetAuthorizationUrlAsync(JSRuntime, "youtube-upload");
             await JSRuntime.InvokeVoidAsync("eval", $"window.location.href = '{authUrl}'");
         }
         catch (Exception ex)
@@ -473,7 +441,6 @@
         }
     }
 
-
     private async Task SwitchYouTubeAccount()
     {
         try
@@ -483,18 +450,9 @@
             
             if (!confirm) return;
             
-            if (youtubeUploader != null)
-            {
-                // 기존 인증 해제
-                await youtubeUploader.RevokeAuthenticationAsync();
-            }
-            
-            // 상태 초기화
-            youtubeUploader = null;
-            currentYouTubeAccount = null;
+            await YouTubeService.SwitchAccountAsync();
             StateHasChanged();
             
-            // 재인증 시작
             await AuthenticateYouTube();
         }
         catch (Exception ex)
@@ -505,149 +463,81 @@
 
     private async Task StartUpload()
     {
-        if (enableScheduleUpload)  // 파일 개수 조건 제거
-     {
-           await StartScheduledUpload();
-      }
-     else
-     {
-         await StartSingleUpload();
-      }
+        if (enableScheduleUpload)
+        {
+            await StartScheduledUpload();
+        }
+        else
+        {
+            await StartSingleUpload();
+        }
     }
 
     private async Task StartSingleUpload()
     {
-        if (selectedFiles.Count == 0 || youtubeUploader == null || currentYouTubeAccount == null)
+        if (selectedFiles.Count == 0 || YouTubeService.CurrentAccount == null)
             return;
 
         isUploading = true;
         uploadResult = "";
         uploadedVideoUrl = "";
-        var uploadedUrls = new List<string>();
 
         try
         {
+            // 파일을 임시 경로에 저장
+            var filePaths = new List<string>();
+            
             for (int i = 0; i < selectedFiles.Count; i++)
             {
-                var fileToUpload = selectedFiles[i];
-                string actualTempPath = "";
+                var file = selectedFiles[i];
+                string tempFilePath = Path.GetTempFileName();
+                string actualTempPath = Path.ChangeExtension(tempFilePath, Path.GetExtension(file.Name));
 
-                try
+                uploadStatus = $"파일 준비 중... ({i + 1}/{selectedFiles.Count}) {file.Name}";
+                uploadProgress = (i * 20 / selectedFiles.Count) + 5;
+                StateHasChanged();
+
+                using (var fileStream = new FileStream(actualTempPath, FileMode.Create))
                 {
-                    // 임시 파일로 저장
-                    string tempFilePath = Path.GetTempFileName();
-                    actualTempPath = Path.ChangeExtension(tempFilePath, Path.GetExtension(fileToUpload.Name));
-
-                    uploadStatus = $"파일 준비 중... ({i + 1}/{selectedFiles.Count}) {fileToUpload.Name}";
-                    uploadProgress = (i * 80 / selectedFiles.Count) + 5;
-                    StateHasChanged();
-
-                    // 브라우저에서 파일을 서버로 복사
-                    using (var fileStream = new FileStream(actualTempPath, FileMode.Create))
-                    {
-                        await fileToUpload.OpenReadStream(maxAllowedSize: 2L * 1024 * 1024 * 1024).CopyToAsync(fileStream);
-                    }
-
-                    uploadStatus = $"YouTube 업로드 중... ({i + 1}/{selectedFiles.Count}) {fileToUpload.Name}";
-                    uploadProgress = (i * 80 / selectedFiles.Count) + 10;
-                    StateHasChanged();
-
-                    await Task.Delay(500);
-
-                    // 제목에 번호 추가 (여러 파일인 경우)
-                    string title = selectedFiles.Count > 1 ? $"{videoTitle} #{i + 1}" : videoTitle;
-
-                    // YouTube 업로드 정보 준비
-                    var uploadInfo = new YouTubeUploader.VideoUploadInfo
-                    {
-                        FilePath = actualTempPath,
-                        Title = title,
-                        Description = videoDescription,
-                        Tags = videoTags,
-                        PrivacyStatus = privacySetting
-                    };
-
-                    // 진행률 업데이트용 Progress 객체
-                    var progress = new Progress<YouTubeUploader.UploadProgressInfo>(progressInfo =>
-                    {
-                        InvokeAsync(() =>
-                        {
-                            int baseProgress = (i * 80 / selectedFiles.Count) + 10;
-                            int fileProgress = progressInfo.Percentage * 70 / 100 / selectedFiles.Count;
-                            uploadProgress = Math.Max(uploadProgress, baseProgress + fileProgress);
-                            uploadStatus = $"업로드 중... ({i + 1}/{selectedFiles.Count}) {fileToUpload.Name} - {progressInfo.Status}";
-                            StateHasChanged();
-                        });
-                    });
-
-                    // YouTube 업로드 실행
-                    string videoUrl = await youtubeUploader.UploadVideoAsync(uploadInfo, progress);
-                    uploadedUrls.Add(videoUrl);
-
-                    uploadStatus = $"완료! ({i + 1}/{selectedFiles.Count}) {fileToUpload.Name}";
-                    uploadProgress = ((i + 1) * 80 / selectedFiles.Count) + 15;
-                    StateHasChanged();
-
-                    Console.WriteLine($"=== 업로드 완료 ({i + 1}/{selectedFiles.Count}): {title} -> {videoUrl}");
+                    await file.OpenReadStream(maxAllowedSize: 2L * 1024 * 1024 * 1024).CopyToAsync(fileStream);
                 }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"=== 파일 업로드 실패: {fileToUpload.Name} - {ex.Message}");
-                    await JSRuntime.InvokeVoidAsync("alert", $"파일 업로드 실패: {fileToUpload.Name}\n{ex.Message}");
-                    // 하나 실패해도 다음 파일 계속 진행
-                }
-                finally
-                {
-                    // 임시 파일 삭제
-                    if (!string.IsNullOrEmpty(actualTempPath))
-                    {
-                        try
-                        {
-                            for (int j = 0; j < 3; j++)
-                            {
-                                try
-                                {
-                                    if (File.Exists(actualTempPath))
-                                    {
-                                        File.Delete(actualTempPath);
-                                        break;
-                                    }
-                                }
-                                catch
-                                {
-                                    if (j < 2)
-                                    {
-                                        await Task.Delay(1000);
-                                    }
-                                }
-                            }
-                        }
-                        catch
-                        {
-                            // 파일 삭제 실패해도 업로드에는 영향 없음
-                        }
-                    }
-                }
+                
+                filePaths.Add(actualTempPath);
             }
 
-            // 모든 업로드 완료
+            // 🔥 서비스 사용하여 업로드
+            var uploadedUrls = await YouTubeService.UploadMultipleVideosAsync(
+                filePaths,
+                uploadOptions,
+                (current, total, title) => {
+                    InvokeAsync(() => {
+                        uploadStatus = $"업로드 중... ({current}/{total}) {title}";
+                        uploadProgress = 20 + (current * 70 / total);
+                        StateHasChanged();
+                    });
+                }
+            );
+
+            // 임시 파일 삭제
+            foreach (var filePath in filePaths)
+            {
+                try
+                {
+                    if (File.Exists(filePath))
+                    {
+                        File.Delete(filePath);
+                    }
+                }
+                catch { }
+            }
+
             uploadProgress = 100;
             uploadStatus = "모든 업로드 완료!";
 
             if (uploadedUrls.Count > 0)
             {
                 uploadResult = $"{uploadedUrls.Count}개 파일이 성공적으로 업로드되었습니다.";
-                uploadedVideoUrl = uploadedUrls.First(); // 첫 번째 URL을 저장
-
-                // 모든 URL 표시
-                string allUrls = string.Join("\n", uploadedUrls.Take(3));
-                if (uploadedUrls.Count > 3)
-                {
-                    allUrls += $"\n... 외 {uploadedUrls.Count - 3}개 더";
-                }
-
-                await JSRuntime.InvokeVoidAsync("alert",
-                    $"업로드 완료!\n\n성공: {uploadedUrls.Count}개\n실패: {selectedFiles.Count - uploadedUrls.Count}개\n\n업로드된 URL:\n{allUrls}");
+                uploadedVideoUrl = uploadedUrls.First();
             }
             else
             {
@@ -661,14 +551,13 @@
             uploadStatus = "";
             uploadProgress = 0;
             isUploading = false;
-            await JSRuntime.InvokeVoidAsync("alert", $"업로드 프로세스 실패: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("alert", $"업로드 실패: {ex.Message}");
         }
     }
 
-
     private async Task StartScheduledUpload()
     {
-        if (selectedFiles.Count == 0 || youtubeUploader == null || currentYouTubeAccount == null)
+        if (selectedFiles.Count == 0 || YouTubeService.CurrentAccount == null)
             return;
 
         try
@@ -678,7 +567,6 @@
                 CreateUploadSchedule();
             }
 
-            // 스케줄 미리보기
             string schedulePreview = "업로드 스케줄:\n";
             foreach (var item in scheduleList.Take(3))
             {
@@ -707,23 +595,24 @@
     private void CreateUploadSchedule()
     {
         scheduleList.Clear();
-        // 🔥 DateTime.Now 사용 (시스템 시간대)
         DateTime startTime = DateTime.Now.AddMinutes(5);
-        DateTime endTime = startTime.AddHours(scheduleHours);
-
+        
         var filesToSchedule = randomizeOrder
             ? selectedFiles.OrderBy(x => Guid.NewGuid()).ToList()
             : selectedFiles.ToList();
 
         for (int i = 0; i < filesToSchedule.Count; i++)
         {
-            DateTime scheduledTime = CalculateRandomUploadTime(startTime, endTime, i, filesToSchedule.Count);
+            // 간단한 랜덤 시간 계산
+            double minutesPerFile = (scheduleHours * 60) / filesToSchedule.Count;
+            double randomOffset = new Random().NextDouble() * minutesPerFile;
+            DateTime scheduledTime = startTime.AddMinutes((i * minutesPerFile) + randomOffset);
 
             scheduleList.Add(new ScheduleItem
             {
                 File = filesToSchedule[i],
                 ScheduledTime = scheduledTime,
-                Title = filesToSchedule.Count > 1 ? $"{videoTitle} #{i + 1}" : videoTitle,
+                Title = filesToSchedule.Count > 1 ? $"{uploadOptions.TitleTemplate} #{i + 1}" : uploadOptions.TitleTemplate,
                 Status = "대기 중"
             });
         }
@@ -732,32 +621,90 @@
         StateHasChanged();
     }
 
-    private DateTime CalculateRandomUploadTime(DateTime startTime, DateTime endTime, int index, int totalCount)
+    private async Task ExecuteScheduledUploads()
     {
-        double totalMinutes = (endTime - startTime).TotalMinutes;
-        double segmentMinutes = totalMinutes / totalCount;
-
-        double segmentStart = index * segmentMinutes;
-        double segmentEnd = (index + 1) * segmentMinutes;
-
-        Random random = new Random();
-        double randomMinutes = segmentStart + (random.NextDouble() * (segmentEnd - segmentStart));
-
-        if (index > 0)
+        try
         {
-            var previousTime = startTime.AddMinutes(segmentStart);
-            var proposedTime = startTime.AddMinutes(randomMinutes);
+            scheduleStatus = "파일들을 서버에 저장하고 스케줄에 등록 중...";
+            scheduleProgress = 10;
+            StateHasChanged();
 
-            if ((proposedTime - previousTime).TotalMinutes < minIntervalMinutes)
+            var filePaths = new List<string>();
+
+            for (int i = 0; i < scheduleList.Count; i++)
             {
-                randomMinutes = segmentStart + minIntervalMinutes;
-            }
-        }
+                var scheduleItem = scheduleList[i];
 
-        return startTime.AddMinutes(randomMinutes);
+                scheduleStatus = $"파일 준비 중... ({i + 1}/{scheduleList.Count}) {scheduleItem.File.Name}";
+                scheduleProgress = 10 + (i * 70 / scheduleList.Count);
+                StateHasChanged();
+
+                string tempDir = Path.Combine(Path.GetTempPath(), "YouTubeScheduledUploads");
+                Directory.CreateDirectory(tempDir);
+
+                string tempFilePath = Path.Combine(tempDir, $"{DateTime.Now.Ticks}_{scheduleItem.File.Name}");
+
+                using (var fileStream = new FileStream(tempFilePath, FileMode.Create))
+                {
+                    await scheduleItem.File.OpenReadStream(maxAllowedSize: 2L * 1024 * 1024 * 1024).CopyToAsync(fileStream);
+                }
+
+                filePaths.Add(tempFilePath);
+            }
+
+            scheduleStatus = "스케줄 서비스에 등록 중...";
+            scheduleProgress = 85;
+            StateHasChanged();
+
+            DateTime startTime = DateTime.Now.AddMinutes(5);
+
+            // 🔥 서비스 사용하여 스케줄 등록
+            YouTubeService.RegisterScheduledUploads(
+                filePaths,
+                uploadOptions,
+                startTime,
+                scheduleHours,
+                minIntervalMinutes,
+                randomizeOrder,
+                ScheduledUploadService
+            );
+
+            scheduleProgress = 100;
+            scheduleStatus = $"스케줄 등록 완료! {filePaths.Count}개 파일이 예약되었습니다.";
+            StateHasChanged();
+
+            var firstUpload = scheduleList.OrderBy(x => x.ScheduledTime).First();
+            var lastUpload = scheduleList.OrderBy(x => x.ScheduledTime).Last();
+
+            await JSRuntime.InvokeVoidAsync("alert",
+                $"스케줄 업로드가 시작되었습니다!\n\n" +
+                $"• 등록된 파일: {filePaths.Count}개\n" +
+                $"• 첫 번째 업로드: {firstUpload.ScheduledTime:MM/dd HH:mm}\n" +
+                $"• 마지막 업로드: {lastUpload.ScheduledTime:MM/dd HH:mm}\n\n" +
+                $"백그라운드에서 자동으로 업로드됩니다.");
+
+            isScheduleRunning = false;
+            scheduleProgress = 0;
+            scheduleStatus = "";
+
+            selectedFiles.Clear();
+            scheduleList.Clear();
+
+            await UpdateNextScheduleInfo();
+            StartScheduleTrackingTimer();
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            scheduleProgress = 0;
+            scheduleStatus = "";
+            isScheduleRunning = false;
+            await JSRuntime.InvokeVoidAsync("alert", $"스케줄 등록 실패: {ex.Message}");
+            StateHasChanged();
+        }
     }
 
-       // 활성화된 스케줄이 있는지 확인
     private bool HasActiveSchedules()
     {
         try
@@ -770,7 +717,6 @@
         }
     }
 
-    // 스케줄 개수 가져오기
     private int GetScheduleCount()
     {
         try
@@ -783,7 +729,6 @@
         }
     }
 
-    // 스케줄 정보 새로고침
     private async Task RefreshScheduleInfo()
     {
         await UpdateNextScheduleInfo();
@@ -792,7 +737,6 @@
 
     private void StartScheduleTrackingTimer()
     {
-        // 기존 타이머가 있으면 정리
         if (scheduleInfoTimer != null)
         {
             scheduleInfoTimer.Stop();
@@ -800,7 +744,7 @@
             scheduleInfoTimer = null;
         }
 
-        scheduleInfoTimer = new System.Timers.Timer(10000); // 10초마다 체크 (더 자주)
+        scheduleInfoTimer = new System.Timers.Timer(10000);
         scheduleInfoTimer.Elapsed += async (sender, e) =>
         {
             try
@@ -811,17 +755,13 @@
                 {
                     if (queueCount > 0)
                     {
-                        // 아직 대기 중인 업로드가 있음
                         await UpdateNextScheduleInfo();
                     }
                     else if (isScheduleRunning)
                     {
-                        // 모든 스케줄이 완료되면 isScheduleRunning을 false로
-                        Console.WriteLine("=== 모든 스케줄 완료 감지, UI 활성화");
                         isScheduleRunning = false;
                         nextScheduleInfo = "";
 
-                        // 타이머 정리
                         scheduleInfoTimer?.Stop();
                         scheduleInfoTimer?.Dispose();
                         scheduleInfoTimer = null;
@@ -832,17 +772,14 @@
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"=== 스케줄 타이머 오류: {ex.Message}");
+                Console.WriteLine($"스케줄 타이머 오류: {ex.Message}");
             }
         };
 
         scheduleInfoTimer.AutoReset = true;
         scheduleInfoTimer.Start();
-
-        Console.WriteLine("=== 스케줄 추적 타이머 시작됨");
     }
 
-    // 다음 스케줄 정보 업데이트
     private async Task UpdateNextScheduleInfo()
     {
         try
@@ -892,138 +829,6 @@
         }
     }
 
-    
-    // ExecuteScheduledUploads 메서드의 마지막 부분 수정
-    private async Task ExecuteScheduledUploads()
-    {
-        try
-        {
-            Console.WriteLine($"=== ExecuteScheduledUploads 시작: {DateTime.Now}");
-
-            scheduleStatus = "파일들을 서버에 저장하고 스케줄에 등록 중...";
-            scheduleProgress = 10;
-            StateHasChanged();
-
-            var uploadItems = new List<ScheduledUploadItem>();
-
-            // 각 파일을 임시 폴더에 저장하고 스케줄 아이템 생성
-            for (int i = 0; i < scheduleList.Count; i++)
-            {
-                var scheduleItem = scheduleList[i];
-
-                scheduleStatus = $"파일 준비 중... ({i + 1}/{scheduleList.Count}) {scheduleItem.File.Name}";
-                scheduleProgress = 10 + (i * 70 / scheduleList.Count);
-                StateHasChanged();
-
-                Console.WriteLine($"=== 파일 {i + 1} 처리 시작: {scheduleItem.File.Name}");
-                Console.WriteLine($"=== 예정 시간: {scheduleItem.ScheduledTime:yyyy-MM-dd HH:mm:ss}");
-
-                // 임시 파일로 저장
-                string tempDir = Path.Combine(Path.GetTempPath(), "YouTubeScheduledUploads");
-                Directory.CreateDirectory(tempDir);
-
-                string tempFilePath = Path.Combine(tempDir, $"{DateTime.Now.Ticks}_{scheduleItem.File.Name}");
-
-                using (var fileStream = new FileStream(tempFilePath, FileMode.Create))
-                {
-                    await scheduleItem.File.OpenReadStream(maxAllowedSize: 2L * 1024 * 1024 * 1024).CopyToAsync(fileStream);
-                }
-
-                Console.WriteLine($"=== 임시 파일 저장 완료: {tempFilePath}");
-
-                // 스케줄 아이템 생성
-                var uploadItem = new ScheduledUploadItem
-                {
-                    FileName = scheduleItem.File.Name,
-                    FilePath = tempFilePath,
-                    ScheduledTime = scheduleItem.ScheduledTime,
-                    Title = scheduleItem.Title,
-                    Description = videoDescription,
-                    Tags = videoTags,
-                    PrivacySetting = privacySetting
-                };
-
-                uploadItems.Add(uploadItem);
-                Console.WriteLine($"=== 업로드 아이템 생성 완료: {uploadItem.Title}");
-            }
-
-            scheduleStatus = "스케줄 서비스에 등록 중...";
-            scheduleProgress = 85;
-            StateHasChanged();
-
-            Console.WriteLine($"=== 스케줄 서비스 등록 시작: {uploadItems.Count}개 아이템");
-
-            // 스케줄 서비스에 모든 아이템 등록
-            foreach (var item in uploadItems)
-            {
-                Console.WriteLine($"=== 스케줄 등록: {item.FileName}");
-                Console.WriteLine($"=== 현재 시간: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-                Console.WriteLine($"=== 스케줄 시간: {item.ScheduledTime:yyyy-MM-dd HH:mm:ss}");
-                Console.WriteLine($"=== 시간 차이: {(item.ScheduledTime - DateTime.Now).TotalMinutes:F1}분 후");
-
-                ScheduledUploadService.AddScheduledUpload(item);
-            }
-
-            scheduleProgress = 100;
-            scheduleStatus = $"스케줄 등록 완료! {uploadItems.Count}개 파일이 예약되었습니다.";
-            StateHasChanged();
-
-            Console.WriteLine($"=== 스케줄 등록 완료: 총 {uploadItems.Count}개");
-
-            // 성공 메시지
-            var firstUpload = uploadItems.OrderBy(x => x.ScheduledTime).First();
-            var lastUpload = uploadItems.OrderBy(x => x.ScheduledTime).Last();
-
-            Console.WriteLine($"=== 첫 번째 업로드: {firstUpload.ScheduledTime:MM/dd HH:mm}");
-            Console.WriteLine($"=== 마지막 업로드: {lastUpload.ScheduledTime:MM/dd HH:mm}");
-
-            await JSRuntime.InvokeVoidAsync("alert",
-                $"스케줄 업로드가 시작되었습니다!\n\n" +
-                $"• 등록된 파일: {uploadItems.Count}개\n" +
-                $"• 첫 번째 업로드: {firstUpload.ScheduledTime:MM/dd HH:mm}\n" +
-                $"• 마지막 업로드: {lastUpload.ScheduledTime:MM/dd HH:mm}\n\n" +
-                $"백그라운드에서 자동으로 업로드됩니다.\n" +
-                $"서버가 실행 중인 동안 계속 진행됩니다.");
-
-            // UI 상태 초기화
-            //isScheduleRunning = false;
-            scheduleProgress = 0;
-            scheduleStatus = "";
-
-            // 파일 선택 초기화 (선택사항)
-            selectedFiles.Clear();
-            scheduleList.Clear();
-
-            // 스케줄 정보 즉시 업데이트
-            await UpdateNextScheduleInfo();
-
-            // 스케줄 진행 상황을 추적하는 타이머 시작
-            StartScheduleTrackingTimer();
-
-            StateHasChanged();
-
-            Console.WriteLine($"=== ExecuteScheduledUploads 완료: {DateTime.Now}");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"=== ExecuteScheduledUploads 오류: {ex.Message}");
-            Console.WriteLine($"=== 스택 트레이스: {ex.StackTrace}");
-
-            scheduleProgress = 0;
-            scheduleStatus = "";
-            isScheduleRunning = false;
-            await JSRuntime.InvokeVoidAsync("alert", $"스케줄 등록 실패: {ex.Message}");
-            StateHasChanged();
-        }
-    }
-
-    // Dispose 메서드 추가 (컴포넌트 정리)
-    public void Dispose()
-    {
-        scheduleInfoTimer?.Stop();
-        scheduleInfoTimer?.Dispose();
-    }
-
     private async Task CheckScheduleStatus()
     {
         try
@@ -1052,25 +857,9 @@
         }
     }
 
-    private string FormatFileSize(long bytes)
+    public void Dispose()
     {
-        if (bytes >= 1024 * 1024 * 1024)
-            return $"{bytes / 1024.0 / 1024.0 / 1024.0:F2} GB";
-        else if (bytes >= 1024 * 1024)
-            return $"{bytes / 1024.0 / 1024.0:F2} MB";
-        else if (bytes >= 1024)
-            return $"{bytes / 1024.0:F2} KB";
-        else
-            return $"{bytes} bytes";
-    }
-
-    private string FormatSubscriberCount(ulong count)
-    {
-        if (count >= 1000000)
-            return $"{count / 1000000.0:F1}M";
-        else if (count >= 1000)
-            return $"{count / 1000.0:F1}K";
-        else
-            return count.ToString();
+        scheduleInfoTimer?.Stop();
+        scheduleInfoTimer?.Dispose();
     }
 }
