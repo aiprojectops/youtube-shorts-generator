@@ -906,13 +906,14 @@ await CheckExistingYouTubeAuth();
     private void UpdateSchedulePreview()
     {
         if (!isScheduleUpload) return;
-
+    
         schedulePreviewList.Clear();
+        // 🔥 DateTime.Now 사용
         DateTime startTime = DateTime.Now.AddMinutes(5);
         DateTime endTime = startTime.AddHours(scheduleHours);
-
+    
         int totalVideos = isGenerateVideo ? videoCount : localVideoFiles.Count;
-
+    
         for (int i = 0; i < totalVideos; i++)
         {
             DateTime scheduledTime = CalculateRandomUploadTime(startTime, endTime, i, totalVideos);
@@ -922,10 +923,10 @@ await CheckExistingYouTubeAuth();
                 ScheduledTime = scheduledTime
             });
         }
-
+    
         schedulePreviewList = schedulePreviewList.OrderBy(x => x.ScheduledTime).ToList();
         StateHasChanged();
-    }
+    }    
 
     private async Task StartAllInOne()
     {
@@ -1380,19 +1381,20 @@ await CheckExistingYouTubeAuth();
     {
         if (isScheduleUpload)
         {
+            // 🔥 DateTime.Now 사용
             DateTime startTime = DateTime.Now.AddMinutes(5);
             DateTime endTime = startTime.AddHours(scheduleHours);
-
+    
             var filesToSchedule = randomizeOrder
                 ? generatedVideos.OrderBy(x => Guid.NewGuid()).ToList()
                 : generatedVideos.ToList();
-
+    
             for (int i = 0; i < filesToSchedule.Count; i++)
             {
                 DateTime scheduledTime = CalculateRandomUploadTime(startTime, endTime, i, filesToSchedule.Count);
-
+    
                 string title = titleTemplate.Replace("#NUMBER", $"#{i + 1}");
-
+    
                 var uploadItem = new ScheduledUploadItem
                 {
                     FileName = filesToSchedule[i].FileName,
@@ -1403,7 +1405,7 @@ await CheckExistingYouTubeAuth();
                     Tags = youtubeTags,
                     PrivacySetting = youtubePrivacy
                 };
-
+    
                 ScheduledUploadService.AddScheduledUpload(uploadItem);
                 filesToSchedule[i].IsScheduled = true;
             }
@@ -1486,13 +1488,14 @@ StateHasChanged();
         scheduleStatusTimer.Start();
     }
 
+
     private void CheckScheduleStatus(object sender, System.Timers.ElapsedEventArgs e)
     {
         try
         {
             int queueCount = ScheduledUploadService.GetQueueCount();
             var allItems = ScheduledUploadService.GetAllScheduledItems();
-
+    
             InvokeAsync(() =>
             {
                 if (queueCount == 0 && hasActiveSchedule)
@@ -1501,7 +1504,7 @@ StateHasChanged();
                     scheduleStatusTimer?.Stop();
                     scheduleStatusTimer?.Dispose();
                     scheduleStatusTimer = null;
-
+    
                     statusMessage = "모든 스케줄 업로드가 완료되었습니다.";
                     resultMessage = "모든 영상이 성공적으로 업로드되었습니다.";
                     nextUploadInfo = "";
@@ -1509,21 +1512,22 @@ StateHasChanged();
                 else if (hasActiveSchedule)
                 {
                     statusMessage = $"스케줄 업로드 진행 중... (대기: {queueCount}개)";
-
+    
                     var nextUpload = allItems
                         .Where(x => x.Status == "대기 중")
                         .OrderBy(x => x.ScheduledTime)
                         .FirstOrDefault();
-
+    
                     if (nextUpload != null)
                     {
+                        // 🔥 DateTime.Now 사용
                         var timeUntil = nextUpload.ScheduledTime - DateTime.Now;
                         if (timeUntil.TotalMinutes > 0)
                         {
                             string fileName = nextUpload.FileName.Length > 30 
                                 ? nextUpload.FileName.Substring(0, 27) + "..."
                                 : nextUpload.FileName;
-
+    
                             if (timeUntil.TotalHours >= 1)
                             {
                                 nextUploadInfo = $"{fileName} - {nextUpload.ScheduledTime:MM/dd HH:mm} ({timeUntil.Hours}시간 {timeUntil.Minutes}분 후)";
@@ -1543,7 +1547,7 @@ StateHasChanged();
                         nextUploadInfo = "";
                     }
                 }
-
+    
                 StateHasChanged();
             });
         }
@@ -1552,6 +1556,7 @@ StateHasChanged();
             Console.WriteLine($"스케줄 상태 확인 오류: {ex.Message}");
         }
     }
+
 
     private DateTime CalculateRandomUploadTime(DateTime startTime, DateTime endTime, int index, int totalCount)
     {
