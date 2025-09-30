@@ -1,4 +1,3 @@
-<artifact identifier="program-cs-updated" type="application/vnd.ant.code" language="csharp" title="Program.cs">
 using YouTubeShortsWebApp;
 using YouTubeShortsWebApp.Components;
 using YouTubeShortsWebApp.Services;
@@ -32,4 +31,4 @@ app.MapControllers();
 app.MapRazorComponents<App>()
 .AddInteractiveServerRenderMode();
 app.Run();
-</artifact>
+
