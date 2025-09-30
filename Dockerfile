@@ -3,9 +3,14 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
 WORKDIR /app
 EXPOSE 8080
 
+# 🔥 한국 시간대 설정 추가
+ENV TZ=Asia/Seoul
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
 # FFmpeg 설치
 RUN apt-get update && apt-get install -y \
     ffmpeg \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
@@ -29,5 +34,6 @@ RUN chmod 755 /app/music
 # 환경 변수 설정
 ENV ASPNETCORE_URLS=http://+:8080
 ENV ASPNETCORE_ENVIRONMENT=Production
+ENV TZ=Asia/Seoul
 
 ENTRYPOINT ["dotnet", "YouTubeShortsWebApp.dll"]
