@@ -34,14 +34,16 @@ namespace YouTubeShortsWebApp
         {
             _logger.LogInformation("스케줄 업로드 서비스 시작됨");
             Console.WriteLine("=== 스케줄 업로드 서비스 시작됨");
-
+            Console.WriteLine($"=== 현재 서버 시간: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
+                    // 🔥 DateTime.Now 사용 (시스템 시간대 사용)
                     var now = DateTime.Now;
                     var itemsToUpload = new List<ScheduledUploadItem>();
-
+        
                     // 현재 시간에 업로드해야 할 항목들 찾기
                     var tempQueue = new List<ScheduledUploadItem>();
                     while (_uploadQueue.TryDequeue(out var item))
@@ -53,17 +55,16 @@ namespace YouTubeShortsWebApp
                         }
                         else if (item.Status == "대기 중")
                         {
-                            tempQueue.Add(item); // 아직 시간이 안된 것들은 다시 큐에
+                            tempQueue.Add(item);
                         }
-                        // 완료되거나 실패한 것들은 큐에서 제거
                     }
-
+        
                     // 다시 큐에 넣기
                     foreach (var item in tempQueue)
                     {
                         _uploadQueue.Enqueue(item);
                     }
-
+        
                     // 업로드 실행
                     foreach (var item in itemsToUpload)
                     {
@@ -79,7 +80,7 @@ namespace YouTubeShortsWebApp
                             item.ErrorMessage = ex.Message;
                         }
                     }
-
+        
                     // 큐 상태 로깅
                     if (_uploadQueue.Count > 0)
                     {
@@ -91,11 +92,10 @@ namespace YouTubeShortsWebApp
                     _logger.LogError($"스케줄 서비스 오류: {ex.Message}");
                     Console.WriteLine($"=== 스케줄 서비스 오류: {ex.Message}");
                 }
-
-                // 1분마다 체크
+        
                 await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
             }
-
+        
             _logger.LogInformation("스케줄 업로드 서비스 종료됨");
             Console.WriteLine("=== 스케줄 업로드 서비스 종료됨");
         }
