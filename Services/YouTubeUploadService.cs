@@ -1,4 +1,3 @@
-<artifact identifier="youtube-upload-service-full" type="application/vnd.ant.code" language="csharp" title="Services/YouTubeUploadService.cs">
 using Microsoft.JSInterop;
 using System;
 using System.Collections.Generic;
@@ -279,4 +278,4 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
     }
 }
   }
-</artifact>
+
