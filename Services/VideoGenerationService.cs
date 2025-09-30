@@ -1,4 +1,3 @@
-<artifact identifier="video-generation-service-full" type="application/vnd.ant.code" language="csharp" title="Services/VideoGenerationService.cs">
 using Microsoft.AspNetCore.Components.Forms;
 using System;
 using System.Collections.Generic;
@@ -405,4 +404,4 @@ private readonly Random _random = new Random();
     }
 }
   }
-</artifact>
+
