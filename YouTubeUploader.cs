@@ -63,7 +63,7 @@ namespace YouTubeShortsWebApp
         }
 
         // 웹 기반 인증을 위한 새로운 메서드
-        public async Task<string> GetAuthorizationUrlAsync(string baseUrl, string returnPage = "youtube-upload")
+       public async Task<string> GetAuthorizationUrlAsync(string baseUrl, string returnPage = "youtube-upload")
         {
             try
             {
@@ -74,6 +74,9 @@ namespace YouTubeShortsWebApp
                     throw new Exception("YouTube API 클라이언트 ID와 시크릿이 설정되지 않았습니다.");
                 }
         
+                // 🔥 메모리 대신 파일 저장소 사용
+                var dataStore = new FileDataStore("/tmp/youtube_tokens", true);
+        
                 var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
                 {
                     ClientSecrets = new ClientSecrets
@@ -82,10 +85,9 @@ namespace YouTubeShortsWebApp
                         ClientSecret = config.YouTubeClientSecret
                     },
                     Scopes = Scopes,
-                    DataStore = new MemoryDataStore()
+                    DataStore = dataStore  // 🔥 변경됨
                 });
         
-                // HTTPS로 강제 변환 (Render.com은 HTTPS를 사용)
                 string redirectUri;
                 if (baseUrl.StartsWith("http://") && !baseUrl.Contains("localhost"))
                 {
@@ -100,8 +102,6 @@ namespace YouTubeShortsWebApp
                 Console.WriteLine($"=== Return Page: {returnPage}");
                 
                 var request = flow.CreateAuthorizationCodeRequest(redirectUri);
-                
-                // state 파라미터에 돌아갈 페이지 정보 추가
                 request.State = returnPage;
                 
                 var authUrl = request.Build().ToString();
@@ -122,6 +122,10 @@ namespace YouTubeShortsWebApp
             try
             {
                 var config = ConfigManager.GetConfig();
+                
+                // 🔥 파일 저장소 사용
+                var dataStore = new FileDataStore("/tmp/youtube_tokens", true);
+                
                 var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
                 {
                     ClientSecrets = new ClientSecrets
@@ -130,14 +134,12 @@ namespace YouTubeShortsWebApp
                         ClientSecret = config.YouTubeClientSecret
                     },
                     Scopes = Scopes,
-                    DataStore = new MemoryDataStore()
+                    DataStore = dataStore  // 🔥 변경됨
                 });
         
-                // HTTPS로 강제 변환 (Render.com은 HTTPS를 사용)
                 string redirectUri;
                 if (baseUrl.StartsWith("http://") && !baseUrl.Contains("localhost"))
                 {
-                    // 프로덕션 환경에서는 HTTPS로 강제 변환
                     redirectUri = baseUrl.Replace("http://", "https://") + "/oauth/google/callback";
                 }
                 else
@@ -148,9 +150,6 @@ namespace YouTubeShortsWebApp
                 Console.WriteLine($"=== ExchangeCodeForTokenAsync 최종 리디렉션 URI: {redirectUri}");
                 
                 var token = await flow.ExchangeCodeForTokenAsync("user", code, redirectUri, CancellationToken.None);
-        
-                // 메모리에 토큰 저장
-                _memoryTokenStore["user"] = token;
         
                 credential = new UserCredential(flow, "user", token);
         
@@ -170,6 +169,7 @@ namespace YouTubeShortsWebApp
             }
         }
 
+        
         // 기존 토큰으로 인증 시도
         public async Task<bool> AuthenticateAsync(bool forceReauth = false)
         {
@@ -177,41 +177,43 @@ namespace YouTubeShortsWebApp
             {
                 if (forceReauth)
                 {
-                    _memoryTokenStore.Clear();
                     credential = null;
                     youtubeService = null;
                 }
-
+        
                 var config = ConfigManager.GetConfig();
-
+        
                 if (string.IsNullOrEmpty(config.YouTubeClientId) || string.IsNullOrEmpty(config.YouTubeClientSecret))
                 {
                     throw new Exception("YouTube API 클라이언트 ID와 시크릿이 설정되지 않았습니다.");
                 }
-
-                // 메모리에서 기존 토큰 확인
-                if (_memoryTokenStore.TryGetValue("user", out TokenResponse existingToken) && 
-                    existingToken != null && !string.IsNullOrEmpty(existingToken.AccessToken))
+        
+                // 🔥 파일 저장소 사용
+                var dataStore = new FileDataStore("/tmp/youtube_tokens", true);
+        
+                var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
                 {
-                    var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
+                    ClientSecrets = new ClientSecrets
                     {
-                        ClientSecrets = new ClientSecrets
-                        {
-                            ClientId = config.YouTubeClientId,
-                            ClientSecret = config.YouTubeClientSecret
-                        },
-                        Scopes = Scopes,
-                        DataStore = new MemoryDataStore()
-                    });
-
-                    credential = new UserCredential(flow, "user", existingToken);
-
+                        ClientId = config.YouTubeClientId,
+                        ClientSecret = config.YouTubeClientSecret
+                    },
+                    Scopes = Scopes,
+                    DataStore = dataStore  // 🔥 변경됨
+                });
+        
+                var token = await dataStore.GetAsync<TokenResponse>("user");
+                
+                if (token != null && !string.IsNullOrEmpty(token.AccessToken))
+                {
+                    credential = new UserCredential(flow, "user", token);
+        
                     youtubeService = new YouTubeService(new BaseClientService.Initializer()
                     {
                         HttpClientInitializer = credential,
                         ApplicationName = ApplicationName,
                     });
-
+        
                     // 토큰 유효성 검사
                     try
                     {
@@ -226,12 +228,9 @@ namespace YouTubeShortsWebApp
                     catch (Exception ex)
                     {
                         System.Diagnostics.Debug.WriteLine($"기존 토큰 유효하지 않음: {ex.Message}");
-                        // 토큰이 만료되었거나 유효하지 않음
-                        _memoryTokenStore.TryRemove("user", out _);
                     }
                 }
-
-                // 새로운 인증이 필요함
+        
                 System.Diagnostics.Debug.WriteLine("새로운 인증이 필요합니다.");
                 return false;
             }
@@ -242,6 +241,7 @@ namespace YouTubeShortsWebApp
             }
         }
 
+        
         // 현재 연동된 계정 정보 가져오기
         public async Task<YouTubeAccountInfo> GetCurrentAccountInfoAsync()
         {
