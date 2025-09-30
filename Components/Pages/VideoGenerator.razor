@@ -1,9 +1,11 @@
 @page "/video-generator"
 @rendermode InteractiveServer
 @using YouTubeShortsWebApp
+@using YouTubeShortsWebApp.Services
 @using System.Diagnostics
 @using System.IO
 @inject IJSRuntime JSRuntime
+@inject VideoGenerationService VideoGenService
 
 <PageTitle>비디오 생성기</PageTitle>
 
@@ -22,21 +24,21 @@
                         <label class="form-label"><strong>영상 소스:</strong></label>
                         <div class="form-check">
                             <input class="form-check-input" type="radio" name="videoSource" id="generateNewVideo"
-                                   @onchange="() => isGenerateVideo = true" checked="@isGenerateVideo" disabled="@isGenerating">
+                                   @onchange="() => genOptions.IsGenerateVideo = true" checked="@genOptions.IsGenerateVideo" disabled="@isGenerating">
                             <label class="form-check-label" for="generateNewVideo">
                                 <strong>새로 생성</strong> - AI로 영상을 생성합니다
                             </label>
                         </div>
                         <div class="form-check">
                             <input class="form-check-input" type="radio" name="videoSource" id="useLocalFiles"
-                                   @onchange="() => isGenerateVideo = false" checked="@(!isGenerateVideo)" disabled="@isGenerating">
+                                   @onchange="() => genOptions.IsGenerateVideo = false" checked="@(!genOptions.IsGenerateVideo)" disabled="@isGenerating">
                             <label class="form-check-label" for="useLocalFiles">
                                 <strong>로컬 파일 사용</strong> - 기존에 있는 영상 파일들을 사용합니다
                             </label>
                         </div>
                     </div>
 
-                    @if (!isGenerateVideo)
+                    @if (!genOptions.IsGenerateVideo)
                     {
                         <!-- 로컬 파일 선택 -->
                         <div class="mb-3">
@@ -44,18 +46,18 @@
                             <InputFile OnChange="HandleLocalVideoSelection" accept="video/*" multiple class="form-control" disabled="@isGenerating" />
                             <div class="form-text">하나 또는 여러 개의 비디오 파일을 선택하세요 (각각 최대 2GB)</div>
 
-                            @if (localVideoFiles.Count > 0)
+                            @if (genOptions.LocalVideoFiles.Count > 0)
                             {
                                 <div class="mt-2 alert alert-success">
-                                    <strong>선택된 파일:</strong> @localVideoFiles.Count 개
+                                    <strong>선택된 파일:</strong> @genOptions.LocalVideoFiles.Count 개
                                     <ul class="mb-0 mt-2">
-                                        @foreach (var file in localVideoFiles.Take(5))
+                                        @foreach (var file in genOptions.LocalVideoFiles.Take(5))
                                         {
-                                            <li>@file.Name (@FormatFileSize(file.Size))</li>
+                                            <li>@file.Name (@VideoGenerationService.FormatFileSize(file.Size))</li>
                                         }
-                                        @if (localVideoFiles.Count > 5)
+                                        @if (genOptions.LocalVideoFiles.Count > 5)
                                         {
-                                            <li>... 외 @(localVideoFiles.Count - 5)개 더</li>
+                                            <li>... 외 @(genOptions.LocalVideoFiles.Count - 5)개 더</li>
                                         }
                                     </ul>
                                 </div>
@@ -63,12 +65,12 @@
                         </div>
                     }
 
-                    @if (isGenerateVideo)
+                    @if (genOptions.IsGenerateVideo)
                     {
                         <!-- 생성 개수 -->
                         <div class="mb-3">
-                            <label class="form-label"><strong>생성할 영상 개수: @videoCount 개</strong></label>
-                            <input type="range" class="form-range" min="1" max="5" @bind="videoCount" disabled="@isGenerating" />
+                            <label class="form-label"><strong>생성할 영상 개수: @genOptions.VideoCount 개</strong></label>
+                            <input type="range" class="form-range" min="1" max="5" @bind="genOptions.VideoCount" disabled="@isGenerating" />
                             <div class="text-primary">총 비용: $@totalCost</div>
                         </div>
 
@@ -76,8 +78,8 @@
                         <div class="mb-3">
                             <label class="form-label"><strong>영상 길이:</strong></label>
                             <div>
-                                <button type="button" class="btn @GetDurationClass(5)" @onclick="SetDuration5" disabled="@isGenerating">5초</button>
-                                <button type="button" class="btn @GetDurationClass(10)" @onclick="SetDuration10" disabled="@isGenerating">10초</button>
+                                <button type="button" class="btn @GetDurationClass(5)" @onclick="() => genOptions.SelectedDuration = 5" disabled="@isGenerating">5초</button>
+                                <button type="button" class="btn @GetDurationClass(10)" @onclick="() => genOptions.SelectedDuration = 10" disabled="@isGenerating">10초</button>
                             </div>
                         </div>
 
@@ -85,9 +87,9 @@
                         <div class="mb-3">
                             <label class="form-label"><strong>화면 비율:</strong></label>
                             <div>
-                                <button type="button" class="btn @GetAspectClass916" @onclick="SetAspect916" disabled="@isGenerating">9:16 (숏폼)</button>
-                                <button type="button" class="btn @GetAspectClass169" @onclick="SetAspect169" disabled="@isGenerating">16:9</button>
-                                <button type="button" class="btn @GetAspectClass11" @onclick="SetAspect11" disabled="@isGenerating">1:1</button>
+                                <button type="button" class="btn @GetAspectClass("9:16")" @onclick="@(() => genOptions.SelectedAspectRatio = "9:16")" disabled="@isGenerating">9:16 (숏폼)</button>
+                                <button type="button" class="btn @GetAspectClass("16:9")" @onclick="@(() => genOptions.SelectedAspectRatio = "16:9")" disabled="@isGenerating">16:9</button>
+                                <button type="button" class="btn @GetAspectClass("1:1")" @onclick="@(() => genOptions.SelectedAspectRatio = "1:1")" disabled="@isGenerating">1:1</button>
                             </div>
                         </div>
 
@@ -97,14 +99,14 @@
                             <div>
                                 <div class="form-check">
                                     <input class="form-check-input" type="radio" name="promptMode" id="directInput"
-                                           @onchange="() => SetPromptMode(false)" checked="@(!isRandomPromptMode)" disabled="@isGenerating" />
+                                           @onchange="() => isRandomPromptMode = false" checked="@(!isRandomPromptMode)" disabled="@isGenerating" />
                                     <label class="form-check-label" for="directInput">
                                         직접 입력
                                     </label>
                                 </div>
                                 <div class="form-check">
                                     <input class="form-check-input" type="radio" name="promptMode" id="randomPrompt"
-                                           @onchange="() => SetPromptMode(true)" checked="@isRandomPromptMode" disabled="@isGenerating" />
+                                           @onchange="() => isRandomPromptMode = true" checked="@isRandomPromptMode" disabled="@isGenerating" />
                                     <label class="form-check-label" for="randomPrompt">
                                         랜덤 프롬프트 (CSV 파일)
                                     </label>
@@ -120,10 +122,10 @@
                                 <InputFile OnChange="HandleCsvFileSelection" accept=".csv" class="form-control" disabled="@isGenerating" />
                                 <div class="form-text">CSV 파일 형식: 첫 번째 열은 번호, 두 번째 열은 프롬프트 내용</div>
 
-                                @if (csvPrompts.Count > 0)
+                                @if (genOptions.CsvPrompts.Count > 0)
                                 {
                                     <div class="mt-2 alert alert-success">
-                                        <strong>로드된 프롬프트:</strong> @csvPrompts.Count 개
+                                        <strong>로드된 프롬프트:</strong> @genOptions.CsvPrompts.Count 개
                                         <button type="button" class="btn btn-sm btn-outline-primary ms-2" @onclick="ShowCsvPreview" disabled="@isGenerating">
                                             미리보기
                                         </button>
@@ -161,14 +163,14 @@
                     <!-- 영상 후처리 옵션 -->
                     <div class="mb-3">
                         <div class="form-check">
-                            <input class="form-check-input" type="checkbox" @bind="enablePostProcessing" id="enablePostProcessing" disabled="@isGenerating">
+                            <input class="form-check-input" type="checkbox" @bind="postOptions.EnablePostProcessing" id="enablePostProcessing" disabled="@isGenerating">
                             <label class="form-check-label" for="enablePostProcessing">
                                 <strong>영상 후처리 사용</strong>
                             </label>
                         </div>
                     </div>
 
-                    @if (enablePostProcessing)
+                    @if (postOptions.EnablePostProcessing)
                     {
                         <div class="card mb-3 bg-light">
                             <div class="card-body">
@@ -177,34 +179,32 @@
                                 <!-- 캡션 설정 -->
                                 <div class="mb-3">
                                     <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" @bind="addCaption" id="addCaption" disabled="@isGenerating">
+                                        <input class="form-check-input" type="checkbox" @bind="postOptions.AddCaption" id="addCaption" disabled="@isGenerating">
                                         <label class="form-check-label" for="addCaption">
                                             캡션 추가
                                         </label>
                                     </div>
-                                    @if (addCaption)
+                                    @if (postOptions.AddCaption)
                                     {
                                         <div class="mt-2">
-                                            <!-- 🔥 추가: 랜덤 캡션 체크박스 -->
                                             <div class="form-check mb-2">
-                                                <input class="form-check-input" type="checkbox" @bind="useRandomCaption" @bind:after="OnRandomCaptionChanged" id="useRandomCaption" disabled="@isGenerating">
+                                                <input class="form-check-input" type="checkbox" @bind="postOptions.UseRandomCaption" @bind:after="OnRandomCaptionChanged" id="useRandomCaption" disabled="@isGenerating">
                                                 <label class="form-check-label" for="useRandomCaption">
                                                     <strong>랜덤 캡션 (CSV 파일)</strong>
                                                 </label>
                                             </div>
                                     
-                                            @if (useRandomCaption)
+                                            @if (postOptions.UseRandomCaption)
                                             {
-                                                <!-- CSV 파일 업로드 -->
                                                 <div class="mb-2">
                                                     <label class="form-label form-label-sm">캡션 CSV 파일:</label>
                                                     <InputFile OnChange="HandleCaptionCsvSelection" accept=".csv" class="form-control form-control-sm" disabled="@isGenerating" />
                                                     <div class="form-text">CSV 형식: 첫 번째 열은 번호, 두 번째 열은 캡션 텍스트</div>
                                                     
-                                                    @if (captionCsvList.Count > 0)
+                                                    @if (postOptions.CaptionCsvList.Count > 0)
                                                     {
                                                         <div class="mt-1 alert alert-success py-1 px-2 small">
-                                                            ✓ @captionCsvList.Count 개 캡션 로드됨
+                                                            ✓ @postOptions.CaptionCsvList.Count 개 캡션 로드됨
                                                             <button type="button" class="btn btn-sm btn-outline-primary ms-2" @onclick="ShowCaptionCsvPreview" disabled="@isGenerating">
                                                                 미리보기
                                                             </button>
@@ -214,14 +214,13 @@
                                             }
                                             else
                                             {
-                                                <!-- 수동 입력 -->
-                                                <input type="text" class="form-control form-control-sm mb-2" @bind="captionText" disabled="@isGenerating"
+                                                <input type="text" class="form-control form-control-sm mb-2" @bind="postOptions.CaptionText" disabled="@isGenerating"
                                                        placeholder="캡션 텍스트 입력..." />
                                             }
                                     
                                             <div class="row mt-2">
                                                 <div class="col-md-4">
-                                                    <select class="form-select form-select-sm" @bind="captionPosition" disabled="@isGenerating">
+                                                    <select class="form-select form-select-sm" @bind="postOptions.CaptionPosition" disabled="@isGenerating">
                                                         <option value="top">상단</option>
                                                         <option value="center">중앙</option>
                                                         <option value="bottom">하단</option>
@@ -229,7 +228,7 @@
                                                     </select>
                                                 </div>
                                                 <div class="col-md-4">
-                                                    <select class="form-select form-select-sm" @bind="captionSize" disabled="@isGenerating">
+                                                    <select class="form-select form-select-sm" @bind="postOptions.CaptionSize" disabled="@isGenerating">
                                                         <option value="60">작게</option>
                                                         <option value="80">보통</option>
                                                         <option value="120">크게</option>
@@ -237,7 +236,7 @@
                                                     </select>
                                                 </div>
                                                 <div class="col-md-4">
-                                                    <select class="form-select form-select-sm" @bind="captionColor" disabled="@isGenerating">
+                                                    <select class="form-select form-select-sm" @bind="postOptions.CaptionColor" disabled="@isGenerating">
                                                         <option value="white">흰색</option>
                                                         <option value="yellow">노란색</option>
                                                         <option value="red">빨간색</option>
@@ -253,12 +252,12 @@
                                 <!-- 배경음악 설정 -->
                                 <div class="mb-3">
                                     <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" @bind="addBackgroundMusic" id="addBackgroundMusic" disabled="@isGenerating">
+                                        <input class="form-check-input" type="checkbox" @bind="postOptions.AddBackgroundMusic" id="addBackgroundMusic" disabled="@isGenerating">
                                         <label class="form-check-label" for="addBackgroundMusic">
                                             배경음악 추가
                                         </label>
                                     </div>
-                                    @if (addBackgroundMusic)
+                                    @if (postOptions.AddBackgroundMusic)
                                     {
                                         <div class="mt-2">
                                             <div class="mb-2">
@@ -266,26 +265,26 @@
                                                 <InputFile OnChange="HandleMusicFileSelection" accept="audio/*" multiple class="form-control form-control-sm" disabled="@isGenerating" />
                                                 <div class="form-text">여러 개 선택 가능. 지원 형식: MP3, WAV, M4A, AAC (각 최대 10MB)</div>
                                                 
-                                                @if (selectedMusicFiles.Count > 0)
+                                                @if (postOptions.SelectedMusicFiles.Count > 0)
                                                 {
                                                     <div class="mt-1 alert alert-success py-1 px-2 small">
-                                                        ✓ @selectedMusicFiles.Count 개 파일 선택됨
+                                                        ✓ @postOptions.SelectedMusicFiles.Count 개 파일 선택됨
                                                         <ul class="mb-0 mt-1">
-                                                            @foreach (var file in selectedMusicFiles.Take(3))
+                                                            @foreach (var file in postOptions.SelectedMusicFiles.Take(3))
                                                             {
-                                                                <li>@file.Name (@FormatFileSize(file.Size))</li>
+                                                                <li>@file.Name (@VideoGenerationService.FormatFileSize(file.Size))</li>
                                                             }
-                                                            @if (selectedMusicFiles.Count > 3)
+                                                            @if (postOptions.SelectedMusicFiles.Count > 3)
                                                             {
-                                                                <li>... 외 @(selectedMusicFiles.Count - 3)개 더</li>
+                                                                <li>... 외 @(postOptions.SelectedMusicFiles.Count - 3)개 더</li>
                                                             }
                                                         </ul>
                                                     </div>
                                                 }
                                             </div>
-                                            <label class="form-label form-label-sm">음량: @musicVolume</label>
+                                            <label class="form-label form-label-sm">음량: @postOptions.MusicVolume</label>
                                             <input type="range" class="form-range" min="0.1" max="1.0" step="0.1"
-                                                   @bind="musicVolume" disabled="@isGenerating" />
+                                                   @bind="postOptions.MusicVolume" disabled="@isGenerating" />
                                         </div>
                                     }
                                 </div>
@@ -354,17 +353,17 @@
                     <button type="button" class="btn-close" @onclick="() => showCsvPreview = false"></button>
                 </div>
                 <div class="modal-body">
-                    <p><strong>총 @csvPrompts.Count 개의 프롬프트가 로드되었습니다.</strong></p>
+                    <p><strong>총 @genOptions.CsvPrompts.Count 개의 프롬프트가 로드되었습니다.</strong></p>
                     <div style="max-height: 300px; overflow-y: auto;">
-                        @for (int i = 0; i < Math.Min(10, csvPrompts.Count); i++)
+                        @for (int i = 0; i < Math.Min(10, genOptions.CsvPrompts.Count); i++)
                         {
                             <div class="mb-2">
-                                <strong>@(i + 1).</strong> @csvPrompts[i]
+                                <strong>@(i + 1).</strong> @genOptions.CsvPrompts[i]
                             </div>
                         }
-                        @if (csvPrompts.Count > 10)
+                        @if (genOptions.CsvPrompts.Count > 10)
                         {
-                            <div class="text-muted">... 외 @(csvPrompts.Count - 10) 개 더</div>
+                            <div class="text-muted">... 외 @(genOptions.CsvPrompts.Count - 10) 개 더</div>
                         }
                     </div>
                 </div>
@@ -375,7 +374,8 @@
         </div>
     </div>
 }
-<!-- 🔥 추가: 캡션 CSV 미리보기 모달 -->
+
+<!-- 캡션 CSV 미리보기 모달 -->
 @if (showCaptionCsvPreview)
 {
     <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
@@ -386,17 +386,17 @@
                     <button type="button" class="btn-close" @onclick="() => showCaptionCsvPreview = false"></button>
                 </div>
                 <div class="modal-body">
-                    <p><strong>총 @captionCsvList.Count 개의 캡션이 로드되었습니다.</strong></p>
+                    <p><strong>총 @postOptions.CaptionCsvList.Count 개의 캡션이 로드되었습니다.</strong></p>
                     <div style="max-height: 300px; overflow-y: auto;">
-                        @for (int i = 0; i < Math.Min(10, captionCsvList.Count); i++)
+                        @for (int i = 0; i < Math.Min(10, postOptions.CaptionCsvList.Count); i++)
                         {
                             <div class="mb-2">
-                                <strong>@(i + 1).</strong> @captionCsvList[i]
+                                <strong>@(i + 1).</strong> @postOptions.CaptionCsvList[i]
                             </div>
                         }
-                        @if (captionCsvList.Count > 10)
+                        @if (postOptions.CaptionCsvList.Count > 10)
                         {
-                            <div class="text-muted">... 외 @(captionCsvList.Count - 10) 개 더</div>
+                            <div class="text-muted">... 외 @(postOptions.CaptionCsvList.Count - 10) 개 더</div>
                         }
                     </div>
                 </div>
@@ -410,11 +410,11 @@
 
 
 @code {
-    // 기본 설정
-    private int videoCount = 1;
-    private int selectedDuration = 5;
-    private string selectedAspectRatio = "9:16";
-    private string userPrompt = "";
+    // 🔥 서비스의 Options 클래스 사용
+    private VideoGenerationService.VideoGenerationOptions genOptions = new();
+    private VideoGenerationService.PostProcessingOptions postOptions = new();
+
+    // UI 상태
     private bool isGenerating = false;
     private string resultMessage = "";
     private int currentProgress = 0;
@@ -423,87 +423,38 @@
     private string lastFileName = "";
     private string currentPromptUsed = "";
 
-    // 영상 소스
-    private bool isGenerateVideo = true;
-    private List<IBrowserFile> localVideoFiles = new List<IBrowserFile>();
-
-    // 후처리 설정
-    private bool enablePostProcessing = false;
-    private bool addCaption = false;
-    private string captionText = "Runmoa.com";
-    private string captionPosition = "top";
-    private string captionSize = "120";
-    private string captionColor = "white";
-
-    // 🔥 추가: 랜덤 캡션 관련
-    private bool useRandomCaption = false;
-    private List<string> captionCsvList = new List<string>();
+    // 프롬프트 관련
+    private bool isRandomPromptMode = false;
+    private string userPrompt = "";
+    private bool showCsvPreview = false;
     private bool showCaptionCsvPreview = false;
 
-    private bool addBackgroundMusic = false;
-    private float musicVolume = 0.7f;
+    private string totalCost => (genOptions.VideoCount * (genOptions.SelectedDuration == 5 ? 0.75m : 1.5m)).ToString("F2");
 
-    // 음악 파일 (여러 개)
-    private List<IBrowserFile> selectedMusicFiles = new List<IBrowserFile>();
-
-    // 랜덤 프롬프트
-    private bool isRandomPromptMode = false;
-    private List<string> csvPrompts = new List<string>();
-    private bool showCsvPreview = false;
-    private Random random = new Random();
-
-    private string totalCost => (videoCount * (selectedDuration == 5 ? 0.75m : 1.5m)).ToString("F2");
-
-    private string GetDurationClass(int duration) => selectedDuration == duration ? "btn-primary" : "btn-outline-primary";
-    private string GetAspectClass916 => selectedAspectRatio == "9:16" ? "btn-success" : "btn-outline-success";
-    private string GetAspectClass169 => selectedAspectRatio == "16:9" ? "btn-success" : "btn-outline-success";
-    private string GetAspectClass11 => selectedAspectRatio == "1:1" ? "btn-success" : "btn-outline-success";
-
-    private void SetDuration5() => selectedDuration = 5;
-    private void SetDuration10() => selectedDuration = 10;
-    private void SetAspect916() => selectedAspectRatio = "9:16";
-    private void SetAspect169() => selectedAspectRatio = "16:9";
-    private void SetAspect11() => selectedAspectRatio = "1:1";
-
-    private void SetPromptMode(bool isRandom)
-    {
-        isRandomPromptMode = isRandom;
-        if (!isRandom) csvPrompts.Clear();
-    }
+    private string GetDurationClass(int duration) => genOptions.SelectedDuration == duration ? "btn-primary" : "btn-outline-primary";
+    private string GetAspectClass(string ratio) => genOptions.SelectedAspectRatio == ratio ? "btn-success" : "btn-outline-success";
 
     private async Task HandleLocalVideoSelection(InputFileChangeEventArgs e)
     {
-        localVideoFiles.Clear();
-        localVideoFiles.AddRange(e.GetMultipleFiles(10));
+        genOptions.LocalVideoFiles.Clear();
+        genOptions.LocalVideoFiles.AddRange(e.GetMultipleFiles(10));
 
         const long maxSizePerFile = 2L * 1024 * 1024 * 1024;
-        var invalidFiles = localVideoFiles.Where(f => f.Size > maxSizePerFile).ToList();
+        var invalidFiles = genOptions.LocalVideoFiles.Where(f => f.Size > maxSizePerFile).ToList();
 
         if (invalidFiles.Any())
         {
             await JSRuntime.InvokeVoidAsync("alert",
                 $"다음 파일들이 2GB를 초과합니다:\n{string.Join("\n", invalidFiles.Select(f => f.Name))}");
-            localVideoFiles = localVideoFiles.Where(f => f.Size <= maxSizePerFile).ToList();
+            genOptions.LocalVideoFiles = genOptions.LocalVideoFiles.Where(f => f.Size <= maxSizePerFile).ToList();
         }
 
-        if (!isGenerateVideo && localVideoFiles.Count > 0)
+        if (!genOptions.IsGenerateVideo && genOptions.LocalVideoFiles.Count > 0)
         {
-            videoCount = localVideoFiles.Count;
+            genOptions.VideoCount = genOptions.LocalVideoFiles.Count;
         }
 
         StateHasChanged();
-    }
-
-    private string FormatFileSize(long bytes)
-    {
-        if (bytes >= 1024 * 1024 * 1024)
-            return $"{bytes / 1024.0 / 1024.0 / 1024.0:F2} GB";
-        else if (bytes >= 1024 * 1024)
-            return $"{bytes / 1024.0 / 1024.0:F2} MB";
-        else if (bytes >= 1024)
-            return $"{bytes / 1024.0:F2} KB";
-        else
-            return $"{bytes} bytes";
     }
 
     private async Task HandleCsvFileSelection(InputFileChangeEventArgs e)
@@ -524,9 +475,9 @@
             using var reader = new StreamReader(stream);
             var content = await reader.ReadToEndAsync();
 
-            csvPrompts = ParseCsvContent(content);
+            genOptions.CsvPrompts = VideoGenService.ParseCsvContent(content);
 
-            if (csvPrompts.Count == 0)
+            if (genOptions.CsvPrompts.Count == 0)
             {
                 await JSRuntime.InvokeVoidAsync("alert", "CSV 파일에서 유효한 프롬프트를 찾을 수 없습니다.");
             }
@@ -534,32 +485,8 @@
         catch (Exception ex)
         {
             await JSRuntime.InvokeVoidAsync("alert", $"CSV 파일 읽기 실패: {ex.Message}");
-            csvPrompts.Clear();
+            genOptions.CsvPrompts.Clear();
         }
-    }
-
-    private List<string> ParseCsvContent(string content)
-    {
-        var prompts = new List<string>();
-        var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-
-        for (int i = 1; i < lines.Length; i++)
-        {
-            var line = lines[i].Trim();
-            if (string.IsNullOrEmpty(line)) continue;
-
-            var columns = line.Split(',');
-            if (columns.Length >= 2)
-            {
-                var prompt = columns[1].Trim().Trim('"');
-                if (!string.IsNullOrWhiteSpace(prompt))
-                {
-                    prompts.Add(prompt);
-                }
-            }
-        }
-
-        return prompts;
     }
 
     private void ShowCsvPreview()
@@ -567,20 +494,11 @@
         showCsvPreview = true;
     }
 
-    private string GetRandomPrompt()
-    {
-        if (csvPrompts.Count == 0) return "";
-        int index = random.Next(csvPrompts.Count);
-        return csvPrompts[index];
-    }
-
-
-    // 🔥 추가: 랜덤 캡션 관련 메서드들
     private void OnRandomCaptionChanged()
     {
-        if (!useRandomCaption)
+        if (!postOptions.UseRandomCaption)
         {
-            captionCsvList.Clear();
+            postOptions.CaptionCsvList.Clear();
         }
     }
     
@@ -602,21 +520,17 @@
             using var reader = new StreamReader(stream);
             var content = await reader.ReadToEndAsync();
     
-            captionCsvList = ParseCsvContent(content);
+            postOptions.CaptionCsvList = VideoGenService.ParseCsvContent(content);
     
-            if (captionCsvList.Count == 0)
+            if (postOptions.CaptionCsvList.Count == 0)
             {
                 await JSRuntime.InvokeVoidAsync("alert", "CSV 파일에서 유효한 캡션을 찾을 수 없습니다.");
-            }
-            else
-            {
-                Console.WriteLine($"=== {captionCsvList.Count}개 캡션 로드됨");
             }
         }
         catch (Exception ex)
         {
             await JSRuntime.InvokeVoidAsync("alert", $"CSV 파일 읽기 실패: {ex.Message}");
-            captionCsvList.Clear();
+            postOptions.CaptionCsvList.Clear();
         }
     }
     
@@ -624,24 +538,16 @@
     {
         showCaptionCsvPreview = true;
     }
-    
-    private string GetRandomCaption()
-    {
-        if (captionCsvList.Count == 0) return captionText;
-        return captionCsvList[random.Next(captionCsvList.Count)];
-    }
-
-
 
     private async Task HandleMusicFileSelection(InputFileChangeEventArgs e)
     {
-        selectedMusicFiles.Clear();
+        postOptions.SelectedMusicFiles.Clear();
         
-        var files = e.GetMultipleFiles(10); // 최대 10개
+        var files = e.GetMultipleFiles(10);
         
         try
         {
-            const long maxSize = 10 * 1024 * 1024; // 10MB per file
+            const long maxSize = 10 * 1024 * 1024;
             
             foreach (var file in files)
             {
@@ -662,15 +568,13 @@
                     continue;
                 }
                 
-                selectedMusicFiles.Add(file);
+                postOptions.SelectedMusicFiles.Add(file);
             }
-            
-            Console.WriteLine($"=== 음악 파일 선택됨: 총 {selectedMusicFiles.Count}개");
         }
         catch (Exception ex)
         {
             await JSRuntime.InvokeVoidAsync("alert", $"음악 파일 선택 오류: {ex.Message}");
-            selectedMusicFiles.Clear();
+            postOptions.SelectedMusicFiles.Clear();
         }
     
         StateHasChanged();
@@ -679,9 +583,9 @@
     private async Task StartVideoGeneration()
     {
         // 검증
-        if (isGenerateVideo)
+        if (genOptions.IsGenerateVideo)
         {
-            if (isRandomPromptMode && csvPrompts.Count == 0)
+            if (isRandomPromptMode && genOptions.CsvPrompts.Count == 0)
             {
                 await JSRuntime.InvokeVoidAsync("alert", "먼저 CSV 파일을 업로드해주세요.");
                 return;
@@ -698,23 +602,28 @@
                 await JSRuntime.InvokeVoidAsync("alert", "먼저 설정에서 Replicate API 키를 설정해주세요.");
                 return;
             }
+            
+            // 직접 입력 모드일 때는 userPrompt를 CsvPrompts에 추가
+            if (!isRandomPromptMode)
+            {
+                genOptions.CsvPrompts = new List<string> { userPrompt };
+            }
         }
-        else if (localVideoFiles.Count == 0)
+        else if (genOptions.LocalVideoFiles.Count == 0)
         {
             await JSRuntime.InvokeVoidAsync("alert", "처리할 영상 파일을 선택해주세요!");
             return;
         }
 
-        // 🔥 수정: 랜덤 캡션 검증 추가
-        if (enablePostProcessing && addCaption && useRandomCaption && captionCsvList.Count == 0)
+        if (postOptions.EnablePostProcessing && postOptions.AddCaption && postOptions.UseRandomCaption && postOptions.CaptionCsvList.Count == 0)
         {
             await JSRuntime.InvokeVoidAsync("alert", "랜덤 캡션을 사용하려면 캡션 CSV 파일을 업로드해주세요.");
             return;
         }
         
-        if (enablePostProcessing)
+        if (postOptions.EnablePostProcessing)
         {
-            if (addCaption && !useRandomCaption && string.IsNullOrWhiteSpace(captionText))
+            if (postOptions.AddCaption && !postOptions.UseRandomCaption && string.IsNullOrWhiteSpace(postOptions.CaptionText))
             {
                 await JSRuntime.InvokeVoidAsync("alert", "캡션 텍스트를 입력해주세요.");
                 return;
@@ -726,7 +635,7 @@
                 bool proceed = await JSRuntime.InvokeAsync<bool>("confirm",
                     "FFmpeg를 찾을 수 없어 후처리를 할 수 없습니다.\n후처리 없이 진행하시겠습니까?");
                 if (!proceed) return;
-                enablePostProcessing = false;
+                postOptions.EnablePostProcessing = false;
             }
         }
 
@@ -736,139 +645,82 @@
 
         try
         {
-            ReplicateClient? replicateClient = null;
-            if (isGenerateVideo)
-            {
-                var config = ConfigManager.GetConfig();
-                replicateClient = new ReplicateClient(config.ReplicateApiKey);
-            }
-
-            int totalVideos = isGenerateVideo ? videoCount : localVideoFiles.Count;
+            int totalVideos = genOptions.IsGenerateVideo ? genOptions.VideoCount : genOptions.LocalVideoFiles.Count;
             List<string> generatedUrls = new List<string>();
 
             for (int i = 0; i < totalVideos; i++)
             {
                 try
                 {
-                    string videoPath = "";
-                    string finalPrompt = "";
-                    string combinedPrompt = "";
+                    currentProgress = (i * 80 / totalVideos) + 10;
+                    
+                    // 🔥 서비스 사용
+                    var result = await VideoGenService.GenerateOrProcessVideoAsync(
+                        i + 1,
+                        genOptions,
+                        postOptions,
+                        (status) => {
+                            statusMessage = status;
+                            currentPromptUsed = status;
+                            StateHasChanged();
+                        }
+                    );
 
-                    if (isGenerateVideo)
+                    if (result.Success)
                     {
-                        if (isRandomPromptMode)
+                        // 브라우저 다운로드
+                        string downloadFileName = $"video_{DateTime.Now:yyyyMMdd_HHmmss}_{i + 1:D2}.mp4";
+                        await TriggerBrowserDownload(result.VideoPath, downloadFileName);
+                        
+                        // 히스토리 저장
+                        var historyItem = VideoGenService.CreateHistoryItem(
+                            result, 
+                            genOptions, 
+                            postOptions.EnablePostProcessing ? "후처리 완료" : "완료"
+                        );
+                        historyItem.IsDownloaded = true;
+                        VideoHistoryManager.AddHistoryItem(historyItem);
+                        
+                        if (!string.IsNullOrEmpty(result.VideoUrl))
                         {
-                            finalPrompt = GetRandomPrompt();
-                            currentPromptUsed = finalPrompt.Length > 50 ? finalPrompt.Substring(0, 50) + "..." : finalPrompt;
+                            generatedUrls.Add(result.VideoUrl);
+                            lastVideoUrl = result.VideoUrl;
                         }
-                        else
+                        
+                        // 파일 삭제
+                        try
                         {
-                            finalPrompt = userPrompt;
-                            currentPromptUsed = $"영상 {i + 1}";
-                        }
-
-                        combinedPrompt = ConfigManager.CombinePrompts(finalPrompt);
-
-                        var request = new ReplicateClient.VideoGenerationRequest
-                        {
-                            prompt = combinedPrompt,
-                            duration = selectedDuration,
-                            aspect_ratio = selectedAspectRatio,
-                            resolution = "1080p",
-                            fps = 24,
-                            camera_fixed = true
-                        };
-
-                        statusMessage = $"영상 {i + 1}/{totalVideos} - API 요청 중...";
-                        currentProgress = 10 + (i * 70 / totalVideos);
-                        StateHasChanged();
-
-                        var prediction = await replicateClient.StartVideoGeneration(request);
-
-                        statusMessage = $"영상 {i + 1}/{totalVideos} - 생성 중...";
-                        currentProgress = 20 + (i * 70 / totalVideos);
-                        StateHasChanged();
-
-                        var progress = new Progress<ReplicateClient.ProgressInfo>(progressInfo =>
-                        {
-                            InvokeAsync(() =>
+                            if (File.Exists(result.VideoPath))
                             {
-                                int baseProgress = 20 + (i * 70 / totalVideos);
-                                int videoProgress = Math.Min(50, progressInfo.Percentage * 50 / 100);
-                                currentProgress = baseProgress + (videoProgress / totalVideos);
-                                statusMessage = $"영상 {i + 1}/{totalVideos} - {progressInfo.Status}";
-                                StateHasChanged();
-                            });
-                        });
-
-                        var result = await replicateClient.WaitForCompletion(prediction.id, progress);
-
-                        if (result.output != null)
-                        {
-                            string videoUrl = result.output.ToString();
-                            generatedUrls.Add(videoUrl);
-
-                            string fileName = $"generated_video_{DateTime.Now:yyyyMMdd_HHmmss}_{i + 1:D2}.mp4";
-                            videoPath = await DownloadVideoForGen(videoUrl, fileName);
+                                File.Delete(result.VideoPath);
+                            }
                         }
-                        else
-                        {
-                            throw new Exception($"영상 {i + 1} 생성 결과를 받지 못했습니다.");
-                        }
+                        catch { }
                     }
                     else
                     {
-                        var fileToProcess = localVideoFiles[i];
-                        currentPromptUsed = $"로컬 파일: {fileToProcess.Name}";
-                        combinedPrompt = currentPromptUsed;
-
-                        statusMessage = $"파일 {i + 1}/{totalVideos} - 처리 중... {fileToProcess.Name}";
-                        currentProgress = (i * 80 / totalVideos) + 10;
-                        StateHasChanged();
-
-                        string tempDir = Path.GetTempPath();
-                        string fileName = $"local_video_{Guid.NewGuid()}.mp4";
-                        videoPath = Path.Combine(tempDir, fileName);
-
-                        using (var fileStream = new FileStream(videoPath, FileMode.Create))
-                        {
-                            await fileToProcess.OpenReadStream(maxAllowedSize: 2L * 1024 * 1024 * 1024).CopyToAsync(fileStream);
-                        }
-
-                        if (!File.Exists(videoPath))
-                        {
-                            throw new Exception($"파일 저장 실패: {videoPath}");
-                        }
-
-                        finalPrompt = fileToProcess.Name;
+                        await JSRuntime.InvokeVoidAsync("alert", $"영상 {i + 1} 처리 실패: {result.ErrorMessage}");
                     }
-
-                    await ProcessIndividualVideoGen(videoPath, i + 1, finalPrompt, combinedPrompt);
-
-                    statusMessage = $"영상 {i + 1}/{totalVideos} 완료!";
-                    StateHasChanged();
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"=== 영상 {i + 1} 처리 실패: {ex.Message}");
+                    Console.WriteLine($"영상 {i + 1} 처리 실패: {ex.Message}");
                     await JSRuntime.InvokeVoidAsync("alert", $"영상 {i + 1} 처리 실패: {ex.Message}");
                 }
+
+                StateHasChanged();
             }
 
             currentProgress = 100;
             statusMessage = "모든 영상 처리 완료!";
+
+            string modeText = genOptions.IsGenerateVideo ? (isRandomPromptMode ? " (랜덤 프롬프트)" : " (AI 생성)") : " (로컬 파일 처리)";
+            string processText = postOptions.EnablePostProcessing ? " (후처리 포함)" : "";
+
+            int successCount = genOptions.IsGenerateVideo ? generatedUrls.Count : genOptions.LocalVideoFiles.Count;
+            resultMessage = $"{successCount}개의 영상이 성공적으로 {(genOptions.IsGenerateVideo ? "생성되고" : "처리되고")} 다운로드되었습니다!{modeText}{processText}";
+
             isGenerating = false;
-
-            string modeText = isGenerateVideo ? (isRandomPromptMode ? " (랜덤 프롬프트)" : " (AI 생성)") : " (로컬 파일 처리)";
-            string processText = enablePostProcessing ? " (후처리 포함)" : "";
-
-            int successCount = isGenerateVideo ? generatedUrls.Count : localVideoFiles.Count;
-            resultMessage = $"{successCount}개의 영상이 성공적으로 {(isGenerateVideo ? "생성되고" : "처리되고")} 다운로드되었습니다!{modeText}{processText}";
-
-            if (isGenerateVideo && generatedUrls.Count > 0)
-            {
-                lastVideoUrl = generatedUrls.Last();
-            }
         }
         catch (Exception ex)
         {
@@ -880,214 +732,11 @@
         }
     }
 
-    private async Task ProcessIndividualVideoGen(string videoPath, int videoIndex, string originalPrompt, string combinedPrompt)
-    {
-        try
-        {
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-            
-            string finalVideoPath = videoPath;
-            
-            if (enablePostProcessing && (addCaption || addBackgroundMusic))
-            {
-                string processedPath = await ProcessVideoGen(videoPath, originalPrompt);
-                finalVideoPath = processedPath;
-            }
-            
-            string downloadFileName = $"video_{DateTime.Now:yyyyMMdd_HHmmss}_{videoIndex:D2}.mp4";
-            await TriggerBrowserDownloadFromFileGen(finalVideoPath, downloadFileName);
-            
-            var historyItem = new VideoHistoryManager.VideoHistoryItem
-            {
-                Prompt = originalPrompt,
-                FinalPrompt = combinedPrompt,
-                Duration = isGenerateVideo ? selectedDuration : 0,
-                AspectRatio = isGenerateVideo ? selectedAspectRatio : "로컬 파일",
-                VideoUrl = isGenerateVideo ? lastVideoUrl : "",
-                IsRandomPrompt = isRandomPromptMode,
-                FileName = downloadFileName,
-                IsDownloaded = true,
-                Status = enablePostProcessing ? "후처리 완료" : "완료"
-            };
-            VideoHistoryManager.AddHistoryItem(historyItem);
-            
-            try
-            {
-                if (File.Exists(finalVideoPath))
-                {
-                    File.Delete(finalVideoPath);
-                    Console.WriteLine($"=== 처리 완료 파일 삭제: {Path.GetFileName(finalVideoPath)}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"=== 파일 삭제 실패: {ex.Message}");
-            }
-            
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"=== 영상 {videoIndex} 처리 실패: {ex.Message}");
-            throw;
-        }
-    }
-
-    private async Task<string> DownloadVideoForGen(string videoUrl, string fileName)
-    {
-        try
-        {
-            using var httpClient = new System.Net.Http.HttpClient();
-            httpClient.Timeout = TimeSpan.FromMinutes(10);
-
-            string tempFolder = Path.GetTempPath();
-            string safeFileName = $"generated_{Guid.NewGuid()}.mp4";
-            string localPath = Path.Combine(tempFolder, safeFileName);
-
-            byte[] videoBytes = await httpClient.GetByteArrayAsync(videoUrl);
-            await File.WriteAllBytesAsync(localPath, videoBytes);
-
-            return localPath;
-        }
-        catch (Exception ex)
-        {
-            throw new Exception($"후처리용 영상 다운로드 실패: {ex.Message}");
-        }
-    }
-
-    private async Task<string> ProcessVideoGen(string inputPath, string promptText)
-    {
-        try
-        {
-            string outputPath = inputPath.Replace(".mp4", "_processed.mp4");
-
-            string actualCaptionPosition = captionPosition;
-            if (captionPosition == "random")
-            {
-                var positions = new[] { "top", "center", "bottom" };
-                actualCaptionPosition = positions[random.Next(positions.Length)];
-            }
-
-            string actualCaptionSize = captionSize;
-            if (captionSize == "random")
-            {
-                var sizes = new[] { "60", "80", "120" };
-                actualCaptionSize = sizes[random.Next(sizes.Length)];
-            }
-
-            string actualCaptionColor = captionColor;
-            if (captionColor == "random")
-            {
-                var colors = new[] { "white", "yellow", "red", "black" };
-                actualCaptionColor = colors[random.Next(colors.Length)];
-            }
-
-            var options = new VideoPostProcessor.ProcessingOptions
-            {
-                InputVideoPath = inputPath,
-                OutputVideoPath = outputPath
-            };
-
-            if (addCaption && !string.IsNullOrWhiteSpace(captionText))
-            {
-                // 🔥 수정: 랜덤 캡션 사용
-                string finalCaptionText = useRandomCaption ? GetRandomCaption() : captionText;
-                
-                options.CaptionText = finalCaptionText;
-                options.FontSize = actualCaptionSize;
-                options.FontColor = actualCaptionColor;
-                options.CaptionPosition = actualCaptionPosition;
-            
-                Console.WriteLine($"=== 사용된 캡션: {finalCaptionText}");
-            }
-
-            if (addBackgroundMusic)
-            {
-                try
-                {
-                    string musicPath = "";
-                    
-                    // 선택된 음악 파일이 있으면 랜덤으로 하나 선택
-                    if (selectedMusicFiles.Count > 0)
-                    {
-                        var randomMusic = selectedMusicFiles[random.Next(selectedMusicFiles.Count)];
-                        
-                        // 임시 폴더에 저장
-                        string tempDir = Path.Combine(Path.GetTempPath(), "TempMusic");
-                        Directory.CreateDirectory(tempDir);
-                        
-                        string extension = Path.GetExtension(randomMusic.Name).ToLower();
-                        if (string.IsNullOrEmpty(extension)) extension = ".mp3";
-                        
-                        musicPath = Path.Combine(tempDir, $"music_{Guid.NewGuid()}{extension}");
-                        
-                        using (var fileStream = new FileStream(musicPath, FileMode.Create))
-                        {
-                            await randomMusic.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(fileStream);
-                        }
-                        
-                        Console.WriteLine($"=== 선택된 음악 사용: {randomMusic.Name}");
-                    }
-                    else
-                    {
-                        musicPath = await VideoPostProcessor.DownloadSampleMusicAsync();
-                        Console.WriteLine($"=== 기본 음악 사용");
-                    }
-                    
-                    if (File.Exists(musicPath))
-                    {
-                        options.BackgroundMusicPath = musicPath;
-                        options.MusicVolume = musicVolume;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"=== 배경음악 준비 실패: {ex.Message}");
-                }
-            }
-
-            var progress = new Progress<string>(status =>
-            {
-                InvokeAsync(() =>
-                {
-                    statusMessage = status;
-                    StateHasChanged();
-                });
-            });
-
-            string processedPath = await VideoPostProcessor.ProcessVideoAsync(options, progress);
-            
-            try
-            {
-                if (File.Exists(inputPath))
-                {
-                    File.Delete(inputPath);
-                    Console.WriteLine($"=== 원본 파일 삭제: {Path.GetFileName(inputPath)}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"=== 원본 파일 삭제 실패: {ex.Message}");
-            }
-            
-            return processedPath;
-        }
-        catch (Exception ex)
-        {
-            throw new Exception($"영상 후처리 실패: {ex.Message}");
-        }
-    }
-
-    private async Task TriggerBrowserDownloadFromFileGen(string filePath, string fileName)
+    private async Task TriggerBrowserDownload(string filePath, string fileName)
     {
         try
         {
             var fileInfo = new FileInfo(filePath);
-            
-            GC.Collect();
-            long availableMemory = GC.GetTotalMemory(false);
             
             if (fileInfo.Length * 2 > 200 * 1024 * 1024)
             {
@@ -1116,31 +765,12 @@
         }
     }
 
-    private async Task TriggerBrowserDownload(string videoUrl, int videoIndex)
-    {
-        try
-        {
-            string fileName = $"generated_video_{DateTime.Now:yyyyMMdd_HHmmss}_{videoIndex:D2}.mp4";
-            lastFileName = fileName;
-
-            bool success = await JSRuntime.InvokeAsync<bool>("downloadFile", videoUrl, fileName);
-
-            if (!success)
-            {
-                throw new Exception("브라우저 다운로드 실행 실패");
-            }
-        }
-        catch (Exception ex)
-        {
-            throw new Exception($"다운로드 실행 실패: {ex.Message}");
-        }
-    }
-
     private async Task DownloadLastVideo()
     {
         if (!string.IsNullOrEmpty(lastVideoUrl))
         {
-            await TriggerBrowserDownload(lastVideoUrl, 1);
+            string fileName = $"generated_video_{DateTime.Now:yyyyMMdd_HHmmss}.mp4";
+            bool success = await JSRuntime.InvokeAsync<bool>("downloadFile", lastVideoUrl, fileName);
         }
     }
 }
