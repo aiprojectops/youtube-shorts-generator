@@ -2,6 +2,8 @@ using YouTubeShortsWebApp;
 using YouTubeShortsWebApp.Components;
 
 var builder = WebApplication.CreateBuilder(args);
+// 🔥 HttpClientFactory 추가 (Self-Ping용)
+builder.Services.AddHttpClient();
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
