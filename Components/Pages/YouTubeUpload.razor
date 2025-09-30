@@ -707,6 +707,7 @@
     private void CreateUploadSchedule()
     {
         scheduleList.Clear();
+        // 🔥 DateTime.Now 사용 (시스템 시간대)
         DateTime startTime = DateTime.Now.AddMinutes(5);
         DateTime endTime = startTime.AddHours(scheduleHours);
 
