@@ -633,50 +633,97 @@
                 // 태그 추출 (# 이후 전체)
                 string tags = line.Substring(tagStartIndex).Trim();
                 
-                // 태그 앞에 있는 쉼표 제거
+                // 태그 앞 부분
                 string beforeTags = line.Substring(0, tagStartIndex).TrimEnd(',', ' ');
                 
-                // 🔥 따옴표로 감싸진 부분 추출
-                var quotedParts = new List<string>();
-                bool inQuotes = false;
-                var current = new System.Text.StringBuilder();
+                // 🔥 개선된 파싱: 첫 번째 쉼표와 마지막 따옴표 찾기
+                // 형식: 번호,"제목","설명",#태그
                 
-                for (int j = 0; j < beforeTags.Length; j++)
+                // 첫 번째 쉼표 찾기 (번호 다음)
+                int firstComma = beforeTags.IndexOf(',');
+                if (firstComma == -1)
                 {
-                    char c = beforeTags[j];
-                    
-                    if (c == '"')
-                    {
-                        if (inQuotes)
-                        {
-                            // 따옴표 닫힘 - 현재 내용 저장
-                            quotedParts.Add(current.ToString());
-                            current.Clear();
-                            inQuotes = false;
-                        }
-                        else
-                        {
-                            // 따옴표 시작
-                            inQuotes = true;
-                        }
-                    }
-                    else if (inQuotes)
-                    {
-                        // 따옴표 안에서는 모든 문자 추가
-                        current.Append(c);
-                    }
-                    // 따옴표 밖의 문자는 무시 (쉼표, 공백 등)
-                }
-                
-                // 최소 2개 필요 (제목, 설명)
-                if (quotedParts.Count < 2)
-                {
-                    Console.WriteLine($"CSV 라인 {i}: 따옴표로 감싸진 제목/설명을 찾을 수 없음");
+                    Console.WriteLine($"CSV 라인 {i}: 번호 구분 쉼표 없음");
                     continue;
                 }
                 
-                string title = quotedParts[0].Trim();
-                string description = quotedParts[1].Trim();
+                // 번호 이후 부분
+                string afterNumber = beforeTags.Substring(firstComma + 1).Trim();
+                
+                // 제목 시작 따옴표 찾기
+                int titleStart = afterNumber.IndexOf('"');
+                if (titleStart == -1)
+                {
+                    Console.WriteLine($"CSV 라인 {i}: 제목 시작 따옴표 없음");
+                    continue;
+                }
+                
+                // 제목 끝 따옴표 찾기 (이스케이프된 따옴표 고려)
+                int titleEnd = titleStart + 1;
+                while (titleEnd < afterNumber.Length)
+                {
+                    if (afterNumber[titleEnd] == '"')
+                    {
+                        // 다음 문자가 따옴표면 이스케이프
+                        if (titleEnd + 1 < afterNumber.Length && afterNumber[titleEnd + 1] == '"')
+                        {
+                            titleEnd += 2; // 이스케이프된 따옴표 건너뛰기
+                            continue;
+                        }
+                        break; // 진짜 끝 따옴표
+                    }
+                    titleEnd++;
+                }
+                
+                if (titleEnd >= afterNumber.Length)
+                {
+                    Console.WriteLine($"CSV 라인 {i}: 제목 끝 따옴표 없음");
+                    continue;
+                }
+                
+                string title = afterNumber.Substring(titleStart + 1, titleEnd - titleStart - 1)
+                    .Replace("\"\"", "\"") // 이스케이프된 따옴표 복원
+                    .Trim();
+                
+                // 설명 찾기
+                string afterTitle = afterNumber.Substring(titleEnd + 1).Trim();
+                if (afterTitle.StartsWith(","))
+                {
+                    afterTitle = afterTitle.Substring(1).Trim();
+                }
+                
+                int descStart = afterTitle.IndexOf('"');
+                if (descStart == -1)
+                {
+                    Console.WriteLine($"CSV 라인 {i}: 설명 시작 따옴표 없음");
+                    continue;
+                }
+                
+                // 설명 끝 따옴표 찾기
+                int descEnd = descStart + 1;
+                while (descEnd < afterTitle.Length)
+                {
+                    if (afterTitle[descEnd] == '"')
+                    {
+                        if (descEnd + 1 < afterTitle.Length && afterTitle[descEnd + 1] == '"')
+                        {
+                            descEnd += 2;
+                            continue;
+                        }
+                        break;
+                    }
+                    descEnd++;
+                }
+                
+                if (descEnd >= afterTitle.Length)
+                {
+                    Console.WriteLine($"CSV 라인 {i}: 설명 끝 따옴표 없음");
+                    continue;
+                }
+                
+                string description = afterTitle.Substring(descStart + 1, descEnd - descStart - 1)
+                    .Replace("\"\"", "\"")
+                    .Trim();
     
                 if (!string.IsNullOrWhiteSpace(title))
                 {
