@@ -135,41 +135,102 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
         return await _youtubeUploader.UploadVideoAsync(uploadInfo, progress);
     }
 
+
+    // 기존 UploadOptions 클래스에 속성 추가
+    public class UploadOptions
+    {
+        public string TitleTemplate { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string Tags { get; set; } = "";
+        public string PrivacySetting { get; set; } = "비공개";
+        
+        // 🔥 랜덤 업로드 정보 추가
+        public bool UseRandomInfo { get; set; } = false;
+        public List<RandomUploadInfo>? RandomInfoList { get; set; } = null;
+    }
+    
+    // 🔥 새로운 클래스 추가
+    public class RandomUploadInfo
+    {
+        public string Title { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string Tags { get; set; } = "";
+    }
+  
     /// <summary>
     /// 여러 파일 즉시 업로드
     /// </summary>
+    // 🔥 UploadMultipleVideosAsync 메서드 수정
     public async Task<List<string>> UploadMultipleVideosAsync(
         List<string> filePaths,
         UploadOptions options,
-        Action<int, int, string> progressCallback = null)
+        Action<int, int, string>? progressCallback = null)
     {
         var uploadedUrls = new List<string>();
-
+        var random = new Random();
+        
+        // 🔥 랜덤 정보가 있으면 섞기
+        List<RandomUploadInfo>? shuffledInfoList = null;
+        if (options.UseRandomInfo && options.RandomInfoList != null && options.RandomInfoList.Count > 0)
+        {
+            shuffledInfoList = options.RandomInfoList.OrderBy(x => random.Next()).ToList();
+            Console.WriteLine($"=== 랜덤 업로드 정보 사용: {shuffledInfoList.Count}개");
+        }
+    
         for (int i = 0; i < filePaths.Count; i++)
         {
             try
             {
-                string title = filePaths.Count > 1 
-                    ? options.TitleTemplate.Replace("#NUMBER", $"#{i + 1}")
-                    : options.TitleTemplate.Replace(" #NUMBER", "");
-
-                progressCallback?.Invoke(i + 1, filePaths.Count, title);
-
-                var progress = new Progress<YouTubeUploader.UploadProgressInfo>(progressInfo =>
+                string filePath = filePaths[i];
+                
+                // 🔥 랜덤 정보 또는 기본 정보 사용
+                string title, description, tags;
+                
+                if (shuffledInfoList != null && shuffledInfoList.Count > 0)
                 {
-                    Console.WriteLine($"업로드 진행: {progressInfo.Percentage}%");
-                });
-
-                string videoUrl = await UploadSingleVideoAsync(filePaths[i], title, options, progress);
+                    // 랜덤 정보에서 순환하며 선택
+                    var info = shuffledInfoList[i % shuffledInfoList.Count];
+                    title = info.Title;
+                    description = info.Description;
+                    tags = info.Tags;
+                    
+                    Console.WriteLine($"=== 영상 {i + 1}: 랜덤 정보 사용");
+                    Console.WriteLine($"    제목: {title}");
+                }
+                else
+                {
+                    // 기본 템플릿 사용
+                    title = filePaths.Count > 1 
+                        ? $"{options.TitleTemplate} #{i + 1}" 
+                        : options.TitleTemplate;
+                    description = options.Description;
+                    tags = options.Tags;
+                    
+                    Console.WriteLine($"=== 영상 {i + 1}: 템플릿 사용 - {title}");
+                }
+    
+                progressCallback?.Invoke(i + 1, filePaths.Count, title);
+    
+                var uploadInfo = new YouTubeUploader.VideoUploadInfo
+                {
+                    FilePath = filePath,
+                    Title = title,
+                    Description = description,
+                    Tags = tags,
+                    PrivacyStatus = options.PrivacySetting
+                };
+    
+                string videoUrl = await _youtubeUploader.UploadVideoAsync(uploadInfo);
                 uploadedUrls.Add(videoUrl);
+    
+                Console.WriteLine($"✅ 업로드 완료: {title} -> {videoUrl}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"파일 {i + 1} 업로드 실패: {ex.Message}");
-                throw;
+                Console.WriteLine($"❌ 업로드 실패 [{i + 1}]: {ex.Message}");
             }
         }
-
+    
         return uploadedUrls;
     }
 
