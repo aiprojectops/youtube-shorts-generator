@@ -1044,7 +1044,27 @@
         var items = new List<UploadInfoItem>();
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
     
-        for (int i = 1; i < lines.Length; i++) // 첫 줄은 헤더
+        // 🔥 첫 번째 줄이 헤더인지 확인
+        int startIndex = 1; // 기본적으로 1번째 줄(인덱스 1)부터 시작
+        
+        if (lines.Length > 0)
+        {
+            var firstLine = lines[0].ToLower();
+            // 헤더로 보이는 키워드가 있으면 건너뛰기
+            if (firstLine.Contains("번호") || firstLine.Contains("number") || 
+                firstLine.Contains("제목") || firstLine.Contains("title"))
+            {
+                startIndex = 1;
+                Console.WriteLine("=== CSV 헤더 감지됨, 두 번째 줄부터 파싱 시작");
+            }
+            else
+            {
+                startIndex = 0; // 헤더가 없으면 첫 줄부터
+                Console.WriteLine("=== CSV 헤더 없음, 첫 번째 줄부터 파싱 시작");
+            }
+        }
+    
+        for (int i = startIndex; i < lines.Length; i++)
         {
             var line = lines[i].Trim();
             if (string.IsNullOrEmpty(line)) continue;
@@ -1065,9 +1085,6 @@
                 
                 // 태그 앞 부분
                 string beforeTags = line.Substring(0, tagStartIndex).TrimEnd(',', ' ');
-                
-                // 🔥 개선된 파싱: 첫 번째 쉼표와 마지막 따옴표 찾기
-                // 형식: 번호,"제목","설명",#태그
                 
                 // 첫 번째 쉼표 찾기 (번호 다음)
                 int firstComma = beforeTags.IndexOf(',');
