@@ -128,26 +128,22 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
     }
 
 
-    // 기존 UploadOptions 클래스에 속성 추가
+    // RandomUploadInfo 클래스를 별도 리스트로 분리
     public class UploadOptions
     {
         public string TitleTemplate { get; set; } = "";
         public string Description { get; set; } = "";
         public string Tags { get; set; } = "";
         public string PrivacySetting { get; set; } = "공개";
-        
-        // 🔥 랜덤 업로드 정보 추가
         public bool UseRandomInfo { get; set; } = false;
-        public List<RandomUploadInfo>? RandomInfoList { get; set; } = null;
+        
+        // 🔥 각각 독립적인 리스트로 변경
+        public List<string>? RandomTitles { get; set; } = null;
+        public List<string>? RandomDescriptions { get; set; } = null;
+        public List<string>? RandomTags { get; set; } = null;
     }
     
-    // 🔥 새로운 클래스 추가
-    public class RandomUploadInfo
-    {
-        public string Title { get; set; } = "";
-        public string Description { get; set; } = "";
-        public string Tags { get; set; } = "";
-    }
+   
   
     /// <summary>
     /// 여러 파일 즉시 업로드
@@ -161,12 +157,30 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
         var uploadedUrls = new List<string>();
         var random = new Random();
         
-        // 🔥 랜덤 정보가 있으면 섞기
-        List<RandomUploadInfo>? shuffledInfoList = null;
-        if (options.UseRandomInfo && options.RandomInfoList != null && options.RandomInfoList.Count > 0)
+        // 🔥 각 리스트 섞기
+        List<string>? shuffledTitles = null;
+        List<string>? shuffledDescriptions = null;
+        List<string>? shuffledTags = null;
+        
+        if (options.UseRandomInfo)
         {
-            shuffledInfoList = options.RandomInfoList.OrderBy(x => random.Next()).ToList();
-            Console.WriteLine($"=== 랜덤 업로드 정보 사용: {shuffledInfoList.Count}개");
+            if (options.RandomTitles != null && options.RandomTitles.Count > 0)
+            {
+                shuffledTitles = options.RandomTitles.OrderBy(x => random.Next()).ToList();
+                Console.WriteLine($"=== 랜덤 제목: {shuffledTitles.Count}개");
+            }
+            
+            if (options.RandomDescriptions != null && options.RandomDescriptions.Count > 0)
+            {
+                shuffledDescriptions = options.RandomDescriptions.OrderBy(x => random.Next()).ToList();
+                Console.WriteLine($"=== 랜덤 설명: {shuffledDescriptions.Count}개");
+            }
+            
+            if (options.RandomTags != null && options.RandomTags.Count > 0)
+            {
+                shuffledTags = options.RandomTags.OrderBy(x => random.Next()).ToList();
+                Console.WriteLine($"=== 랜덤 태그: {shuffledTags.Count}개");
+            }
         }
     
         for (int i = 0; i < filePaths.Count; i++)
@@ -175,19 +189,30 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
             {
                 string filePath = filePaths[i];
                 
-                // 🔥 랜덤 정보 또는 기본 정보 사용
+                // 🔥 각각 독립적으로 랜덤 선택
                 string title, description, tags;
                 
-                if (shuffledInfoList != null && shuffledInfoList.Count > 0)
+                if (options.UseRandomInfo)
                 {
-                    // 랜덤 정보에서 순환하며 선택
-                    var info = shuffledInfoList[i % shuffledInfoList.Count];
-                    title = info.Title;
-                    description = info.Description;
-                    tags = info.Tags;
+                    // 제목: 랜덤 리스트가 있으면 순환 선택, 없으면 기본값
+                    title = shuffledTitles != null && shuffledTitles.Count > 0
+                        ? shuffledTitles[i % shuffledTitles.Count]
+                        : (filePaths.Count > 1 ? $"{options.TitleTemplate} #{i + 1}" : options.TitleTemplate);
                     
-                    Console.WriteLine($"=== 영상 {i + 1}: 랜덤 정보 사용");
+                    // 설명: 랜덤 리스트가 있으면 순환 선택, 없으면 기본값
+                    description = shuffledDescriptions != null && shuffledDescriptions.Count > 0
+                        ? shuffledDescriptions[i % shuffledDescriptions.Count]
+                        : options.Description;
+                    
+                    // 태그: 랜덤 리스트가 있으면 순환 선택, 없으면 기본값
+                    tags = shuffledTags != null && shuffledTags.Count > 0
+                        ? shuffledTags[i % shuffledTags.Count]
+                        : options.Tags;
+                    
+                    Console.WriteLine($"=== 영상 {i + 1}: 랜덤 조합");
                     Console.WriteLine($"    제목: {title}");
+                    Console.WriteLine($"    설명: {description.Substring(0, Math.Min(50, description.Length))}...");
+                    Console.WriteLine($"    태그: {tags}");
                 }
                 else
                 {
@@ -238,36 +263,76 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
         bool randomizeOrder,
         ScheduledUploadService scheduledUploadService)
     {
+        var random = new Random();
         var filesToSchedule = randomizeOrder
             ? filePaths.OrderBy(x => Guid.NewGuid()).ToList()
             : filePaths.ToList();
-
+    
         DateTime endTime = startTime.AddHours(scheduleHours);
-
+        
+        // 🔥 각 리스트 섞기
+        List<string>? shuffledTitles = null;
+        List<string>? shuffledDescriptions = null;
+        List<string>? shuffledTags = null;
+        
+        if (options.UseRandomInfo)
+        {
+            if (options.RandomTitles != null && options.RandomTitles.Count > 0)
+                shuffledTitles = options.RandomTitles.OrderBy(x => random.Next()).ToList();
+            
+            if (options.RandomDescriptions != null && options.RandomDescriptions.Count > 0)
+                shuffledDescriptions = options.RandomDescriptions.OrderBy(x => random.Next()).ToList();
+            
+            if (options.RandomTags != null && options.RandomTags.Count > 0)
+                shuffledTags = options.RandomTags.OrderBy(x => random.Next()).ToList();
+        }
+    
         for (int i = 0; i < filesToSchedule.Count; i++)
         {
             DateTime scheduledTime = CalculateRandomUploadTime(
                 startTime, endTime, i, filesToSchedule.Count, minIntervalMinutes);
-
-            string title = filesToSchedule.Count > 1
-                ? options.TitleTemplate.Replace("#NUMBER", $"#{i + 1}")
-                : options.TitleTemplate.Replace(" #NUMBER", "");
-
+    
+            string title, description, tags;
+            
+            if (options.UseRandomInfo)
+            {
+                title = shuffledTitles != null && shuffledTitles.Count > 0
+                    ? shuffledTitles[i % shuffledTitles.Count]
+                    : (filesToSchedule.Count > 1 
+                        ? options.TitleTemplate.Replace("#NUMBER", $"#{i + 1}")
+                        : options.TitleTemplate.Replace(" #NUMBER", ""));
+                
+                description = shuffledDescriptions != null && shuffledDescriptions.Count > 0
+                    ? shuffledDescriptions[i % shuffledDescriptions.Count]
+                    : options.Description;
+                
+                tags = shuffledTags != null && shuffledTags.Count > 0
+                    ? shuffledTags[i % shuffledTags.Count]
+                    : options.Tags;
+            }
+            else
+            {
+                title = filesToSchedule.Count > 1
+                    ? options.TitleTemplate.Replace("#NUMBER", $"#{i + 1}")
+                    : options.TitleTemplate.Replace(" #NUMBER", "");
+                description = options.Description;
+                tags = options.Tags;
+            }
+    
             var uploadItem = new ScheduledUploadItem
             {
                 FileName = Path.GetFileName(filesToSchedule[i]),
                 FilePath = filesToSchedule[i],
                 ScheduledTime = scheduledTime,
                 Title = title,
-                Description = options.Description,
-                Tags = options.Tags,
+                Description = description,
+                Tags = tags,
                 PrivacySetting = options.PrivacySetting
             };
-
+    
             scheduledUploadService.AddScheduledUpload(uploadItem);
         }
     }
-
     /// <summary>
     /// 랜덤 업로드 시간 계산
     /// </summary>
