@@ -134,7 +134,7 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
         public string TitleTemplate { get; set; } = "";
         public string Description { get; set; } = "";
         public string Tags { get; set; } = "";
-        public string PrivacySetting { get; set; } = "비공개";
+        public string PrivacySetting { get; set; } = "공개";
         
         // 🔥 랜덤 업로드 정보 추가
         public bool UseRandomInfo { get; set; } = false;
