@@ -226,73 +226,118 @@ namespace YouTubeShortsWebApp
             var config = ConfigManager.GetConfig();
             var replicateClient = new ReplicateClient(config.ReplicateApiKey);
             
-            // 🔥 올바른 메서드 호출
-            string videoUrl = await replicateClient.GetVideoAsync(
-                item.Prompt ?? "",
-                item.Duration,
-                item.AspectRatio
-            );
-            
-            // 다운로드
-            string tempDir = Path.Combine(Path.GetTempPath(), "YouTubeScheduledUploads");
-            Directory.CreateDirectory(tempDir);
-            string videoPath = Path.Combine(tempDir, $"{DateTime.Now.Ticks}_{item.FileName}");
-            
-            using (var httpClient = new HttpClient())
+            try
             {
-                var videoBytes = await httpClient.GetByteArrayAsync(videoUrl);
-                await File.WriteAllBytesAsync(videoPath, videoBytes);
-            }
-            
-            Console.WriteLine($"=== 영상 다운로드 완료: {videoPath}");
-            
-            // 후처리
-            if (item.EnablePostProcessing)
-            {
-                Console.WriteLine($"=== 후처리 시작: {item.FileName}");
+                // 🔥 ReplicateClient의 실제 메서드 사용
+                var request = new ReplicateClient.VideoGenerationRequest
+                {
+                    prompt = item.Prompt ?? "",
+                    duration = item.Duration,
+                    aspect_ratio = item.AspectRatio,
+                    resolution = "1080p",
+                    fps = 24,
+                    camera_fixed = true
+                };
                 
-                var processor = new VideoPostProcessor();
-                string processedPath = videoPath.Replace(".mp4", "_processed.mp4");
+                // 영상 생성 시작
+                var prediction = await replicateClient.StartVideoGeneration(request);
+                Console.WriteLine($"=== 영상 생성 요청 완료. Prediction ID: {prediction.id}");
                 
-                // 🔥 올바른 메서드 시그니처 사용
-                bool success = await processor.ProcessVideoAsync(
-                    inputPath: videoPath,
-                    outputPath: processedPath,
-                    captionText: item.CaptionText,
-                    captionPosition: item.CaptionPosition,
-                    captionSize: item.CaptionSize,
-                    captionColor: item.CaptionColor,
-                    addBackgroundMusic: item.AddBackgroundMusic,
-                    musicPath: item.MusicFilePath,
-                    musicVolume: item.MusicVolume
+                // 완료 대기
+                var progress = new Progress<ReplicateClient.ProgressInfo>(info =>
+                {
+                    Console.WriteLine($"    진행률: {info.Percentage}% - {info.Status}");
+                });
+                
+                var completedPrediction = await replicateClient.WaitForCompletion(
+                    prediction.id, 
+                    progress, 
+                    CancellationToken.None
                 );
                 
-                if (success)
+                // 결과 URL 추출
+                string videoUrl = "";
+                if (completedPrediction.output != null)
                 {
-                    // 원본 삭제, 처리된 파일로 교체
+                    if (completedPrediction.output is string urlString)
+                    {
+                        videoUrl = urlString;
+                    }
+                    else if (completedPrediction.output is Newtonsoft.Json.Linq.JArray array && array.Count > 0)
+                    {
+                        videoUrl = array[0].ToString();
+                    }
+                }
+                
+                if (string.IsNullOrEmpty(videoUrl))
+                {
+                    throw new Exception("영상 URL을 가져올 수 없습니다.");
+                }
+                
+                Console.WriteLine($"=== 영상 생성 완료: {videoUrl}");
+                
+                // 다운로드
+                string tempDir = Path.Combine(Path.GetTempPath(), "YouTubeScheduledUploads");
+                Directory.CreateDirectory(tempDir);
+                string videoPath = Path.Combine(tempDir, $"{DateTime.Now.Ticks}_{item.FileName}");
+                
+                using (var httpClient = new HttpClient())
+                {
+                    var videoBytes = await httpClient.GetByteArrayAsync(videoUrl);
+                    await File.WriteAllBytesAsync(videoPath, videoBytes);
+                }
+                
+                Console.WriteLine($"=== 영상 다운로드 완료: {videoPath}");
+                
+                // 후처리
+                if (item.EnablePostProcessing)
+                {
+                    Console.WriteLine($"=== 후처리 시작: {item.FileName}");
+                    
+                    string processedPath = videoPath.Replace(".mp4", "_processed.mp4");
+                    
+                    // 🔥 ProcessingOptions 객체 생성
+                    var processingOptions = new VideoPostProcessor.ProcessingOptions
+                    {
+                        InputVideoPath = videoPath,
+                        OutputVideoPath = processedPath,
+                        CaptionText = item.CaptionText ?? "",
+                        FontSize = item.CaptionSize ?? "80",
+                        FontColor = item.CaptionColor ?? "white",
+                        CaptionPosition = item.CaptionPosition ?? "bottom",
+                        BackgroundMusicPath = item.MusicFilePath ?? "",
+                        MusicVolume = item.MusicVolume
+                    };
+                    
+                    // ProcessVideoAsync 호출
+                    string finalPath = await VideoPostProcessor.ProcessVideoAsync(processingOptions);
+                    
+                    // 원본 삭제
                     try
                     {
-                        File.Delete(videoPath);
-                        videoPath = processedPath;
-                        Console.WriteLine($"=== 후처리 완료: {processedPath}");
+                        if (File.Exists(videoPath))
+                        {
+                            File.Delete(videoPath);
+                        }
+                        videoPath = finalPath;
+                        Console.WriteLine($"=== 후처리 완료: {finalPath}");
                     }
                     catch (Exception ex)
                     {
                         Console.WriteLine($"=== 원본 파일 삭제 실패: {ex.Message}");
-                        // 후처리된 파일 사용
-                        videoPath = processedPath;
+                        videoPath = finalPath;
                     }
                 }
-                else
-                {
-                    Console.WriteLine($"=== 후처리 실패, 원본 사용");
-                }
+                
+                item.FilePath = videoPath;
+                SaveQueueToFile();
+                
+                Console.WriteLine($"=== ✅ 영상 준비 완료: {item.FileName}");
             }
-            
-            item.FilePath = videoPath;
-            SaveQueueToFile();
-            
-            Console.WriteLine($"=== ✅ 영상 준비 완료: {item.FileName}");
+            finally
+            {
+                replicateClient.Dispose();
+            }
         }
 
         private async Task ProcessUpload(ScheduledUploadItem item)
