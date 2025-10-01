@@ -1318,7 +1318,7 @@
             }
             return;
         }
-
+    
         if (postOptions.EnablePostProcessing)
         {
             if (postOptions.AddCaption && postOptions.UseRandomCaption && postOptions.CaptionCsvList.Count == 0)
@@ -1338,7 +1338,7 @@
             {
                 bool proceed = await JSRuntime.InvokeAsync<bool>("confirm",
                     "FFmpeg를 찾을 수 없어 후처리를 할 수 없습니다.\n후처리 없이 진행하시겠습니까?");
-
+    
                 if (!proceed)
                 {
                     return;
@@ -1346,86 +1346,161 @@
                 postOptions.EnablePostProcessing = false;
             }
         }
-
+    
         isRunning = true;
         isCancelled = false;
         currentProgress = 0;
         generatedVideos.Clear();
         resultMessage = "";
         isResultError = false;
-
+    
         try
         {
             int totalVideos = genOptions.IsGenerateVideo ? genOptions.VideoCount : genOptions.LocalVideoFiles.Count;
-            statusMessage = genOptions.IsGenerateVideo ? "영상 생성을 시작합니다..." : "로컬 파일 처리를 시작합니다...";
-            StateHasChanged();
-
-            for (int i = 0; i < totalVideos; i++)
+            
+            // 🔥 AI 생성 모드 + 스케줄 업로드
+            if (genOptions.IsGenerateVideo && isScheduleUpload)
             {
-                if (isCancelled) break;
-
-                currentProgress = (i * 80 / totalVideos);
-                statusMessage = $"영상 {i + 1}/{totalVideos} {(genOptions.IsGenerateVideo ? "생성" : "처리")} 중...";
+                statusMessage = "스케줄 준비 중...";
+                currentProgress = 50;
                 StateHasChanged();
-
-                // 🔥 서비스 사용
-                var result = await VideoGenService.GenerateOrProcessVideoAsync(
-                    i + 1,
-                    genOptions,
-                    postOptions,
-                    (status) => {
-                        statusMessage = status;
-                        currentPromptUsed = status;
-                        StateHasChanged();
-                    }
-                );
-
-                if (result.Success)
-                {
-                    var generatedVideo = new GeneratedVideo
-                    {
-                        FileName = result.FileName,
-                        FilePath = result.VideoPath,
-                        IsScheduled = false
-                    };
-                    generatedVideos.Add(generatedVideo);
-                    
-                    // 히스토리 저장
-                    var historyItem = VideoGenService.CreateHistoryItem(result, genOptions, "All-in-One");
-                    VideoHistoryManager.AddHistoryItem(historyItem);
-                }
-
-                StateHasChanged();
-            }
-
-            if (!isCancelled && generatedVideos.Count > 0)
-            {
-                currentProgress = 85;
-                statusMessage = isScheduleUpload ? "YouTube 스케줄에 등록 중..." : "즉시 업로드 시작...";
-                StateHasChanged();
-
+    
+                // ✅ 영상을 미리 생성하지 않고, 생성 정보만 스케줄에 등록
                 await RegisterToSchedule();
-
+    
                 currentProgress = 100;
                 statusMessage = "All-in-One 완료!";
-
-                if (isScheduleUpload)
+                resultMessage = $"{totalVideos}개 영상이 스케줄에 등록되었습니다. (업로드 5분 전 자동 생성)";
+                hasActiveSchedule = true;
+                StartScheduleStatusTracking();
+            }
+            // 🔥 AI 생성 모드 + 즉시 업로드
+            else if (genOptions.IsGenerateVideo && !isScheduleUpload)
+            {
+                statusMessage = "영상 생성을 시작합니다...";
+                StateHasChanged();
+    
+                // 즉시 업로드는 미리 생성해야 함
+                for (int i = 0; i < totalVideos; i++)
                 {
-                    resultMessage = $"{generatedVideos.Count}개 영상이 {(genOptions.IsGenerateVideo ? "생성되고" : "처리되고")} YouTube 스케줄에 등록되었습니다.";
-                    hasActiveSchedule = true;
-                    StartScheduleStatusTracking();
+                    if (isCancelled) break;
+    
+                    currentProgress = (i * 80 / totalVideos);
+                    statusMessage = $"영상 {i + 1}/{totalVideos} 생성 중...";
+                    StateHasChanged();
+    
+                    var result = await VideoGenService.GenerateOrProcessVideoAsync(
+                        i + 1,
+                        genOptions,
+                        postOptions,
+                        (status) => {
+                            statusMessage = status;
+                            currentPromptUsed = status;
+                            StateHasChanged();
+                        }
+                    );
+    
+                    if (result.Success)
+                    {
+                        var generatedVideo = new GeneratedVideo
+                        {
+                            FileName = result.FileName,
+                            FilePath = result.VideoPath,
+                            IsScheduled = false
+                        };
+                        generatedVideos.Add(generatedVideo);
+                        
+                        var historyItem = VideoGenService.CreateHistoryItem(result, genOptions, "All-in-One");
+                        VideoHistoryManager.AddHistoryItem(historyItem);
+                    }
+    
+                    StateHasChanged();
                 }
-                else
+    
+                if (!isCancelled && generatedVideos.Count > 0)
                 {
-                    resultMessage = $"{generatedVideos.Count}개 영상이 {(genOptions.IsGenerateVideo ? "생성되고" : "처리되고")} 즉시 업로드되었습니다.";
+                    currentProgress = 85;
+                    statusMessage = "즉시 업로드 시작...";
+                    StateHasChanged();
+    
+                    await RegisterToSchedule();
+    
+                    currentProgress = 100;
+                    statusMessage = "All-in-One 완료!";
+                    resultMessage = $"{generatedVideos.Count}개 영상이 생성되고 즉시 업로드되었습니다.";
                 }
             }
-            else if (isCancelled)
+            // 🔥 로컬 파일 모드
+            else
+            {
+                statusMessage = "로컬 파일 처리를 시작합니다...";
+                StateHasChanged();
+    
+                for (int i = 0; i < totalVideos; i++)
+                {
+                    if (isCancelled) break;
+    
+                    currentProgress = (i * 80 / totalVideos);
+                    statusMessage = $"파일 {i + 1}/{totalVideos} 처리 중...";
+                    StateHasChanged();
+    
+                    var result = await VideoGenService.GenerateOrProcessVideoAsync(
+                        i + 1,
+                        genOptions,
+                        postOptions,
+                        (status) => {
+                            statusMessage = status;
+                            StateHasChanged();
+                        }
+                    );
+    
+                    if (result.Success)
+                    {
+                        var generatedVideo = new GeneratedVideo
+                        {
+                            FileName = result.FileName,
+                            FilePath = result.VideoPath,
+                            IsScheduled = false
+                        };
+                        generatedVideos.Add(generatedVideo);
+                        
+                        var historyItem = VideoGenService.CreateHistoryItem(result, genOptions, "All-in-One");
+                        VideoHistoryManager.AddHistoryItem(historyItem);
+                    }
+    
+                    StateHasChanged();
+                }
+    
+                if (!isCancelled && generatedVideos.Count > 0)
+                {
+                    currentProgress = 85;
+                    statusMessage = isScheduleUpload ? "YouTube 스케줄에 등록 중..." : "즉시 업로드 시작...";
+                    StateHasChanged();
+    
+                    await RegisterToSchedule();
+    
+                    currentProgress = 100;
+                    statusMessage = "All-in-One 완료!";
+    
+                    if (isScheduleUpload)
+                    {
+                        resultMessage = $"{generatedVideos.Count}개 영상이 처리되고 YouTube 스케줄에 등록되었습니다.";
+                        hasActiveSchedule = true;
+                        StartScheduleStatusTracking();
+                    }
+                    else
+                    {
+                        resultMessage = $"{generatedVideos.Count}개 영상이 처리되고 즉시 업로드되었습니다.";
+                    }
+                }
+            }
+    
+            if (isCancelled)
             {
                 statusMessage = "작업이 취소되었습니다.";
                 resultMessage = "사용자에 의해 취소되었습니다.";
             }
-            else
+            else if (!genOptions.IsGenerateVideo && generatedVideos.Count == 0)
             {
                 statusMessage = "처리된 영상이 없습니다.";
                 resultMessage = "처리할 수 있는 영상이 없었습니다.";
@@ -1468,10 +1543,9 @@
         {
             DateTime startTime = DateTime.Now.AddMinutes(5);
             
-            // 🔥 즉시 업로드는 기존 방식, 스케줄은 생성 정보만 전달
+            // 🔥 AI 생성 모드: 생성 정보만 전달
             if (genOptions.IsGenerateVideo)
             {
-                // 영상 생성 정보 목록 생성
                 var videoInfoList = new List<YouTubeUploadService.VideoGenerationInfo>();
                 var random = new Random();
                 
@@ -1495,7 +1569,6 @@
                     string? musicPath = null;
                     if (postOptions.EnablePostProcessing && postOptions.AddBackgroundMusic && postOptions.SelectedMusicFiles.Count > 0)
                     {
-                        // 음악 파일 서버에 저장
                         var musicFile = postOptions.SelectedMusicFiles[random.Next(postOptions.SelectedMusicFiles.Count)];
                         string tempDir = Path.Combine(Path.GetTempPath(), "BackgroundMusic");
                         Directory.CreateDirectory(tempDir);
@@ -1524,7 +1597,6 @@
                     });
                 }
                 
-                // 랜덤 업로드 정보 설정
                 if (useRandomUploadInfo && uploadInfoCsvList.Count > 0)
                 {
                     uploadOptions.UseRandomInfo = true;
@@ -1533,7 +1605,7 @@
                     uploadOptions.RandomTags = uploadInfoCsvList.Select(item => item.Tags).ToList();
                 }
                 
-                // 🔥 생성 정보로 스케줄 등록
+                // ✅ 생성 정보만 등록 (실제 생성 X)
                 YouTubeService.RegisterScheduledUploadsWithGeneration(
                     videoInfoList,
                     uploadOptions,
@@ -1544,11 +1616,12 @@
                     ScheduledUploadService
                 );
                 
-                Console.WriteLine($"=== {videoInfoList.Count}개 영상이 스케줄에 등록됨 (업로드 5분 전 생성)");
+                Console.WriteLine($"=== ✅ {videoInfoList.Count}개 영상 생성 정보 등록 완료");
+                Console.WriteLine($"=== ⏰ 각 영상은 업로드 5분 전에 자동 생성됩니다");
             }
+            // 🔥 로컬 파일 모드: 기존 방식 유지
             else
             {
-                // 로컬 파일은 기존 방식 유지
                 var filePaths = generatedVideos.Select(v => v.FilePath).ToList();
                 
                 if (useRandomUploadInfo && uploadInfoCsvList.Count > 0)
