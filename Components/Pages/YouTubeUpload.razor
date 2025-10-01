@@ -655,11 +655,11 @@
     {
         if (selectedFiles.Count == 0 || YouTubeService.CurrentAccount == null)
             return;
-
+    
         isUploading = true;
         uploadResult = "";
         uploadedVideoUrl = "";
-
+    
         try
         {
             // 파일을 임시 경로에 저장
@@ -670,11 +670,11 @@
                 var file = selectedFiles[i];
                 string tempFilePath = Path.GetTempFileName();
                 string actualTempPath = Path.ChangeExtension(tempFilePath, Path.GetExtension(file.Name));
-
+    
                 uploadStatus = $"파일 준비 중... ({i + 1}/{selectedFiles.Count}) {file.Name}";
                 uploadProgress = (i * 20 / selectedFiles.Count) + 5;
                 StateHasChanged();
-
+    
                 using (var fileStream = new FileStream(actualTempPath, FileMode.Create))
                 {
                     await file.OpenReadStream(maxAllowedSize: 2L * 1024 * 1024 * 1024).CopyToAsync(fileStream);
@@ -682,7 +682,27 @@
                 
                 filePaths.Add(actualTempPath);
             }
-
+    
+            // 🔥 랜덤 업로드 정보 설정
+            if (useRandomUploadInfo && uploadInfoCsvList.Count > 0)
+            {
+                uploadOptions.UseRandomInfo = true;
+                uploadOptions.RandomInfoList = uploadInfoCsvList.Select(item => 
+                    new YouTubeUploadService.RandomUploadInfo
+                    {
+                        Title = item.Title,
+                        Description = item.Description,
+                        Tags = item.Tags
+                    }).ToList();
+                
+                Console.WriteLine($"=== 랜덤 업로드 정보 활성화: {uploadOptions.RandomInfoList.Count}개");
+            }
+            else
+            {
+                uploadOptions.UseRandomInfo = false;
+                uploadOptions.RandomInfoList = null;
+            }
+    
             // 🔥 서비스 사용하여 업로드
             var uploadedUrls = await YouTubeService.UploadMultipleVideosAsync(
                 filePaths,
@@ -695,7 +715,7 @@
                     });
                 }
             );
-
+    
             // 임시 파일 삭제
             foreach (var filePath in filePaths)
             {
@@ -708,10 +728,10 @@
                 }
                 catch { }
             }
-
+    
             uploadProgress = 100;
             uploadStatus = "모든 업로드 완료!";
-
+    
             if (uploadedUrls.Count > 0)
             {
                 uploadResult = $"{uploadedUrls.Count}개 파일이 성공적으로 업로드되었습니다.";
@@ -721,7 +741,7 @@
             {
                 uploadResult = "모든 파일 업로드에 실패했습니다.";
             }
-
+    
             isUploading = false;
         }
         catch (Exception ex)
@@ -806,36 +826,56 @@
             scheduleStatus = "파일들을 서버에 저장하고 스케줄에 등록 중...";
             scheduleProgress = 10;
             StateHasChanged();
-
+    
             var filePaths = new List<string>();
-
+    
             for (int i = 0; i < scheduleList.Count; i++)
             {
                 var scheduleItem = scheduleList[i];
-
+    
                 scheduleStatus = $"파일 준비 중... ({i + 1}/{scheduleList.Count}) {scheduleItem.File.Name}";
                 scheduleProgress = 10 + (i * 70 / scheduleList.Count);
                 StateHasChanged();
-
+    
                 string tempDir = Path.Combine(Path.GetTempPath(), "YouTubeScheduledUploads");
                 Directory.CreateDirectory(tempDir);
-
+    
                 string tempFilePath = Path.Combine(tempDir, $"{DateTime.Now.Ticks}_{scheduleItem.File.Name}");
-
+    
                 using (var fileStream = new FileStream(tempFilePath, FileMode.Create))
                 {
                     await scheduleItem.File.OpenReadStream(maxAllowedSize: 2L * 1024 * 1024 * 1024).CopyToAsync(fileStream);
                 }
-
+    
                 filePaths.Add(tempFilePath);
             }
-
+    
             scheduleStatus = "스케줄 서비스에 등록 중...";
             scheduleProgress = 85;
             StateHasChanged();
-
+    
             DateTime startTime = DateTime.Now.AddMinutes(5);
-
+    
+            // 🔥 랜덤 업로드 정보 설정
+            if (useRandomUploadInfo && uploadInfoCsvList.Count > 0)
+            {
+                uploadOptions.UseRandomInfo = true;
+                uploadOptions.RandomInfoList = uploadInfoCsvList.Select(item => 
+                    new YouTubeUploadService.RandomUploadInfo
+                    {
+                        Title = item.Title,
+                        Description = item.Description,
+                        Tags = item.Tags
+                    }).ToList();
+                
+                Console.WriteLine($"=== 랜덤 업로드 정보 활성화: {uploadOptions.RandomInfoList.Count}개");
+            }
+            else
+            {
+                uploadOptions.UseRandomInfo = false;
+                uploadOptions.RandomInfoList = null;
+            }
+    
             // 🔥 서비스 사용하여 스케줄 등록
             YouTubeService.RegisterScheduledUploads(
                 filePaths,
@@ -846,31 +886,31 @@
                 randomizeOrder,
                 ScheduledUploadService
             );
-
+    
             scheduleProgress = 100;
             scheduleStatus = $"스케줄 등록 완료! {filePaths.Count}개 파일이 예약되었습니다.";
             StateHasChanged();
-
+    
             var firstUpload = scheduleList.OrderBy(x => x.ScheduledTime).First();
             var lastUpload = scheduleList.OrderBy(x => x.ScheduledTime).Last();
-
+    
             await JSRuntime.InvokeVoidAsync("alert",
                 $"스케줄 업로드가 시작되었습니다!\n\n" +
                 $"• 등록된 파일: {filePaths.Count}개\n" +
                 $"• 첫 번째 업로드: {firstUpload.ScheduledTime:MM/dd HH:mm}\n" +
                 $"• 마지막 업로드: {lastUpload.ScheduledTime:MM/dd HH:mm}\n\n" +
                 $"백그라운드에서 자동으로 업로드됩니다.");
-
+    
             isScheduleRunning = false;
             scheduleProgress = 0;
             scheduleStatus = "";
-
+    
             selectedFiles.Clear();
             scheduleList.Clear();
-
+    
             await UpdateNextScheduleInfo();
             StartScheduleTrackingTimer();
-
+    
             StateHasChanged();
         }
         catch (Exception ex)
