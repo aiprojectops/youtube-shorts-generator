@@ -1311,6 +1311,26 @@
             
             var filePaths = generatedVideos.Select(v => v.FilePath).ToList();
             
+            // 🔥 랜덤 업로드 정보 설정
+            if (useRandomUploadInfo && uploadInfoCsvList.Count > 0)
+            {
+                uploadOptions.UseRandomInfo = true;
+                uploadOptions.RandomInfoList = uploadInfoCsvList.Select(item => 
+                    new YouTubeUploadService.RandomUploadInfo
+                    {
+                        Title = item.Title,
+                        Description = item.Description,
+                        Tags = item.Tags
+                    }).ToList();
+                
+                Console.WriteLine($"=== 랜덤 업로드 정보 활성화: {uploadOptions.RandomInfoList.Count}개");
+            }
+            else
+            {
+                uploadOptions.UseRandomInfo = false;
+                uploadOptions.RandomInfoList = null;
+            }
+            
             // 🔥 서비스 사용
             YouTubeService.RegisterScheduledUploads(
                 filePaths,
@@ -1332,14 +1352,34 @@
             await StartImmediateUpload();
         }
     }
-
+    
     private async Task StartImmediateUpload()
     {
         statusMessage = "즉시 업로드 시작...";
-
+    
         try
         {
             var filePaths = generatedVideos.Select(v => v.FilePath).ToList();
+            
+            // 🔥 랜덤 업로드 정보 설정
+            if (useRandomUploadInfo && uploadInfoCsvList.Count > 0)
+            {
+                uploadOptions.UseRandomInfo = true;
+                uploadOptions.RandomInfoList = uploadInfoCsvList.Select(item => 
+                    new YouTubeUploadService.RandomUploadInfo
+                    {
+                        Title = item.Title,
+                        Description = item.Description,
+                        Tags = item.Tags
+                    }).ToList();
+                
+                Console.WriteLine($"=== 랜덤 업로드 정보 활성화: {uploadOptions.RandomInfoList.Count}개");
+            }
+            else
+            {
+                uploadOptions.UseRandomInfo = false;
+                uploadOptions.RandomInfoList = null;
+            }
             
             // 🔥 서비스 사용
             await YouTubeService.UploadMultipleVideosAsync(
@@ -1353,12 +1393,12 @@
                     });
                 }
             );
-
+    
             foreach (var video in generatedVideos)
             {
                 video.IsScheduled = true;
             }
-
+    
             statusMessage = $"즉시 업로드 완료!";
         }
         catch (Exception ex)
