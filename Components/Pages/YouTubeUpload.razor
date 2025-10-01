@@ -85,23 +85,65 @@
                     <h4>업로드 설정</h4>
                 </div>
                 <div class="card-body">
-                    <div class="mb-3">
-                        <label class="form-label"><strong>제목:</strong></label>
-                        <input type="text" class="form-control" @bind="uploadOptions.TitleTemplate" placeholder="영상 제목을 입력하세요" disabled="@(isUploading || isScheduleRunning)" />
-                        @if (enableScheduleUpload && selectedFiles.Count > 1)
-                        {
-                            <div class="form-text">여러 파일의 경우 자동으로 번호가 추가됩니다 (예: 제목 #1, 제목 #2)</div>
-                        }
+                    <!-- 랜덤 업로드 정보 사용 체크박스 -->
+                    <div class="mb-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" @bind="useRandomUploadInfo" @bind:after="OnRandomUploadInfoChanged" id="useRandomUploadInfo" disabled="@(isUploading || isScheduleRunning)">
+                            <label class="form-check-label" for="useRandomUploadInfo">
+                                <strong>랜덤 업로드 정보 사용 (CSV 파일)</strong>
+                            </label>
+                        </div>
+                        <div class="form-text">제목, 설명, 태그를 CSV 파일에서 랜덤으로 선택합니다.</div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label"><strong>설명:</strong></label>
-                        <textarea class="form-control" rows="4" @bind="uploadOptions.Description" placeholder="영상 설명을 입력하세요" disabled="@(isUploading || isScheduleRunning)"></textarea>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label"><strong>태그:</strong></label>
-                        <input type="text" class="form-control" @bind="uploadOptions.Tags" placeholder="태그1, 태그2, 태그3" disabled="@(isUploading || isScheduleRunning)" />
-                        <div class="form-text">쉼표로 구분해서 입력하세요</div>
-                    </div>
+            
+                    @if (useRandomUploadInfo)
+                    {
+                        <!-- CSV 파일 업로드 -->
+                        <div class="mb-4">
+                            <label class="form-label"><strong>업로드 정보 CSV 파일:</strong></label>
+                            <InputFile OnChange="HandleUploadInfoCsvSelection" accept=".csv" class="form-control" disabled="@(isUploading || isScheduleRunning)" />
+                            <div class="form-text">
+                                CSV 파일 형식: 1열(번호), 2열(제목), 3열(설명), 4열(태그)
+                                <br />
+                                예시: 1, "제목 예시", "설명 예시", "태그1, 태그2, 태그3"
+                            </div>
+            
+                            @if (uploadInfoCsvList.Count > 0)
+                            {
+                                <div class="mt-2 alert alert-success">
+                                    <strong>로드된 업로드 정보:</strong> @uploadInfoCsvList.Count 개
+                                    <button type="button" class="btn btn-sm btn-outline-primary ms-2" @onclick="ShowUploadInfoCsvPreview" disabled="@(isUploading || isScheduleRunning)">
+                                        미리보기
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <!-- 수동 입력 모드 -->
+                        <div class="mb-3">
+                            <label class="form-label"><strong>제목:</strong></label>
+                            <input type="text" class="form-control" @bind="uploadOptions.TitleTemplate" placeholder="영상 제목을 입력하세요" disabled="@(isUploading || isScheduleRunning)" />
+                            @if (enableScheduleUpload && selectedFiles.Count > 1)
+                            {
+                                <div class="form-text">여러 파일의 경우 자동으로 번호가 추가됩니다 (예: 제목 #1, 제목 #2)</div>
+                            }
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label"><strong>설명:</strong></label>
+                            <textarea class="form-control" rows="4" @bind="uploadOptions.Description" placeholder="영상 설명을 입력하세요" disabled="@(isUploading || isScheduleRunning)"></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label"><strong>태그:</strong></label>
+                            <input type="text" class="form-control" @bind="uploadOptions.Tags" placeholder="태그1, 태그2, 태그3" disabled="@(isUploading || isScheduleRunning)" />
+                            <div class="form-text">쉼표로 구분해서 입력하세요</div>
+                        </div>
+                    }
+            
+                    <!-- 공개 설정 (항상 표시) -->
                     <div class="mb-3">
                         <label class="form-label"><strong>공개 설정:</strong></label>
                         <select class="form-select" @bind="uploadOptions.PrivacySetting" disabled="@(isUploading || isScheduleRunning)">
@@ -278,10 +320,45 @@
                 </div>
             }
 
+            <!-- 업로드 정보 CSV 미리보기 모달 -->
+            @if (showUploadInfoCsvPreview)
+            {
+                <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">업로드 정보 미리보기</h5>
+                                <button type="button" class="btn-close" @onclick="() => showUploadInfoCsvPreview = false" disabled="@(isUploading || isScheduleRunning)"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p><strong>총 @uploadInfoCsvList.Count 개의 업로드 정보가 로드되었습니다.</strong></p>
+                                <div style="max-height: 400px; overflow-y: auto;">
+                                    @for (int i = 0; i < Math.Min(5, uploadInfoCsvList.Count); i++)
+                                    {
+                                        <div class="card mb-2">
+                                            <div class="card-body">
+                                                <h6 class="card-title">@(i + 1). @uploadInfoCsvList[i].Title</h6>
+                                                <p class="card-text small mb-1"><strong>설명:</strong> @uploadInfoCsvList[i].Description</p>
+                                                <p class="card-text small mb-0"><strong>태그:</strong> @uploadInfoCsvList[i].Tags</p>
+                                            </div>
+                                        </div>
+                                    }
+                                    @if (uploadInfoCsvList.Count > 5)
+                                    {
+                                        <div class="text-muted text-center">... 외 @(uploadInfoCsvList.Count - 5) 개 더</div>
+                                    }
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" @onclick="() => showUploadInfoCsvPreview = false" disabled="@(isUploading || isScheduleRunning)">닫기</button>
+                            </div>
+
+
         </div>
     </div>
 </div>
 
+//-----------------------------code-----------------------------------
 @code {
     // 🔥 서비스의 Options 클래스 사용
     private YouTubeUploadService.UploadOptions uploadOptions = new();
@@ -308,6 +385,11 @@
     private List<ScheduleItem> scheduleList = new List<ScheduleItem>();
     private string scheduleStatus = "";
     private int scheduleProgress = 0;
+
+    // 랜덤 업로드 정보 관련
+    private bool useRandomUploadInfo = false;
+    private List<UploadInfoItem> uploadInfoCsvList = new List<UploadInfoItem>();
+    private bool showUploadInfoCsvPreview = false;
 
     // 스케줄 정보 추적
     private string nextScheduleInfo = "";
@@ -459,6 +541,96 @@
         {
             await JSRuntime.InvokeVoidAsync("alert", $"계정 전환 실패: {ex.Message}");
         }
+    }
+
+    public class UploadInfoItem
+    {
+        public string Title { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string Tags { get; set; } = "";
+    }
+    
+    private void OnRandomUploadInfoChanged()
+    {
+        if (!useRandomUploadInfo)
+        {
+            uploadInfoCsvList.Clear();
+        }
+    }
+    
+    private async Task HandleUploadInfoCsvSelection(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file == null) return;
+    
+        try
+        {
+            const long maxSize = 5 * 1024 * 1024;
+            if (file.Size > maxSize)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "CSV 파일이 너무 큽니다. 5MB 이하의 파일을 선택해주세요.");
+                return;
+            }
+    
+            using var stream = file.OpenReadStream(maxSize);
+            using var reader = new StreamReader(stream);
+            var content = await reader.ReadToEndAsync();
+    
+            uploadInfoCsvList = ParseUploadInfoCsv(content);
+    
+            if (uploadInfoCsvList.Count == 0)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "CSV 파일에서 유효한 업로드 정보를 찾을 수 없습니다.");
+            }
+            else
+            {
+                Console.WriteLine($"=== {uploadInfoCsvList.Count}개 업로드 정보 로드됨");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"CSV 파일 읽기 실패: {ex.Message}");
+            uploadInfoCsvList.Clear();
+        }
+    }
+    
+    private List<UploadInfoItem> ParseUploadInfoCsv(string content)
+    {
+        var items = new List<UploadInfoItem>();
+        var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+    
+        for (int i = 1; i < lines.Length; i++) // 첫 줄은 헤더이므로 건너뜀
+        {
+            var line = lines[i].Trim();
+            if (string.IsNullOrEmpty(line)) continue;
+    
+            // CSV 파싱 (간단한 버전 - 쉼표로 구분)
+            var parts = line.Split(',');
+            
+            if (parts.Length >= 4)
+            {
+                var title = parts[1].Trim().Trim('"');
+                var description = parts[2].Trim().Trim('"');
+                var tags = parts[3].Trim().Trim('"');
+    
+                if (!string.IsNullOrWhiteSpace(title))
+                {
+                    items.Add(new UploadInfoItem
+                    {
+                        Title = title,
+                        Description = description,
+                        Tags = tags
+                    });
+                }
+            }
+        }
+    
+        return items;
+    }
+    
+    private void ShowUploadInfoCsvPreview()
+    {
+        showUploadInfoCsvPreview = true;
     }
 
     private async Task StartUpload()
