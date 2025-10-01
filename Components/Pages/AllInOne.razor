@@ -1,4 +1,4 @@
-@page "/all-in-one"
+ @page "/all-in-one"
 @rendermode InteractiveServer
 @implements IDisposable
 @using YouTubeShortsWebApp
@@ -628,10 +628,25 @@
         return genOptions.SelectedAspectRatio == ratio ? "btn-success" : "btn-outline-success";
     }
 
-    protected override async Task OnInitializedAsync()
+   protected override async Task OnInitializedAsync()
     {
         await YouTubeService.CheckExistingAuthAsync();
         UpdateSchedulePreview();
+        
+        // 🔥 API 키 상태 체크 및 안내
+        await CheckApiKeyStatus();
+    }
+    
+    private async Task CheckApiKeyStatus()
+    {
+        var config = ConfigManager.GetConfig();
+        
+        if (string.IsNullOrEmpty(config.ReplicateApiKey))
+        {
+            // 콘솔에만 표시 (팝업은 너무 방해가 될 수 있음)
+            Console.WriteLine("=== ⚠️ Replicate API 키가 설정되지 않았습니다.");
+            Console.WriteLine("=== 💡 AI 영상 생성을 사용하려면 '기본 설정' 메뉴에서 API 키를 설정하세요.");
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -911,19 +926,44 @@
     private async Task StartAllInOne()
     {
         if (!CanStart) return;
-
+    
+        // 🔥 API 키 검증 개선
         if (genOptions.IsGenerateVideo)
         {
             var config = ConfigManager.GetConfig();
             if (string.IsNullOrEmpty(config.ReplicateApiKey))
             {
-                await JSRuntime.InvokeVoidAsync("alert", "먼저 설정에서 Replicate API 키를 설정해주세요.");
-                return;
+                bool useLocal = await JSRuntime.InvokeAsync<bool>("confirm",
+                    "⚠️ Replicate API 키가 설정되지 않았습니다.\n\n" +
+                    "AI 영상 생성을 하려면 API 키가 필요합니다.\n\n" +
+                    "옵션을 선택해주세요:\n\n" +
+                    "• [확인] → 로컬 파일 사용 모드로 전환\n" +
+                    "• [취소] → 기본 설정 페이지로 이동\n\n" +
+                    "로컬 파일 모드로 전환하시겠습니까?");
+                
+                if (useLocal)
+                {
+                    // 로컬 파일 모드로 전환
+                    genOptions.IsGenerateVideo = false;
+                    StateHasChanged();
+                    await JSRuntime.InvokeVoidAsync("alert", 
+                        "📁 로컬 파일 모드로 전환되었습니다.\n\n" +
+                        "이제 처리할 영상 파일을 선택해주세요.");
+                    return;
+                }
+                else
+                {
+                    // 설정 페이지로 이동
+                    await JSRuntime.InvokeVoidAsync("eval", "window.location.href = '/settings'");
+                    return;
+                }
             }
-
+    
             if (genOptions.CsvPrompts.Count == 0)
             {
-                await JSRuntime.InvokeVoidAsync("alert", "먼저 CSV 파일을 업로드해주세요.");
+                await JSRuntime.InvokeVoidAsync("alert", 
+                    "📄 CSV 파일을 먼저 업로드해주세요!\n\n" +
+                    "AI 영상을 생성하려면 프롬프트가 담긴 CSV 파일이 필요합니다.");
                 return;
             }
         }
@@ -931,9 +971,28 @@
         {
             if (genOptions.LocalVideoFiles.Count == 0)
             {
-                await JSRuntime.InvokeVoidAsync("alert", "처리할 영상 파일을 선택해주세요!");
+                await JSRuntime.InvokeVoidAsync("alert", 
+                    "📁 처리할 영상 파일을 선택해주세요!\n\n" +
+                    "로컬 파일 사용 모드에서는 직접 영상 파일을 업로드해야 합니다.");
                 return;
             }
+        }
+    
+        // YouTube 인증 확인 개선
+        if (!YouTubeService.IsAuthenticated)
+        {
+            bool goToSettings = await JSRuntime.InvokeAsync<bool>("confirm",
+                "⚠️ YouTube 계정이 연동되지 않았습니다.\n\n" +
+                "업로드를 하려면 YouTube 계정 연동이 필요합니다.\n\n" +
+                "• [확인] → 지금 계정 연동하기\n" +
+                "• [취소] → 취소\n\n" +
+                "계정을 연동하시겠습니까?");
+            
+            if (goToSettings)
+            {
+                await AuthenticateYouTube();
+            }
+            return;
         }
 
         if (postOptions.EnablePostProcessing)
