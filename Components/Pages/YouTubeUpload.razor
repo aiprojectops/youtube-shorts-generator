@@ -614,33 +614,70 @@
         var items = new List<UploadInfoItem>();
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
     
-        for (int i = 1; i < lines.Length; i++) // 첫 줄은 헤더이므로 건너뜀
+        for (int i = 1; i < lines.Length; i++) // 첫 줄은 헤더
         {
             var line = lines[i].Trim();
             if (string.IsNullOrEmpty(line)) continue;
     
-            // CSV 파싱 (간단한 버전 - 쉼표로 구분)
-            var parts = line.Split(',');
-            
-            if (parts.Length >= 4)
+            try
             {
-                var title = parts[1].Trim().Trim('"');
-                var description = parts[2].Trim().Trim('"');
-                var tags = parts[3].Trim().Trim('"');
-    
-                if (!string.IsNullOrWhiteSpace(title))
+                // 🔥 CSV 파싱 개선: 따옴표 안의 쉼표 무시
+                var parts = ParseCsvLine(line);
+                
+                if (parts.Count >= 4)
                 {
-                    items.Add(new UploadInfoItem
+                    var title = parts[1].Trim();
+                    var description = parts[2].Trim();
+                    var tags = parts[3].Trim();
+    
+                    if (!string.IsNullOrWhiteSpace(title))
                     {
-                        Title = title,
-                        Description = description,
-                        Tags = tags
-                    });
+                        items.Add(new UploadInfoItem
+                        {
+                            Title = title,
+                            Description = description,
+                            Tags = tags
+                        });
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"CSV 라인 파싱 오류 (라인 {i}): {ex.Message}");
             }
         }
     
         return items;
+    }
+    
+    // 🔥 새로운 CSV 파싱 헬퍼 메서드 (따옴표 처리)
+    private List<string> ParseCsvLine(string line)
+    {
+        var result = new List<string>();
+        var current = new System.Text.StringBuilder();
+        bool inQuotes = false;
+    
+        for (int i = 0; i < line.Length; i++)
+        {
+            char c = line[i];
+    
+            if (c == '"')
+            {
+                inQuotes = !inQuotes;
+            }
+            else if (c == ',' && !inQuotes)
+            {
+                result.Add(current.ToString());
+                current.Clear();
+            }
+            else
+            {
+                current.Append(c);
+            }
+        }
+    
+        result.Add(current.ToString());
+        return result;
     }
     
     private void ShowUploadInfoCsvPreview()
