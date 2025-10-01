@@ -250,6 +250,117 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
         return uploadedUrls;
     }
 
+
+    /// <summary>
+    /// 스케줄 업로드 등록 (생성 정보 포함)
+    /// </summary>
+    public void RegisterScheduledUploadsWithGeneration(
+        List<VideoGenerationInfo> videoInfoList,
+        UploadOptions uploadOptions,
+        DateTime startTime,
+        float scheduleHours,
+        int minIntervalMinutes,
+        bool randomizeOrder,
+        ScheduledUploadService scheduledUploadService)
+    {
+        var random = new Random();
+        var videosToSchedule = randomizeOrder
+            ? videoInfoList.OrderBy(x => Guid.NewGuid()).ToList()
+            : videoInfoList.ToList();
+    
+        DateTime endTime = startTime.AddHours(scheduleHours);
+        
+        // 랜덤 정보 섞기
+        List<string>? shuffledTitles = null;
+        List<string>? shuffledDescriptions = null;
+        List<string>? shuffledTags = null;
+        
+        if (uploadOptions.UseRandomInfo)
+        {
+            if (uploadOptions.RandomTitles != null && uploadOptions.RandomTitles.Count > 0)
+                shuffledTitles = uploadOptions.RandomTitles.OrderBy(x => random.Next()).ToList();
+            
+            if (uploadOptions.RandomDescriptions != null && uploadOptions.RandomDescriptions.Count > 0)
+                shuffledDescriptions = uploadOptions.RandomDescriptions.OrderBy(x => random.Next()).ToList();
+            
+            if (uploadOptions.RandomTags != null && uploadOptions.RandomTags.Count > 0)
+                shuffledTags = uploadOptions.RandomTags.OrderBy(x => random.Next()).ToList();
+        }
+    
+        for (int i = 0; i < videosToSchedule.Count; i++)
+        {
+            var videoInfo = videosToSchedule[i];
+            DateTime scheduledTime = CalculateRandomUploadTime(
+                startTime, endTime, i, videosToSchedule.Count, minIntervalMinutes);
+    
+            string title, description, tags;
+            
+            if (uploadOptions.UseRandomInfo)
+            {
+                title = shuffledTitles != null && shuffledTitles.Count > 0
+                    ? shuffledTitles[random.Next(shuffledTitles.Count)]
+                    : $"Video #{i + 1}";
+                
+                description = shuffledDescriptions != null && shuffledDescriptions.Count > 0
+                    ? shuffledDescriptions[random.Next(shuffledDescriptions.Count)]
+                    : uploadOptions.Description;
+                
+                tags = shuffledTags != null && shuffledTags.Count > 0
+                    ? shuffledTags[random.Next(shuffledTags.Count)]
+                    : uploadOptions.Tags;
+            }
+            else
+            {
+                title = videosToSchedule.Count > 1
+                    ? uploadOptions.TitleTemplate.Replace("#NUMBER", $"#{i + 1}")
+                    : uploadOptions.TitleTemplate.Replace(" #NUMBER", "");
+                description = uploadOptions.Description;
+                tags = uploadOptions.Tags;
+            }
+    
+            var uploadItem = new ScheduledUploadItem
+            {
+                FileName = $"video_{i + 1:D3}.mp4",
+                ScheduledTime = scheduledTime,
+                Title = title,
+                Description = description,
+                Tags = tags,
+                PrivacySetting = uploadOptions.PrivacySetting,
+                
+                // 🔥 생성 정보
+                NeedsGeneration = true,
+                Prompt = videoInfo.Prompt,
+                Duration = videoInfo.Duration,
+                AspectRatio = videoInfo.AspectRatio,
+                EnablePostProcessing = videoInfo.EnablePostProcessing,
+                CaptionText = videoInfo.CaptionText,
+                CaptionPosition = videoInfo.CaptionPosition,
+                CaptionSize = videoInfo.CaptionSize,
+                CaptionColor = videoInfo.CaptionColor,
+                AddBackgroundMusic = videoInfo.AddBackgroundMusic,
+                MusicFilePath = videoInfo.MusicFilePath,
+                MusicVolume = videoInfo.MusicVolume
+            };
+    
+            scheduledUploadService.AddScheduledUpload(uploadItem);
+        }
+    }
+    
+    public class VideoGenerationInfo
+    {
+        public string Prompt { get; set; } = "";
+        public int Duration { get; set; } = 5;
+        public string AspectRatio { get; set; } = "9:16";
+        public bool EnablePostProcessing { get; set; } = false;
+        public string? CaptionText { get; set; }
+        public string? CaptionPosition { get; set; }
+        public string? CaptionSize { get; set; }
+        public string? CaptionColor { get; set; }
+        public bool AddBackgroundMusic { get; set; } = false;
+        public string? MusicFilePath { get; set; }
+        public float MusicVolume { get; set; } = 0.3f;
+    }
+  
     /// <summary>
     /// 스케줄 업로드 등록
     /// </summary>
