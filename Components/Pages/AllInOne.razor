@@ -403,7 +403,7 @@
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">최소 간격: @minIntervalMinutes 분</label>
-                                <input type="range" class="form-range" min="2" max="180" @bind="minIntervalMinutes" @bind:after="UpdateSchedulePreview" disabled="@(isRunning || hasActiveSchedule)" />
+                                <input type="range" class="form-range" min="7" max="180" @bind="minIntervalMinutes" @bind:after="UpdateSchedulePreview" disabled="@(isRunning || hasActiveSchedule)" />
                                 <div class="form-text">업로드 간 최소 @minIntervalMinutes 분 간격</div>
                             </div>
                             <div class="col-md-4">
@@ -702,7 +702,7 @@
 
     // 스케줄 설정
     private float scheduleHours = 2.0f;
-    private int minIntervalMinutes = 30;
+    private int minIntervalMinutes = 7;
     private bool randomizeOrder = true;
 
     // 랜덤 업로드 정보 관련
@@ -1468,46 +1468,110 @@
         {
             DateTime startTime = DateTime.Now.AddMinutes(5);
             
-            var filePaths = generatedVideos.Select(v => v.FilePath).ToList();
-            
-            // 🔥 랜덤 업로드 정보 설정
-            if (useRandomUploadInfo && uploadInfoCsvList.Count > 0)
+            // 🔥 즉시 업로드는 기존 방식, 스케줄은 생성 정보만 전달
+            if (genOptions.IsGenerateVideo)
             {
-                uploadOptions.UseRandomInfo = true;
+                // 영상 생성 정보 목록 생성
+                var videoInfoList = new List<YouTubeUploadService.VideoGenerationInfo>();
+                var random = new Random();
                 
-                // 각각 독립적인 리스트로 변환
-                uploadOptions.RandomTitles = uploadInfoCsvList.Select(item => item.Title).ToList();
-                uploadOptions.RandomDescriptions = uploadInfoCsvList.Select(item => item.Description).ToList();
-                uploadOptions.RandomTags = uploadInfoCsvList.Select(item => item.Tags).ToList();
+                for (int i = 0; i < genOptions.VideoCount; i++)
+                {
+                    string prompt = genOptions.CsvPrompts[random.Next(genOptions.CsvPrompts.Count)];
+                    string? captionText = null;
+                    
+                    if (postOptions.EnablePostProcessing && postOptions.AddCaption)
+                    {
+                        if (postOptions.UseRandomCaption && postOptions.CaptionCsvList.Count > 0)
+                        {
+                            captionText = postOptions.CaptionCsvList[random.Next(postOptions.CaptionCsvList.Count)];
+                        }
+                        else
+                        {
+                            captionText = postOptions.CaptionText;
+                        }
+                    }
+                    
+                    string? musicPath = null;
+                    if (postOptions.EnablePostProcessing && postOptions.AddBackgroundMusic && postOptions.SelectedMusicFiles.Count > 0)
+                    {
+                        // 음악 파일 서버에 저장
+                        var musicFile = postOptions.SelectedMusicFiles[random.Next(postOptions.SelectedMusicFiles.Count)];
+                        string tempDir = Path.Combine(Path.GetTempPath(), "BackgroundMusic");
+                        Directory.CreateDirectory(tempDir);
+                        musicPath = Path.Combine(tempDir, musicFile.Name);
+                        
+                        using (var stream = musicFile.OpenReadStream(10 * 1024 * 1024))
+                        using (var fileStream = File.Create(musicPath))
+                        {
+                            await stream.CopyToAsync(fileStream);
+                        }
+                    }
+                    
+                    videoInfoList.Add(new YouTubeUploadService.VideoGenerationInfo
+                    {
+                        Prompt = prompt,
+                        Duration = genOptions.SelectedDuration,
+                        AspectRatio = genOptions.SelectedAspectRatio,
+                        EnablePostProcessing = postOptions.EnablePostProcessing,
+                        CaptionText = captionText,
+                        CaptionPosition = postOptions.CaptionPosition,
+                        CaptionSize = postOptions.CaptionSize,
+                        CaptionColor = postOptions.CaptionColor,
+                        AddBackgroundMusic = postOptions.AddBackgroundMusic,
+                        MusicFilePath = musicPath,
+                        MusicVolume = postOptions.MusicVolume
+                    });
+                }
                 
-                Console.WriteLine($"=== 랜덤 업로드 정보 활성화");
-                Console.WriteLine($"    제목: {uploadOptions.RandomTitles.Count}개");
-                Console.WriteLine($"    설명: {uploadOptions.RandomDescriptions.Count}개");
-                Console.WriteLine($"    태그: {uploadOptions.RandomTags.Count}개");
+                // 랜덤 업로드 정보 설정
+                if (useRandomUploadInfo && uploadInfoCsvList.Count > 0)
+                {
+                    uploadOptions.UseRandomInfo = true;
+                    uploadOptions.RandomTitles = uploadInfoCsvList.Select(item => item.Title).ToList();
+                    uploadOptions.RandomDescriptions = uploadInfoCsvList.Select(item => item.Description).ToList();
+                    uploadOptions.RandomTags = uploadInfoCsvList.Select(item => item.Tags).ToList();
+                }
+                
+                // 🔥 생성 정보로 스케줄 등록
+                YouTubeService.RegisterScheduledUploadsWithGeneration(
+                    videoInfoList,
+                    uploadOptions,
+                    startTime,
+                    scheduleHours,
+                    minIntervalMinutes,
+                    randomizeOrder,
+                    ScheduledUploadService
+                );
+                
+                Console.WriteLine($"=== {videoInfoList.Count}개 영상이 스케줄에 등록됨 (업로드 5분 전 생성)");
             }
             else
             {
-                uploadOptions.UseRandomInfo = false;
-                uploadOptions.RandomTitles = null;
-                uploadOptions.RandomDescriptions = null;
-                uploadOptions.RandomTags = null;
+                // 로컬 파일은 기존 방식 유지
+                var filePaths = generatedVideos.Select(v => v.FilePath).ToList();
+                
+                if (useRandomUploadInfo && uploadInfoCsvList.Count > 0)
+                {
+                    uploadOptions.UseRandomInfo = true;
+                    uploadOptions.RandomTitles = uploadInfoCsvList.Select(item => item.Title).ToList();
+                    uploadOptions.RandomDescriptions = uploadInfoCsvList.Select(item => item.Description).ToList();
+                    uploadOptions.RandomTags = uploadInfoCsvList.Select(item => item.Tags).ToList();
+                }
+                
+                YouTubeService.RegisterScheduledUploads(
+                    filePaths,
+                    uploadOptions,
+                    startTime,
+                    scheduleHours,
+                    minIntervalMinutes,
+                    randomizeOrder,
+                    ScheduledUploadService
+                );
             }
             
-            // 🔥 서비스 사용
-            YouTubeService.RegisterScheduledUploads(
-                filePaths,
-                uploadOptions,
-                startTime,
-                scheduleHours,
-                minIntervalMinutes,
-                randomizeOrder,
-                ScheduledUploadService
-            );
-            
-            foreach (var video in generatedVideos)
-            {
-                video.IsScheduled = true;
-            }
+            hasActiveSchedule = true;
+            StartScheduleStatusTracking();
         }
         else
         {
