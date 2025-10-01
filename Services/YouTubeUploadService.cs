@@ -16,14 +16,6 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
   public YouTubeUploader.YouTubeAccountInfo CurrentAccount => _currentAccount;
     public bool IsAuthenticated => _currentAccount != null;
 
-    public class UploadOptions
-    {
-        public string TitleTemplate { get; set; } = "Runmoa #NUMBER";
-        public string Description { get; set; } = "www.runmoa.com";
-        public string Tags { get; set; } = "Runmoa, website, 1min";
-        public string PrivacySetting { get; set; } = "공개";
-    }
-
     /// <summary>
     /// YouTube 인증 URL 가져오기
     /// </summary>
@@ -337,6 +329,6 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
         else
             return $"{bytes} bytes";
     }
+ }
 }
-  }
 
