@@ -157,7 +157,7 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
         var uploadedUrls = new List<string>();
         var random = new Random();
         
-        // 🔥 각 리스트 섞기
+        // 각 리스트 섞기
         List<string>? shuffledTitles = null;
         List<string>? shuffledDescriptions = null;
         List<string>? shuffledTags = null;
@@ -188,28 +188,27 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
             try
             {
                 string filePath = filePaths[i];
-                
-                // 🔥 각각 독립적으로 랜덤 선택
                 string title, description, tags;
                 
                 if (options.UseRandomInfo)
                 {
-                    // 제목: 랜덤 리스트가 있으면 순환 선택, 없으면 기본값
+                    // 🔥 각각 완전히 랜덤하게 선택
                     title = shuffledTitles != null && shuffledTitles.Count > 0
-                        ? shuffledTitles[i % shuffledTitles.Count]
+                        ? shuffledTitles[random.Next(shuffledTitles.Count)]
                         : (filePaths.Count > 1 ? $"{options.TitleTemplate} #{i + 1}" : options.TitleTemplate);
                     
-                    // 설명: 랜덤 리스트가 있으면 순환 선택, 없으면 기본값
                     description = shuffledDescriptions != null && shuffledDescriptions.Count > 0
-                        ? shuffledDescriptions[i % shuffledDescriptions.Count]
+                        ? shuffledDescriptions[random.Next(shuffledDescriptions.Count)]
                         : options.Description;
                     
-                    // 태그: 랜덤 리스트가 있으면 순환 선택, 없으면 기본값
                     tags = shuffledTags != null && shuffledTags.Count > 0
-                        ? shuffledTags[i % shuffledTags.Count]
+                        ? shuffledTags[random.Next(shuffledTags.Count)]
                         : options.Tags;
                     
-                    Console.WriteLine($"=== 영상 {i + 1}: 랜덤 조합");
+                    Console.WriteLine($"=== 영상 {i + 1}: 완전 랜덤 조합");
+                    Console.WriteLine($"    제목 인덱스: {Array.IndexOf(shuffledTitles?.ToArray() ?? Array.Empty<string>(), title) + 1}");
+                    Console.WriteLine($"    설명 인덱스: {Array.IndexOf(shuffledDescriptions?.ToArray() ?? Array.Empty<string>(), description) + 1}");
+                    Console.WriteLine($"    태그 인덱스: {Array.IndexOf(shuffledTags?.ToArray() ?? Array.Empty<string>(), tags) + 1}");
                     Console.WriteLine($"    제목: {title}");
                     Console.WriteLine($"    설명: {description.Substring(0, Math.Min(50, description.Length))}...");
                     Console.WriteLine($"    태그: {tags}");
@@ -270,7 +269,7 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
     
         DateTime endTime = startTime.AddHours(scheduleHours);
         
-        // 🔥 각 리스트 섞기
+        // 각 리스트 섞기
         List<string>? shuffledTitles = null;
         List<string>? shuffledDescriptions = null;
         List<string>? shuffledTags = null;
@@ -296,19 +295,22 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
             
             if (options.UseRandomInfo)
             {
+                // 🔥 각각 완전히 랜덤하게 선택
                 title = shuffledTitles != null && shuffledTitles.Count > 0
-                    ? shuffledTitles[i % shuffledTitles.Count]
+                    ? shuffledTitles[random.Next(shuffledTitles.Count)]
                     : (filesToSchedule.Count > 1 
                         ? options.TitleTemplate.Replace("#NUMBER", $"#{i + 1}")
                         : options.TitleTemplate.Replace(" #NUMBER", ""));
                 
                 description = shuffledDescriptions != null && shuffledDescriptions.Count > 0
-                    ? shuffledDescriptions[i % shuffledDescriptions.Count]
+                    ? shuffledDescriptions[random.Next(shuffledDescriptions.Count)]
                     : options.Description;
                 
                 tags = shuffledTags != null && shuffledTags.Count > 0
-                    ? shuffledTags[i % shuffledTags.Count]
+                    ? shuffledTags[random.Next(shuffledTags.Count)]
                     : options.Tags;
+                
+                Console.WriteLine($"=== 스케줄 {i + 1}: 완전 랜덤 조합 - {title.Substring(0, Math.Min(30, title.Length))}...");
             }
             else
             {
@@ -333,6 +335,7 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
             scheduledUploadService.AddScheduledUpload(uploadItem);
         }
     }
+  
     /// <summary>
     /// 랜덤 업로드 시간 계산
     /// </summary>
