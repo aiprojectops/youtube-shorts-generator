@@ -1051,32 +1051,85 @@
     
             try
             {
-                // 🔥 CSV 파싱 개선: 따옴표 안의 쉼표 무시
-                var parts = ParseCsvLine(line);
+                // 🔥 태그 "#"을 기준으로 먼저 분리
+                int tagStartIndex = line.IndexOf('#');
                 
-                if (parts.Count >= 4)
+                if (tagStartIndex == -1)
                 {
-                    var title = parts[1].Trim();
-                    var description = parts[2].Trim();
-                    var tags = parts[3].Trim();
+                    Console.WriteLine($"CSV 라인 {i}: 태그(#)를 찾을 수 없음 - 건너뜀");
+                    continue;
+                }
     
-                    if (!string.IsNullOrWhiteSpace(title))
+                // 태그 추출 (# 이후 전체)
+                string tags = line.Substring(tagStartIndex).Trim();
+                
+                // 태그 앞에 있는 쉼표 제거
+                string beforeTags = line.Substring(0, tagStartIndex).TrimEnd(',', ' ');
+                
+                // 🔥 따옴표로 감싸진 부분 추출
+                var quotedParts = new List<string>();
+                bool inQuotes = false;
+                var current = new System.Text.StringBuilder();
+                
+                for (int j = 0; j < beforeTags.Length; j++)
+                {
+                    char c = beforeTags[j];
+                    
+                    if (c == '"')
                     {
-                        items.Add(new UploadInfoItem
+                        if (inQuotes)
                         {
-                            Title = title,
-                            Description = description,
-                            Tags = tags
-                        });
+                            // 따옴표 닫힘 - 현재 내용 저장
+                            quotedParts.Add(current.ToString());
+                            current.Clear();
+                            inQuotes = false;
+                        }
+                        else
+                        {
+                            // 따옴표 시작
+                            inQuotes = true;
+                        }
                     }
+                    else if (inQuotes)
+                    {
+                        // 따옴표 안에서는 모든 문자 추가
+                        current.Append(c);
+                    }
+                    // 따옴표 밖의 문자는 무시 (쉼표, 공백 등)
+                }
+                
+                // 최소 2개 필요 (제목, 설명)
+                if (quotedParts.Count < 2)
+                {
+                    Console.WriteLine($"CSV 라인 {i}: 따옴표로 감싸진 제목/설명을 찾을 수 없음");
+                    continue;
+                }
+                
+                string title = quotedParts[0].Trim();
+                string description = quotedParts[1].Trim();
+    
+                if (!string.IsNullOrWhiteSpace(title))
+                {
+                    items.Add(new UploadInfoItem
+                    {
+                        Title = title,
+                        Description = description,
+                        Tags = tags
+                    });
+                    
+                    Console.WriteLine($"✅ CSV 라인 {i} 파싱 성공:");
+                    Console.WriteLine($"   제목: {title}");
+                    Console.WriteLine($"   설명: {(description.Length > 50 ? description.Substring(0, 50) + "..." : description)}");
+                    Console.WriteLine($"   태그: {tags}");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"CSV 라인 파싱 오류 (라인 {i}): {ex.Message}");
+                Console.WriteLine($"❌ CSV 라인 {i} 파싱 오류: {ex.Message}");
             }
         }
     
+        Console.WriteLine($"=== 총 {items.Count}개 업로드 정보 파싱 완료");
         return items;
     }
     
