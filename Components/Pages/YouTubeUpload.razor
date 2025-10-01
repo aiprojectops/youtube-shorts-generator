@@ -414,9 +414,18 @@
     {
         get
         {
-            if (YouTubeService.CurrentAccount == null || string.IsNullOrWhiteSpace(uploadOptions.TitleTemplate))
+            // YouTube 인증 체크
+            if (YouTubeService.CurrentAccount == null) return false;
+            
+            // 🔥 제목 체크: 랜덤 업로드 정보 사용 시에는 체크 안 함
+            if (!useRandomUploadInfo && string.IsNullOrWhiteSpace(uploadOptions.TitleTemplate))
                 return false;
-
+            
+            // 🔥 랜덤 업로드 정보 사용 시 CSV 체크
+            if (useRandomUploadInfo && uploadInfoCsvList.Count == 0)
+                return false;
+            
+            // 파일 선택 체크
             return selectedFiles.Count > 0;
         }
     }
