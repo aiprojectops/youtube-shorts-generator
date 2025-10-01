@@ -155,17 +155,6 @@
                 </div>
             </div>
             
-                    <!-- 공개 설정 (항상 표시) -->
-                    <div class="mb-3">
-                        <label class="form-label"><strong>공개 설정:</strong></label>
-                        <select class="form-select" @bind="uploadOptions.PrivacySetting" disabled="@(isUploading || isScheduleRunning)">
-                            <option value="비공개">비공개</option>
-                            <option value="공개">공개</option>
-                            <option value="링크 공유">링크 공유</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
 
             <!-- 스케줄 업로드 설정 섹션 -->
             <div class="card mb-4">
@@ -364,7 +353,10 @@
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-secondary" @onclick="() => showUploadInfoCsvPreview = false" disabled="@(isUploading || isScheduleRunning)">닫기</button>
                             </div>
-
+                        </div>
+                    </div>
+                </div>
+              }
 
         </div>
     </div>
