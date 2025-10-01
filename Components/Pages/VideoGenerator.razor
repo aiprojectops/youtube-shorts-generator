@@ -582,9 +582,37 @@
 
     private async Task StartVideoGeneration()
     {
-        // 검증
+        // 🔥 API 키 검증 개선
         if (genOptions.IsGenerateVideo)
         {
+            var config = ConfigManager.GetConfig();
+            if (string.IsNullOrEmpty(config.ReplicateApiKey))
+            {
+                bool useLocal = await JSRuntime.InvokeAsync<bool>("confirm",
+                    "⚠️ Replicate API 키가 설정되지 않았습니다.\n\n" +
+                    "AI 영상 생성을 하려면 API 키가 필요합니다.\n\n" +
+                    "• [확인] → 로컬 파일 사용 모드로 전환\n" +
+                    "• [취소] → 기본 설정 페이지로 이동\n\n" +
+                    "로컬 파일 사용 모드로 전환하시겠습니까?");
+                
+                if (useLocal)
+                {
+                    // 로컬 파일 모드로 전환
+                    genOptions.IsGenerateVideo = false;
+                    StateHasChanged();
+                    await JSRuntime.InvokeVoidAsync("alert", 
+                        "📁 로컬 파일 모드로 전환되었습니다.\n\n" +
+                        "이제 처리할 영상 파일을 선택해주세요.");
+                    return;
+                }
+                else
+                {
+                    // 설정 페이지로 이동
+                    await JSRuntime.InvokeVoidAsync("eval", "window.location.href = '/settings'");
+                    return;
+                }
+            }
+            
             if (isRandomPromptMode && genOptions.CsvPrompts.Count == 0)
             {
                 await JSRuntime.InvokeVoidAsync("alert", "먼저 CSV 파일을 업로드해주세요.");
@@ -593,13 +621,6 @@
             else if (!isRandomPromptMode && string.IsNullOrWhiteSpace(userPrompt))
             {
                 await JSRuntime.InvokeVoidAsync("alert", "프롬프트를 입력해주세요!");
-                return;
-            }
-
-            var config = ConfigManager.GetConfig();
-            if (string.IsNullOrEmpty(config.ReplicateApiKey))
-            {
-                await JSRuntime.InvokeVoidAsync("alert", "먼저 설정에서 Replicate API 키를 설정해주세요.");
                 return;
             }
             
@@ -611,10 +632,12 @@
         }
         else if (genOptions.LocalVideoFiles.Count == 0)
         {
-            await JSRuntime.InvokeVoidAsync("alert", "처리할 영상 파일을 선택해주세요!");
+            await JSRuntime.InvokeVoidAsync("alert", 
+                "📁 처리할 영상 파일을 선택해주세요!\n\n" +
+                "로컬 파일 사용 모드에서는 직접 영상 파일을 업로드해야 합니다.");
             return;
         }
-
+    
         if (postOptions.EnablePostProcessing && postOptions.AddCaption && postOptions.UseRandomCaption && postOptions.CaptionCsvList.Count == 0)
         {
             await JSRuntime.InvokeVoidAsync("alert", "랜덤 캡션을 사용하려면 캡션 CSV 파일을 업로드해주세요.");
