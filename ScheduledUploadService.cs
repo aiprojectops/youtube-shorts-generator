@@ -218,6 +218,7 @@ namespace YouTubeShortsWebApp
             Console.WriteLine("=== 🛑 스케줄 업로드 서비스 종료됨");
         }
 
+
         private async Task GenerateVideoForUpload(ScheduledUploadItem item)
         {
             Console.WriteLine($"=== 영상 생성 시작: {item.FileName}");
@@ -225,9 +226,9 @@ namespace YouTubeShortsWebApp
             var config = ConfigManager.GetConfig();
             var replicateClient = new ReplicateClient(config.ReplicateApiKey);
             
-            // 영상 생성
-            string videoUrl = await replicateClient.GenerateVideoAsync(
-                item.Prompt,
+            // 🔥 올바른 메서드 호출
+            string videoUrl = await replicateClient.GetVideoAsync(
+                item.Prompt ?? "",
                 item.Duration,
                 item.AspectRatio
             );
@@ -243,6 +244,8 @@ namespace YouTubeShortsWebApp
                 await File.WriteAllBytesAsync(videoPath, videoBytes);
             }
             
+            Console.WriteLine($"=== 영상 다운로드 완료: {videoPath}");
+            
             // 후처리
             if (item.EnablePostProcessing)
             {
@@ -251,27 +254,45 @@ namespace YouTubeShortsWebApp
                 var processor = new VideoPostProcessor();
                 string processedPath = videoPath.Replace(".mp4", "_processed.mp4");
                 
-                await processor.ProcessVideoAsync(
-                    videoPath,
-                    processedPath,
-                    item.CaptionText,
-                    item.CaptionPosition,
-                    item.CaptionSize,
-                    item.CaptionColor,
-                    item.AddBackgroundMusic,
-                    item.MusicFilePath,
-                    item.MusicVolume
+                // 🔥 올바른 메서드 시그니처 사용
+                bool success = await processor.ProcessVideoAsync(
+                    inputPath: videoPath,
+                    outputPath: processedPath,
+                    captionText: item.CaptionText,
+                    captionPosition: item.CaptionPosition,
+                    captionSize: item.CaptionSize,
+                    captionColor: item.CaptionColor,
+                    addBackgroundMusic: item.AddBackgroundMusic,
+                    musicPath: item.MusicFilePath,
+                    musicVolume: item.MusicVolume
                 );
                 
-                // 원본 삭제, 처리된 파일로 교체
-                File.Delete(videoPath);
-                videoPath = processedPath;
+                if (success)
+                {
+                    // 원본 삭제, 처리된 파일로 교체
+                    try
+                    {
+                        File.Delete(videoPath);
+                        videoPath = processedPath;
+                        Console.WriteLine($"=== 후처리 완료: {processedPath}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"=== 원본 파일 삭제 실패: {ex.Message}");
+                        // 후처리된 파일 사용
+                        videoPath = processedPath;
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"=== 후처리 실패, 원본 사용");
+                }
             }
             
             item.FilePath = videoPath;
             SaveQueueToFile();
             
-            Console.WriteLine($"=== ✅ 영상 생성 완료: {item.FileName}");
+            Console.WriteLine($"=== ✅ 영상 준비 완료: {item.FileName}");
         }
 
         private async Task ProcessUpload(ScheduledUploadItem item)
