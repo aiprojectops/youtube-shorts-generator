@@ -24,6 +24,20 @@
                     <h4>1. 영상 생성 설정</h4>
                 </div>
                 <div class="card-body">
+                    @if (genOptions.IsGenerateVideo && string.IsNullOrEmpty(ConfigManager.GetConfig().ReplicateApiKey))
+                    {
+                        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                            <strong>⚠️ API 키가 설정되지 않았습니다</strong>
+                            <p class="mb-2 mt-2">AI 영상 생성을 사용하려면 Replicate API 키가 필요합니다.</p>
+                            <div class="d-flex gap-2">
+                                <a href="/settings" class="btn btn-sm btn-warning">⚙️ 설정하러 가기</a>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => genOptions.IsGenerateVideo = false">
+                                    📁 로컬 파일 모드로 전환
+                                </button>
+                            </div>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    }
                     <!-- 영상 소스 선택 -->
                     <div class="mb-4">
                         <label class="form-label"><strong>영상 소스:</strong></label>
@@ -628,26 +642,7 @@
         return genOptions.SelectedAspectRatio == ratio ? "btn-success" : "btn-outline-success";
     }
 
-   protected override async Task OnInitializedAsync()
-    {
-        await YouTubeService.CheckExistingAuthAsync();
-        UpdateSchedulePreview();
-        
-        // 🔥 API 키 상태 체크 및 안내
-        await CheckApiKeyStatus();
-    }
-    
-    private async Task CheckApiKeyStatus()
-    {
-        var config = ConfigManager.GetConfig();
-        
-        if (string.IsNullOrEmpty(config.ReplicateApiKey))
-        {
-            // 콘솔에만 표시 (팝업은 너무 방해가 될 수 있음)
-            Console.WriteLine("=== ⚠️ Replicate API 키가 설정되지 않았습니다.");
-            Console.WriteLine("=== 💡 AI 영상 생성을 사용하려면 '기본 설정' 메뉴에서 API 키를 설정하세요.");
-        }
-    }
+   
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
