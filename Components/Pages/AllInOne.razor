@@ -1480,20 +1480,23 @@
             if (useRandomUploadInfo && uploadInfoCsvList.Count > 0)
             {
                 uploadOptions.UseRandomInfo = true;
-                uploadOptions.RandomInfoList = uploadInfoCsvList.Select(item => 
-                    new YouTubeUploadService.RandomUploadInfo
-                    {
-                        Title = item.Title,
-                        Description = item.Description,
-                        Tags = item.Tags
-                    }).ToList();
                 
-                Console.WriteLine($"=== 랜덤 업로드 정보 활성화: {uploadOptions.RandomInfoList.Count}개");
+                // 각각 독립적인 리스트로 변환
+                uploadOptions.RandomTitles = uploadInfoCsvList.Select(item => item.Title).ToList();
+                uploadOptions.RandomDescriptions = uploadInfoCsvList.Select(item => item.Description).ToList();
+                uploadOptions.RandomTags = uploadInfoCsvList.Select(item => item.Tags).ToList();
+                
+                Console.WriteLine($"=== 랜덤 업로드 정보 활성화");
+                Console.WriteLine($"    제목: {uploadOptions.RandomTitles.Count}개");
+                Console.WriteLine($"    설명: {uploadOptions.RandomDescriptions.Count}개");
+                Console.WriteLine($"    태그: {uploadOptions.RandomTags.Count}개");
             }
             else
             {
                 uploadOptions.UseRandomInfo = false;
-                uploadOptions.RandomInfoList = null;
+                uploadOptions.RandomTitles = null;
+                uploadOptions.RandomDescriptions = null;
+                uploadOptions.RandomTags = null;
             }
             
             // 🔥 서비스 사용
