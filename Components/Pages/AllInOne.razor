@@ -1155,99 +1155,155 @@
     }
     
     // ========================================
-    // AllInOne.razor의 @code 블록 내부에서
-    // 기존 ParseUploadInfoCsv 메서드를 찾아서
-    // 아래 두 메서드로 완전히 교체하세요
+    // AllInOne.razor - 멀티라인 CSV 지원 버전
+    // 기존 ParseUploadInfoCsv를 이것으로 교체
     // ========================================
     
     private List<UploadInfoItem> ParseUploadInfoCsv(string content)
     {
         var items = new List<UploadInfoItem>();
-        var lines = content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-    
-        Console.WriteLine($"=== 전체 라인 수: {lines.Length}");
-    
-        // 🔥 첫 번째 줄은 헤더이므로 건너뛰기
-        for (int i = 1; i < lines.Length; i++)
+        
+        Console.WriteLine($"=== CSV 파싱 시작 ===");
+        Console.WriteLine($"전체 문자 수: {content.Length}");
+        
+        // 🔥 라인 단위가 아닌 문자 단위로 파싱
+        int pos = 0;
+        int lineNum = 0;
+        
+        // 헤더 스킵
+        while (pos < content.Length && content[pos] != '\n' && content[pos] != '\r')
         {
-            var line = lines[i].Trim();
-            if (string.IsNullOrEmpty(line)) continue;
-    
-            Console.WriteLine($"\n=== 라인 {i} 파싱 시작 ===");
-            Console.WriteLine($"원본: {line}");
-    
+            pos++;
+        }
+        // 줄바꿈 문자 건너뛰기
+        while (pos < content.Length && (content[pos] == '\n' || content[pos] == '\r'))
+        {
+            pos++;
+        }
+        
+        Console.WriteLine($"헤더 스킵 후 시작 위치: {pos}");
+        
+        while (pos < content.Length)
+        {
+            lineNum++;
+            Console.WriteLine($"\n=== 항목 {lineNum} 파싱 시작 (위치: {pos}) ===");
+            
             try
             {
-                // 1. 첫 번째 쉼표 찾기 (번호 다음)
-                int firstComma = line.IndexOf(',');
-                if (firstComma == -1)
-                {
-                    Console.WriteLine($"❌ 번호 구분 쉼표 없음");
-                    continue;
-                }
-    
-                string number = line.Substring(0, firstComma).Trim();
+                // 1. 번호 읽기 (쉼표까지)
+                int commaPos = content.IndexOf(',', pos);
+                if (commaPos == -1) break;
+                
+                string number = content.Substring(pos, commaPos - pos).Trim();
                 Console.WriteLine($"번호: {number}");
-    
-                string afterNumber = line.Substring(firstComma + 1).Trim();
-                Console.WriteLine($"번호 이후: {afterNumber.Substring(0, Math.Min(50, afterNumber.Length))}...");
-    
-                // 2. 제목 추출 (따옴표로 감싸진 부분)
-                if (!afterNumber.StartsWith("\""))
+                pos = commaPos + 1;
+                
+                // 2. 제목 읽기 (따옴표로 감싸진 부분)
+                while (pos < content.Length && (content[pos] == ' ' || content[pos] == '\t'))
+                    pos++; // 공백 건너뛰기
+                
+                if (pos >= content.Length || content[pos] != '"')
                 {
                     Console.WriteLine($"❌ 제목 시작 따옴표 없음");
-                    continue;
+                    break;
                 }
-    
-                int titleEnd = FindClosingQuote(afterNumber, 1);
-                if (titleEnd == -1)
+                
+                pos++; // 시작 따옴표 건너뛰기
+                int titleStart = pos;
+                
+                // 따옴표 끝 찾기 (이스케이프 처리)
+                while (pos < content.Length)
                 {
-                    Console.WriteLine($"❌ 제목 끝 따옴표 없음");
-                    continue;
+                    if (content[pos] == '"')
+                    {
+                        // 다음이 또 따옴표면 이스케이프
+                        if (pos + 1 < content.Length && content[pos + 1] == '"')
+                        {
+                            pos += 2;
+                            continue;
+                        }
+                        // 진짜 끝
+                        break;
+                    }
+                    pos++;
                 }
-    
-                string title = afterNumber.Substring(1, titleEnd - 1)
+                
+                string title = content.Substring(titleStart, pos - titleStart)
                     .Replace("\"\"", "\"")
+                    .Replace("\r", "")
+                    .Replace("\n", " ")
                     .Trim();
-                Console.WriteLine($"✅ 제목: {title}");
-    
-                // 3. 설명 찾기
-                string afterTitle = afterNumber.Substring(titleEnd + 1).Trim();
-                if (afterTitle.StartsWith(","))
-                {
-                    afterTitle = afterTitle.Substring(1).Trim();
-                }
-                Console.WriteLine($"제목 이후: {afterTitle.Substring(0, Math.Min(50, afterTitle.Length))}...");
-    
-                if (!afterTitle.StartsWith("\""))
+                Console.WriteLine($"제목: {title}");
+                
+                pos++; // 끝 따옴표 건너뛰기
+                
+                // 쉼표 찾기
+                while (pos < content.Length && content[pos] != ',')
+                    pos++;
+                pos++; // 쉼표 건너뛰기
+                
+                // 3. 설명 읽기 (따옴표로 감싸진 부분)
+                while (pos < content.Length && (content[pos] == ' ' || content[pos] == '\t'))
+                    pos++;
+                
+                if (pos >= content.Length || content[pos] != '"')
                 {
                     Console.WriteLine($"❌ 설명 시작 따옴표 없음");
-                    continue;
+                    break;
                 }
-    
-                int descEnd = FindClosingQuote(afterTitle, 1);
-                if (descEnd == -1)
+                
+                pos++; // 시작 따옴표 건너뛰기
+                int descStart = pos;
+                
+                // 따옴표 끝 찾기
+                while (pos < content.Length)
                 {
-                    Console.WriteLine($"❌ 설명 끝 따옴표 없음");
-                    continue;
+                    if (content[pos] == '"')
+                    {
+                        if (pos + 1 < content.Length && content[pos + 1] == '"')
+                        {
+                            pos += 2;
+                            continue;
+                        }
+                        break;
+                    }
+                    pos++;
                 }
-    
-                string description = afterTitle.Substring(1, descEnd - 1)
+                
+                string description = content.Substring(descStart, pos - descStart)
                     .Replace("\"\"", "\"")
+                    .Replace("\r", "")
+                    .Replace("\n", " ")
                     .Trim();
-                Console.WriteLine($"✅ 설명: {description.Substring(0, Math.Min(50, description.Length))}...");
-    
-                // 4. 태그 추출
-                string afterDesc = afterTitle.Substring(descEnd + 1).Trim();
-                if (afterDesc.StartsWith(","))
+                Console.WriteLine($"설명: {description.Substring(0, Math.Min(50, description.Length))}...");
+                
+                pos++; // 끝 따옴표 건너뛰기
+                
+                // 쉼표 찾기
+                while (pos < content.Length && content[pos] != ',')
+                    pos++;
+                pos++; // 쉼표 건너뛰기
+                
+                // 4. 태그 읽기 (줄 끝까지)
+                while (pos < content.Length && (content[pos] == ' ' || content[pos] == '\t'))
+                    pos++;
+                
+                int tagStart = pos;
+                while (pos < content.Length && content[pos] != '\n' && content[pos] != '\r')
                 {
-                    afterDesc = afterDesc.Substring(1).Trim();
+                    pos++;
                 }
-    
-                string tags = afterDesc.Trim();
-                Console.WriteLine($"✅ 태그: {tags}");
-    
-                // 5. 검증 및 추가
+                
+                string tags = content.Substring(tagStart, pos - tagStart).Trim();
+                Console.WriteLine($"태그: {tags}");
+                
+                // 줄바꿈 건너뛰기
+                while (pos < content.Length && (content[pos] == '\n' || content[pos] == '\r'))
+                {
+                    pos++;
+                }
+                
+                // 5. 추가
                 if (!string.IsNullOrWhiteSpace(title))
                 {
                     items.Add(new UploadInfoItem
@@ -1256,18 +1312,18 @@
                         Description = description,
                         Tags = tags
                     });
-    
-                    Console.WriteLine($"✅✅✅ 라인 {i} 파싱 성공!");
+                    Console.WriteLine($"✅ 항목 {lineNum} 파싱 성공!");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ 라인 {i} 파싱 오류: {ex.Message}");
+                Console.WriteLine($"❌ 항목 {lineNum} 파싱 오류: {ex.Message}");
+                break;
             }
         }
-    
+        
         Console.WriteLine($"\n========================================");
-        Console.WriteLine($"=== 최종 결과: {items.Count}개 항목 파싱 완료 ===");
+        Console.WriteLine($"=== 최종: {items.Count}개 항목 파싱 완료 ===");
         Console.WriteLine($"========================================");
         
         return items;
