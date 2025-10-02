@@ -236,18 +236,13 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
     public void RegisterScheduledUploadsWithGeneration(
         List<VideoGenerationInfo> videoInfoList,
         UploadOptions uploadOptions,
-        DateTime startTime,
-        float scheduleHours,
-        int minIntervalMinutes,
+        Dictionary<int, DateTime> scheduledTimes,
         bool randomizeOrder,
         ScheduledUploadService scheduledUploadService)
     {
-        var random = new Random();
         var videosToSchedule = randomizeOrder
             ? videoInfoList.OrderBy(x => Guid.NewGuid()).ToList()
             : videoInfoList.ToList();
-    
-        DateTime endTime = startTime.AddHours(scheduleHours);
         
         Console.WriteLine($"=== 생성 정보 스케줄 등록: {videosToSchedule.Count}개");
         
@@ -262,8 +257,11 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
         for (int i = 0; i < videosToSchedule.Count; i++)
         {
             var videoInfo = videosToSchedule[i];
-            DateTime scheduledTime = CalculateRandomUploadTime(
-                startTime, endTime, i, videosToSchedule.Count, minIntervalMinutes);
+            
+            // 미리 계산된 시간 사용
+            DateTime scheduledTime = scheduledTimes.ContainsKey(i) 
+                ? scheduledTimes[i] 
+                : DateTime.Now.AddMinutes(5 + (i * 10));
     
             string title, description, tags;
             
@@ -325,6 +323,8 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
     
             scheduledUploadService.AddScheduledUpload(uploadItem);
         }
+        
+        Console.WriteLine($"=== 스케줄 등록 완료: {videosToSchedule.Count}개");
     }
      
     public class VideoGenerationInfo
@@ -348,18 +348,13 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
     public void RegisterScheduledUploads(
         List<string> filePaths,
         UploadOptions options,
-        DateTime startTime,
-        float scheduleHours,
-        int minIntervalMinutes,
+        Dictionary<int, DateTime> scheduledTimes,
         bool randomizeOrder,
         ScheduledUploadService scheduledUploadService)
     {
-        var random = new Random();
         var filesToSchedule = randomizeOrder
             ? filePaths.OrderBy(x => Guid.NewGuid()).ToList()
             : filePaths.ToList();
-    
-        DateTime endTime = startTime.AddHours(scheduleHours);
         
         Console.WriteLine($"=== 스케줄 등록 시작: {filesToSchedule.Count}개 파일");
         
@@ -370,7 +365,7 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
             Console.WriteLine($"    설명 풀: {options.RandomDescriptions?.Count ?? 0}개");
             Console.WriteLine($"    태그 풀: {options.RandomTags?.Count ?? 0}개");
             
-            // 🔥 디버깅: 실제 내용 출력
+            // 디버깅: 실제 내용 출력
             if (options.RandomTitles != null)
             {
                 Console.WriteLine($"    제목 예시:");
@@ -383,14 +378,16 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
     
         for (int i = 0; i < filesToSchedule.Count; i++)
         {
-            DateTime scheduledTime = CalculateRandomUploadTime(
-                startTime, endTime, i, filesToSchedule.Count, minIntervalMinutes);
-        
+            // 미리 계산된 시간 사용
+            DateTime scheduledTime = scheduledTimes.ContainsKey(i) 
+                ? scheduledTimes[i] 
+                : DateTime.Now.AddMinutes(5 + (i * 10));
+    
             string title, description, tags;
             
             if (options.UseRandomInfo)
             {
-                // 🔥 시드를 다르게 해서 진짜 랜덤 선택
+                // 각각 다른 시드로 진짜 랜덤 선택
                 var titleRandom = new Random(Guid.NewGuid().GetHashCode());
                 var descRandom = new Random(Guid.NewGuid().GetHashCode());
                 var tagsRandom = new Random(Guid.NewGuid().GetHashCode());
@@ -413,6 +410,7 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
                 Console.WriteLine($"    제목: {title}");
                 Console.WriteLine($"    설명: {description.Substring(0, Math.Min(50, description.Length))}...");
                 Console.WriteLine($"    태그: {tags.Substring(0, Math.Min(30, tags.Length))}...");
+                Console.WriteLine($"    예정: {scheduledTime:MM/dd HH:mm}");
             }
             else
             {
