@@ -400,7 +400,8 @@
     // 스케줄 정보 추적
     private string nextScheduleInfo = "";
     private System.Timers.Timer? scheduleInfoTimer;
-    private List<DateTime> scheduledTimes = new List<DateTime>();
+ 
+    private Dictionary<int, DateTime> scheduledTimes = new Dictionary<int, DateTime>();
 
     public class ScheduleItem
     {
@@ -943,19 +944,21 @@
     private void CreateUploadSchedule()
     {
         scheduleList.Clear();
+        scheduledTimes.Clear();  // ✅ 추가
+        
         DateTime startTime = DateTime.Now.AddMinutes(5);
         
         var filesToSchedule = randomizeOrder
             ? selectedFiles.OrderBy(x => Guid.NewGuid()).ToList()
             : selectedFiles.ToList();
-
+    
         for (int i = 0; i < filesToSchedule.Count; i++)
         {
             // 간단한 랜덤 시간 계산
             double minutesPerFile = (scheduleHours * 60) / filesToSchedule.Count;
             double randomOffset = new Random().NextDouble() * minutesPerFile;
             DateTime scheduledTime = startTime.AddMinutes((i * minutesPerFile) + randomOffset);
-
+    
             scheduleList.Add(new ScheduleItem
             {
                 File = filesToSchedule[i],
@@ -963,8 +966,11 @@
                 Title = filesToSchedule.Count > 1 ? $"{uploadOptions.TitleTemplate} #{i + 1}" : uploadOptions.TitleTemplate,
                 Status = "대기 중"
             });
+            
+            // ✅ Dictionary에도 추가
+            scheduledTimes[i] = scheduledTime;
         }
-
+    
         scheduleList = scheduleList.OrderBy(x => x.ScheduledTime).ToList();
         StateHasChanged();
     }
