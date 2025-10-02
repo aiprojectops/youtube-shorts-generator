@@ -232,98 +232,99 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
   
  
   
-  /// <summary>
-  /// 스케줄 업로드 등록 (생성 정보 포함)
-  /// </summary>
-  public void RegisterScheduledUploadsWithGeneration(
-      List<VideoGenerationInfo> videoInfoList,
-      UploadOptions uploadOptions,
-      DateTime startTime,
-      float scheduleHours,
-      int minIntervalMinutes,
-      bool randomizeOrder,
-      ScheduledUploadService scheduledUploadService)
-  {
-      var random = new Random();
-      var videosToSchedule = randomizeOrder
-          ? videoInfoList.OrderBy(x => Guid.NewGuid()).ToList()
-          : videoInfoList.ToList();
-  
-      DateTime endTime = startTime.AddHours(scheduleHours);
-      
-      Console.WriteLine($"=== 생성 정보 스케줄 등록: {videosToSchedule.Count}개");
-      
-      if (uploadOptions.UseRandomInfo)
-      {
-          Console.WriteLine($"=== 랜덤 업로드 정보 활성화");
-          Console.WriteLine($"    제목 풀: {uploadOptions.RandomTitles?.Count ?? 0}개");
-          Console.WriteLine($"    설명 풀: {uploadOptions.RandomDescriptions?.Count ?? 0}개");
-          Console.WriteLine($"    태그 풀: {uploadOptions.RandomTags?.Count ?? 0}개");
-      }
-  
-      for (int i = 0; i < videosToSchedule.Count; i++)
-      {
-          var videoInfo = videosToSchedule[i];
-          DateTime scheduledTime = CalculateRandomUploadTime(
-              startTime, endTime, i, videosToSchedule.Count, minIntervalMinutes);
-  
-          string title, description, tags;
-          
-          if (uploadOptions.UseRandomInfo)
-          {
-              // 🔥 각각 완전히 랜덤하게 선택
-              title = uploadOptions.RandomTitles != null && uploadOptions.RandomTitles.Count > 0
-                  ? uploadOptions.RandomTitles[random.Next(uploadOptions.RandomTitles.Count)]
-                  : $"Video #{i + 1}";
-              
-              description = uploadOptions.RandomDescriptions != null && uploadOptions.RandomDescriptions.Count > 0
-                  ? uploadOptions.RandomDescriptions[random.Next(uploadOptions.RandomDescriptions.Count)]
-                  : uploadOptions.Description;
-              
-              tags = uploadOptions.RandomTags != null && uploadOptions.RandomTags.Count > 0
-                  ? uploadOptions.RandomTags[random.Next(uploadOptions.RandomTags.Count)]
-                  : uploadOptions.Tags;
-              
-              Console.WriteLine($"=== 생성 스케줄 {i + 1}: 완전 랜덤 조합");
-              Console.WriteLine($"    제목: {title.Substring(0, Math.Min(30, title.Length))}...");
-              Console.WriteLine($"    예정: {scheduledTime:MM/dd HH:mm}");
-          }
-          else
-          {
-              title = videosToSchedule.Count > 1
-                  ? uploadOptions.TitleTemplate.Replace("#NUMBER", $"#{i + 1}")
-                  : uploadOptions.TitleTemplate.Replace(" #NUMBER", "");
-              description = uploadOptions.Description;
-              tags = uploadOptions.Tags;
-          }
-  
-          var uploadItem = new ScheduledUploadItem
-          {
-              FileName = $"video_{i + 1:D3}.mp4",
-              ScheduledTime = scheduledTime,
-              Title = title,
-              Description = description,
-              Tags = tags,
-              PrivacySetting = uploadOptions.PrivacySetting,
-              
-              // 🔥 생성 정보
-              NeedsGeneration = true,
-              Prompt = videoInfo.Prompt,
-              Duration = videoInfo.Duration,
-              AspectRatio = videoInfo.AspectRatio,
-              EnablePostProcessing = videoInfo.EnablePostProcessing,
-              CaptionText = videoInfo.CaptionText,
-              CaptionPosition = videoInfo.CaptionPosition,
-              CaptionSize = videoInfo.CaptionSize,
-              CaptionColor = videoInfo.CaptionColor,
-              AddBackgroundMusic = videoInfo.AddBackgroundMusic,
-              MusicFilePath = videoInfo.MusicFilePath,
-              MusicVolume = videoInfo.MusicVolume
-          };
-  
-          scheduledUploadService.AddScheduledUpload(uploadItem);
-      }
-  }
+    /// <summary>
+    /// 스케줄 업로드 등록
+    /// </summary>
+    public void RegisterScheduledUploads(
+        List<string> filePaths,
+        UploadOptions options,
+        DateTime startTime,
+        float scheduleHours,
+        int minIntervalMinutes,
+        bool randomizeOrder,
+        ScheduledUploadService scheduledUploadService)
+    {
+        var random = new Random();
+        var filesToSchedule = randomizeOrder
+            ? filePaths.OrderBy(x => Guid.NewGuid()).ToList()
+            : filePaths.ToList();
+    
+        DateTime endTime = startTime.AddHours(scheduleHours);
+        
+        Console.WriteLine($"=== 스케줄 등록 시작: {filesToSchedule.Count}개 파일");
+        
+        if (options.UseRandomInfo)
+        {
+            Console.WriteLine($"=== 랜덤 업로드 정보 활성화");
+            Console.WriteLine($"    제목 풀: {options.RandomTitles?.Count ?? 0}개");
+            Console.WriteLine($"    설명 풀: {options.RandomDescriptions?.Count ?? 0}개");
+            Console.WriteLine($"    태그 풀: {options.RandomTags?.Count ?? 0}개");
+            
+            // 🔥 디버깅: 실제 내용 출력
+            if (options.RandomTitles != null)
+            {
+                Console.WriteLine($"    제목 예시:");
+                foreach (var t in options.RandomTitles.Take(3))
+                {
+                    Console.WriteLine($"      - {t.Substring(0, Math.Min(30, t.Length))}...");
+                }
+            }
+        }
+    
+        for (int i = 0; i < filesToSchedule.Count; i++)
+        {
+            DateTime scheduledTime = CalculateRandomUploadTime(
+                startTime, endTime, i, filesToSchedule.Count, minIntervalMinutes);
+    
+            string title, description, tags;
+            
+            if (options.UseRandomInfo)
+            {
+                // 🔥 완전히 랜덤하게 선택 (매번 새로운 인덱스)
+                title = options.RandomTitles != null && options.RandomTitles.Count > 0
+                    ? options.RandomTitles[random.Next(options.RandomTitles.Count)]
+                    : (filesToSchedule.Count > 1 
+                        ? options.TitleTemplate.Replace("#NUMBER", $"#{i + 1}")
+                        : options.TitleTemplate.Replace(" #NUMBER", ""));
+                
+                description = options.RandomDescriptions != null && options.RandomDescriptions.Count > 0
+                    ? options.RandomDescriptions[random.Next(options.RandomDescriptions.Count)]
+                    : options.Description;
+                
+                tags = options.RandomTags != null && options.RandomTags.Count > 0
+                    ? options.RandomTags[random.Next(options.RandomTags.Count)]
+                    : options.Tags;
+                
+                Console.WriteLine($"=== 스케줄 {i + 1}/{filesToSchedule.Count}:");
+                Console.WriteLine($"    제목: {title}");
+                Console.WriteLine($"    설명: {description.Substring(0, Math.Min(50, description.Length))}...");
+                Console.WriteLine($"    태그: {tags.Substring(0, Math.Min(30, tags.Length))}...");
+            }
+            else
+            {
+                title = filesToSchedule.Count > 1
+                    ? options.TitleTemplate.Replace("#NUMBER", $"#{i + 1}")
+                    : options.TitleTemplate.Replace(" #NUMBER", "");
+                description = options.Description;
+                tags = options.Tags;
+            }
+    
+            var uploadItem = new ScheduledUploadItem
+            {
+                FileName = Path.GetFileName(filesToSchedule[i]),
+                FilePath = filesToSchedule[i],
+                ScheduledTime = scheduledTime,
+                Title = title,
+                Description = description,
+                Tags = tags,
+                PrivacySetting = options.PrivacySetting
+            };
+    
+            scheduledUploadService.AddScheduledUpload(uploadItem);
+        }
+        
+        Console.WriteLine($"=== 스케줄 등록 완료: {filesToSchedule.Count}개");
+    }
     
     public class VideoGenerationInfo
     {
