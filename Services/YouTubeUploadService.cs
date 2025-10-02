@@ -269,17 +269,21 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
             
             if (uploadOptions.UseRandomInfo)
             {
-                // 🔥 각각 완전히 랜덤하게 선택
+                // 각각 다른 시드로 진짜 랜덤 선택
+                var titleRandom = new Random(Guid.NewGuid().GetHashCode());
+                var descRandom = new Random(Guid.NewGuid().GetHashCode());
+                var tagsRandom = new Random(Guid.NewGuid().GetHashCode());
+                
                 title = uploadOptions.RandomTitles != null && uploadOptions.RandomTitles.Count > 0
-                    ? uploadOptions.RandomTitles[random.Next(uploadOptions.RandomTitles.Count)]
+                    ? uploadOptions.RandomTitles[titleRandom.Next(uploadOptions.RandomTitles.Count)]
                     : $"Video #{i + 1}";
                 
                 description = uploadOptions.RandomDescriptions != null && uploadOptions.RandomDescriptions.Count > 0
-                    ? uploadOptions.RandomDescriptions[random.Next(uploadOptions.RandomDescriptions.Count)]
+                    ? uploadOptions.RandomDescriptions[descRandom.Next(uploadOptions.RandomDescriptions.Count)]
                     : uploadOptions.Description;
                 
                 tags = uploadOptions.RandomTags != null && uploadOptions.RandomTags.Count > 0
-                    ? uploadOptions.RandomTags[random.Next(uploadOptions.RandomTags.Count)]
+                    ? uploadOptions.RandomTags[tagsRandom.Next(uploadOptions.RandomTags.Count)]
                     : uploadOptions.Tags;
                 
                 Console.WriteLine($"=== 생성 스케줄 {i + 1}: 완전 랜덤 조합");
@@ -304,7 +308,7 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
                 Tags = tags,
                 PrivacySetting = uploadOptions.PrivacySetting,
                 
-                // 🔥 생성 정보
+                // 생성 정보
                 NeedsGeneration = true,
                 Prompt = videoInfo.Prompt,
                 Duration = videoInfo.Duration,
@@ -381,24 +385,28 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
         {
             DateTime scheduledTime = CalculateRandomUploadTime(
                 startTime, endTime, i, filesToSchedule.Count, minIntervalMinutes);
-    
+        
             string title, description, tags;
             
             if (options.UseRandomInfo)
             {
-                // 🔥 완전히 랜덤하게 선택 (매번 새로운 인덱스)
+                // 🔥 시드를 다르게 해서 진짜 랜덤 선택
+                var titleRandom = new Random(Guid.NewGuid().GetHashCode());
+                var descRandom = new Random(Guid.NewGuid().GetHashCode());
+                var tagsRandom = new Random(Guid.NewGuid().GetHashCode());
+                
                 title = options.RandomTitles != null && options.RandomTitles.Count > 0
-                    ? options.RandomTitles[random.Next(options.RandomTitles.Count)]
+                    ? options.RandomTitles[titleRandom.Next(options.RandomTitles.Count)]
                     : (filesToSchedule.Count > 1 
                         ? options.TitleTemplate.Replace("#NUMBER", $"#{i + 1}")
                         : options.TitleTemplate.Replace(" #NUMBER", ""));
                 
                 description = options.RandomDescriptions != null && options.RandomDescriptions.Count > 0
-                    ? options.RandomDescriptions[random.Next(options.RandomDescriptions.Count)]
+                    ? options.RandomDescriptions[descRandom.Next(options.RandomDescriptions.Count)]
                     : options.Description;
                 
                 tags = options.RandomTags != null && options.RandomTags.Count > 0
-                    ? options.RandomTags[random.Next(options.RandomTags.Count)]
+                    ? options.RandomTags[tagsRandom.Next(options.RandomTags.Count)]
                     : options.Tags;
                 
                 Console.WriteLine($"=== 스케줄 {i + 1}/{filesToSchedule.Count}:");
