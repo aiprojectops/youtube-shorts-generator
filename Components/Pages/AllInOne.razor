@@ -1166,7 +1166,6 @@
         Console.WriteLine($"=== CSV 파싱 시작 ===");
         Console.WriteLine($"전체 문자 수: {content.Length}");
         
-        // 🔥 라인 단위가 아닌 문자 단위로 파싱
         int pos = 0;
         int lineNum = 0;
         
@@ -1175,7 +1174,6 @@
         {
             pos++;
         }
-        // 줄바꿈 문자 건너뛰기
         while (pos < content.Length && (content[pos] == '\n' || content[pos] == '\r'))
         {
             pos++;
@@ -1183,6 +1181,7 @@
         
         Console.WriteLine($"헤더 스킵 후 시작 위치: {pos}");
         
+        // 모든 항목 파싱
         while (pos < content.Length)
         {
             lineNum++;
@@ -1190,7 +1189,7 @@
             
             try
             {
-                // 1. 번호 읽기 (쉼표까지)
+                // 1. 번호 읽기
                 int commaPos = content.IndexOf(',', pos);
                 if (commaPos == -1) break;
                 
@@ -1198,9 +1197,9 @@
                 Console.WriteLine($"번호: {number}");
                 pos = commaPos + 1;
                 
-                // 2. 제목 읽기 (따옴표로 감싸진 부분)
+                // 2. 제목 읽기
                 while (pos < content.Length && (content[pos] == ' ' || content[pos] == '\t'))
-                    pos++; // 공백 건너뛰기
+                    pos++;
                 
                 if (pos >= content.Length || content[pos] != '"')
                 {
@@ -1208,21 +1207,18 @@
                     break;
                 }
                 
-                pos++; // 시작 따옴표 건너뛰기
+                pos++;
                 int titleStart = pos;
                 
-                // 따옴표 끝 찾기 (이스케이프 처리)
                 while (pos < content.Length)
                 {
                     if (content[pos] == '"')
                     {
-                        // 다음이 또 따옴표면 이스케이프
                         if (pos + 1 < content.Length && content[pos + 1] == '"')
                         {
                             pos += 2;
                             continue;
                         }
-                        // 진짜 끝
                         break;
                     }
                     pos++;
@@ -1235,14 +1231,13 @@
                     .Trim();
                 Console.WriteLine($"제목: {title}");
                 
-                pos++; // 끝 따옴표 건너뛰기
+                pos++;
                 
-                // 쉼표 찾기
                 while (pos < content.Length && content[pos] != ',')
                     pos++;
-                pos++; // 쉼표 건너뛰기
+                pos++;
                 
-                // 3. 설명 읽기 (따옴표로 감싸진 부분)
+                // 3. 설명 읽기
                 while (pos < content.Length && (content[pos] == ' ' || content[pos] == '\t'))
                     pos++;
                 
@@ -1252,10 +1247,9 @@
                     break;
                 }
                 
-                pos++; // 시작 따옴표 건너뛰기
+                pos++;
                 int descStart = pos;
                 
-                // 따옴표 끝 찾기
                 while (pos < content.Length)
                 {
                     if (content[pos] == '"')
@@ -1277,14 +1271,13 @@
                     .Trim();
                 Console.WriteLine($"설명: {description.Substring(0, Math.Min(50, description.Length))}...");
                 
-                pos++; // 끝 따옴표 건너뛰기
+                pos++;
                 
-                // 쉼표 찾기
                 while (pos < content.Length && content[pos] != ',')
                     pos++;
-                pos++; // 쉼표 건너뛰기
+                pos++;
                 
-                // 4. 태그 읽기 (줄 끝까지)
+                // 4. 태그 읽기
                 while (pos < content.Length && (content[pos] == ' ' || content[pos] == '\t'))
                     pos++;
                 
@@ -1297,13 +1290,12 @@
                 string tags = content.Substring(tagStart, pos - tagStart).Trim();
                 Console.WriteLine($"태그: {tags}");
                 
-                // 줄바꿈 건너뛰기
                 while (pos < content.Length && (content[pos] == '\n' || content[pos] == '\r'))
                 {
                     pos++;
                 }
                 
-                // 5. 추가
+                // 5. 리스트에 추가
                 if (!string.IsNullOrWhiteSpace(title))
                 {
                     items.Add(new UploadInfoItem
@@ -1328,22 +1320,54 @@
         
         return items;
     }
-    
-    // 🔥 따옴표 안의 내용을 고려한 끝 따옴표 찾기 (새로운 헬퍼 메서드)
-    // FindClosingQuote는 기존 그대로 사용
+
+    // 랜덤으로 하나 뽑기
+    private UploadInfoItem GetRandomUploadInfo(string csvContent)
+    {
+        var allItems = GetAllUploadInfo(csvContent);
+        
+        if (allItems.Count == 0)
+        {
+            Console.WriteLine("❌ 파싱된 항목이 없습니다.");
+            return null;
+        }
+        
+        var random = new Random();
+        var randomItem = allItems[random.Next(allItems.Count)];
+        
+        Console.WriteLine($"\n🎲 랜덤 선택 결과:");
+        Console.WriteLine($"제목: {randomItem.Title}");
+        Console.WriteLine($"설명: {randomItem.Description.Substring(0, Math.Min(50, randomItem.Description.Length))}...");
+        Console.WriteLine($"태그: {randomItem.Tags}");
+        
+        return randomItem;
+    }
+
+    // 🔥 CSV 전체를 파싱한 리스트를 저장할 필드 (클래스 레벨)
+    private List<UploadInfoItem> _uploadInfoCache = null;
+
+    // CSV를 한 번만 파싱하고 캐시에 저장
+    private List<UploadInfoItem> GetAllUploadInfo(string csvContent)
+    {
+        if (_uploadInfoCache == null)
+        {
+            _uploadInfoCache = ParseUploadInfoCsv(csvContent);
+            Console.WriteLine($"✅ CSV 캐싱 완료: {_uploadInfoCache.Count}개 항목");
+        }
+        return _uploadInfoCache;
+    }
+
     private int FindClosingQuote(string text, int startIndex)
     {
         for (int i = startIndex; i < text.Length; i++)
         {
             if (text[i] == '"')
             {
-                // 이스케이프된 따옴표("") 체크
                 if (i + 1 < text.Length && text[i + 1] == '"')
                 {
-                    i++; // 다음 따옴표 건너뛰기
+                    i++;
                     continue;
                 }
-                // 진짜 끝 따옴표
                 return i;
             }
         }
