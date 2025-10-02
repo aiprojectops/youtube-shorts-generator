@@ -1894,8 +1894,8 @@
                     scheduleStatusTimer?.Dispose();
                     scheduleStatusTimer = null;
     
-                    statusMessage = "모든 스케줄 업로드가 완료되었습니다.";
-                    resultMessage = "모든 영상이 성공적으로 업로드되었습니다.";
+                    statusMessage = "스케줄 업로드 대기 중...";  // ✅ 수정
+                    // resultMessage는 여기서 설정하지 않음 - HandleAllUploadsCompleted에서 처리
                     nextUploadInfo = "";
                 }
                 else if (hasActiveSchedule)
@@ -1903,7 +1903,7 @@
                     statusMessage = $"스케줄 업로드 진행 중... (대기: {queueCount}개)";
     
                     var nextUpload = allItems
-                        .Where(x => x.Status == "대기 중")
+                        .Where(x => x.Status == "대기 중" || x.Status == "생성 완료")  // ✅ "생성 완료"도 포함
                         .OrderBy(x => x.ScheduledTime)
                         .FirstOrDefault();
     
@@ -1945,9 +1945,50 @@
         }
     }
 
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        
+        // 스케줄 업로드 완료 이벤트 구독
+        ScheduledUploadService.OnAllUploadsCompleted += HandleAllUploadsCompleted;
+    }
+
+    // 새로운 메서드 추가
+    private async void HandleAllUploadsCompleted(int successCount, int totalCount, List<ScheduledUploadItem> completedItems)
+    {
+           await InvokeAsync(async () =>
+           {
+               Console.WriteLine($"[All-in-One] 전체 업로드 완료 이벤트 수신 - {successCount}/{totalCount} 성공");
+               
+               string message = $"All-in-one 완료!\n\n" +
+                              $"✅ 성공: {successCount}개\n" +
+                              $"❌ 실패: {totalCount - successCount}개\n" +
+                              $"📊 전체: {totalCount}개\n\n";
+               
+               // 성공한 항목들의 URL 표시 (최대 3개)
+               var successfulItems = completedItems.Where(x => x.Status == "완료" && !string.IsNullOrEmpty(x.UploadedUrl)).Take(3).ToList();
+               if (successfulItems.Any())
+               {
+                   message += "업로드된 영상:\n";
+                   foreach (var item in successfulItems)
+                   {
+                       message += $"• {item.Title}\n";
+                   }
+               }
+               
+               await JSRuntime.InvokeVoidAsync("alert", message);
+               
+               StateHasChanged();
+           });
+       }
+
     public void Dispose()
     {
-        scheduleStatusTimer?.Stop();
-        scheduleStatusTimer?.Dispose();
+        // 이벤트 구독 해제
+        ScheduledUploadService.OnAllUploadsCompleted -= HandleAllUploadsCompleted;
+        
+        // 기존 Dispose 로직...
+        scheduleInfoTimer?.Stop();
+        scheduleInfoTimer?.Dispose();
     }
 }
