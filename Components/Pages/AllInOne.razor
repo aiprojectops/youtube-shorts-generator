@@ -708,6 +708,7 @@
     // 업로드 방식 설정
     private bool isScheduleUpload = true;
     private List<SchedulePreviewItem> schedulePreviewList = new List<SchedulePreviewItem>();
+    private Dictionary<int, DateTime> savedScheduleTimes = new Dictionary<int, DateTime>(); // 🔥 추가
 
     public class SchedulePreviewItem
     {
@@ -734,11 +735,14 @@
     private string resultMessage = "";
     private bool isResultError = false;
     private List<GeneratedVideo> generatedVideos = new List<GeneratedVideo>();
+    
 
     // 스케줄 상태 추적
     private bool hasActiveSchedule = false;
     private System.Timers.Timer? scheduleStatusTimer;
     private string nextUploadInfo = "";
+
+
 
     public class GeneratedVideo
     {
@@ -1334,34 +1338,57 @@
         if (!isScheduleUpload) return;
     
         schedulePreviewList.Clear();
+        savedScheduleTimes.Clear(); // 🔥 기존 저장된 시간 초기화
+        
         DateTime startTime = DateTime.Now.AddMinutes(5);
         DateTime endTime = startTime.AddHours(scheduleHours);
     
         int totalVideos = genOptions.IsGenerateVideo ? genOptions.VideoCount : genOptions.LocalVideoFiles.Count;
     
-        // 🔥 YouTubeUploadService와 동일한 로직 사용
-        var tempList = new List<SchedulePreviewItem>();
+        var random = new Random();
         
         for (int i = 0; i < totalVideos; i++)
         {
-            // YouTubeUploadService.CalculateRandomUploadTime과 동일한 계산
-            DateTime scheduledTime = CalculateScheduleTime(startTime, endTime, i, totalVideos, minIntervalMinutes);
+            double totalMinutes = (endTime - startTime).TotalMinutes;
+            double segmentMinutes = totalMinutes / totalCount;
+    
+            double segmentStart = i * segmentMinutes;
+            double segmentEnd = Math.Min((i + 1) * segmentMinutes, totalMinutes);
+    
+            double randomMinutes = segmentStart + (random.NextDouble() * (segmentEnd - segmentStart));
+    
+            if (i > 0 && totalMinutes > (totalVideos * minIntervalMinutes))
+            {
+                var previousTime = startTime.AddMinutes(segmentStart);
+                var proposedTime = startTime.AddMinutes(randomMinutes);
+    
+                if ((proposedTime - previousTime).TotalMinutes < minIntervalMinutes)
+                {
+                    randomMinutes = segmentStart + minIntervalMinutes;
+                }
+            }
+    
+            randomMinutes = Math.Min(randomMinutes, totalMinutes);
+            DateTime scheduledTime = startTime.AddMinutes(randomMinutes);
             
-            tempList.Add(new SchedulePreviewItem
+            schedulePreviewList.Add(new SchedulePreviewItem
             {
                 Index = i + 1,
                 ScheduledTime = scheduledTime
             });
+            
+            // 🔥 시간을 Dictionary에 저장
+            savedScheduleTimes[i] = scheduledTime;
         }
     
-        schedulePreviewList = tempList.OrderBy(x => x.ScheduledTime).ToList();
+        schedulePreviewList = schedulePreviewList.OrderBy(x => x.ScheduledTime).ToList();
         StateHasChanged();
     }
     
     // 🔥 YouTubeUploadService와 동일한 시간 계산 로직
     private DateTime CalculateScheduleTime(DateTime startTime, DateTime endTime, int index, int totalCount, int minIntervalMinutes)
     {
-        var random = new Random(index); // 같은 인덱스면 같은 시간 생성
+        var random = new Random(); // 같은 인덱스면 같은 시간 생성
         double totalMinutes = (endTime - startTime).TotalMinutes;
         double segmentMinutes = totalMinutes / totalCount;
     
@@ -1743,13 +1770,11 @@
                     uploadOptions.RandomTags = uploadInfoCsvList.Select(item => item.Tags).ToList();
                 }
                 
-                // ✅ 생성 정보만 등록 (실제 생성 X)
+                // 🔥 미리보기에서 저장된 시간 사용
                 YouTubeService.RegisterScheduledUploadsWithGeneration(
                     videoInfoList,
                     uploadOptions,
-                    startTime,
-                    scheduleHours,
-                    minIntervalMinutes,
+                    savedScheduleTimes, // 🔥 저장된 시간 전달
                     randomizeOrder,
                     ScheduledUploadService
                 );
@@ -1773,9 +1798,7 @@
                 YouTubeService.RegisterScheduledUploads(
                     filePaths,
                     uploadOptions,
-                    startTime,
-                    scheduleHours,
-                    minIntervalMinutes,
+                    savedScheduleTimes, // 🔥 저장된 시간 전달
                     randomizeOrder,
                     ScheduledUploadService
                 );
