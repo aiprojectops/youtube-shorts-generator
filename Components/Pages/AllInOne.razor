@@ -1140,139 +1140,89 @@
         }
     }
     
+    // ========================================
+    // AllInOne.razor의 @code 블록 내부에서
+    // 기존 ParseUploadInfoCsv 메서드를 찾아서
+    // 아래 두 메서드로 완전히 교체하세요
+    // ========================================
+    
     private List<UploadInfoItem> ParseUploadInfoCsv(string content)
     {
         var items = new List<UploadInfoItem>();
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
     
-        // 🔥 첫 번째 줄이 헤더인지 확인
-        int startIndex = 1; // 기본적으로 1번째 줄(인덱스 1)부터 시작
-        
-        if (lines.Length > 0)
-        {
-            var firstLine = lines[0].ToLower();
-            // 헤더로 보이는 키워드가 있으면 건너뛰기
-            if (firstLine.Contains("번호") || firstLine.Contains("number") || 
-                firstLine.Contains("제목") || firstLine.Contains("title"))
-            {
-                startIndex = 1;
-                Console.WriteLine("=== CSV 헤더 감지됨, 두 번째 줄부터 파싱 시작");
-            }
-            else
-            {
-                startIndex = 0; // 헤더가 없으면 첫 줄부터
-                Console.WriteLine("=== CSV 헤더 없음, 첫 번째 줄부터 파싱 시작");
-            }
-        }
-    
-        for (int i = startIndex; i < lines.Length; i++)
+        // 🔥 첫 번째 줄은 헤더이므로 건너뛰기
+        for (int i = 1; i < lines.Length; i++)
         {
             var line = lines[i].Trim();
             if (string.IsNullOrEmpty(line)) continue;
     
             try
             {
-                // 🔥 태그 "#"을 기준으로 먼저 분리
-                int tagStartIndex = line.IndexOf('#');
+                Console.WriteLine($"=== 파싱 시작 - 라인 {i}: {line.Substring(0, Math.Min(50, line.Length))}...");
                 
-                if (tagStartIndex == -1)
+                // 1. 첫 번째 쉼표 찾기 (번호 다음)
+                int firstComma = line.IndexOf(',');
+                if (firstComma == -1)
                 {
-                    Console.WriteLine($"CSV 라인 {i}: 태그(#)를 찾을 수 없음 - 건너뜀");
+                    Console.WriteLine($"❌ 라인 {i}: 번호 구분 쉼표 없음");
                     continue;
                 }
     
-                // 태그 추출 (# 이후 전체)
-                string tags = line.Substring(tagStartIndex).Trim();
-                
-                // 태그 앞 부분
-                string beforeTags = line.Substring(0, tagStartIndex).TrimEnd(',', ' ');
-                
-                // 첫 번째 쉼표 찾기 (번호 다음)
-                int firstComma = beforeTags.IndexOf(',');
-                if (firstComma == -1)
+                string afterNumber = line.Substring(firstComma + 1).Trim();
+    
+                // 2. 제목 추출 (따옴표로 감싸진 부분)
+                if (!afterNumber.StartsWith("\""))
                 {
-                    Console.WriteLine($"CSV 라인 {i}: 번호 구분 쉼표 없음");
+                    Console.WriteLine($"❌ 라인 {i}: 제목 시작 따옴표 없음");
                     continue;
                 }
-                
-                // 번호 이후 부분
-                string afterNumber = beforeTags.Substring(firstComma + 1).Trim();
-                
-                // 제목 시작 따옴표 찾기
-                int titleStart = afterNumber.IndexOf('"');
-                if (titleStart == -1)
+    
+                int titleEnd = FindClosingQuote(afterNumber, 1);
+                if (titleEnd == -1)
                 {
-                    Console.WriteLine($"CSV 라인 {i}: 제목 시작 따옴표 없음");
+                    Console.WriteLine($"❌ 라인 {i}: 제목 끝 따옴표 없음");
                     continue;
                 }
-                
-                // 제목 끝 따옴표 찾기 (이스케이프된 따옴표 고려)
-                int titleEnd = titleStart + 1;
-                while (titleEnd < afterNumber.Length)
-                {
-                    if (afterNumber[titleEnd] == '"')
-                    {
-                        // 다음 문자가 따옴표면 이스케이프
-                        if (titleEnd + 1 < afterNumber.Length && afterNumber[titleEnd + 1] == '"')
-                        {
-                            titleEnd += 2; // 이스케이프된 따옴표 건너뛰기
-                            continue;
-                        }
-                        break; // 진짜 끝 따옴표
-                    }
-                    titleEnd++;
-                }
-                
-                if (titleEnd >= afterNumber.Length)
-                {
-                    Console.WriteLine($"CSV 라인 {i}: 제목 끝 따옴표 없음");
-                    continue;
-                }
-                
-                string title = afterNumber.Substring(titleStart + 1, titleEnd - titleStart - 1)
+    
+                string title = afterNumber.Substring(1, titleEnd - 1)
                     .Replace("\"\"", "\"") // 이스케이프된 따옴표 복원
                     .Trim();
-                
-                // 설명 찾기
+    
+                // 3. 설명 찾기
                 string afterTitle = afterNumber.Substring(titleEnd + 1).Trim();
                 if (afterTitle.StartsWith(","))
                 {
                     afterTitle = afterTitle.Substring(1).Trim();
                 }
-                
-                int descStart = afterTitle.IndexOf('"');
-                if (descStart == -1)
+    
+                if (!afterTitle.StartsWith("\""))
                 {
-                    Console.WriteLine($"CSV 라인 {i}: 설명 시작 따옴표 없음");
+                    Console.WriteLine($"❌ 라인 {i}: 설명 시작 따옴표 없음");
                     continue;
                 }
-                
-                // 설명 끝 따옴표 찾기
-                int descEnd = descStart + 1;
-                while (descEnd < afterTitle.Length)
+    
+                int descEnd = FindClosingQuote(afterTitle, 1);
+                if (descEnd == -1)
                 {
-                    if (afterTitle[descEnd] == '"')
-                    {
-                        if (descEnd + 1 < afterTitle.Length && afterTitle[descEnd + 1] == '"')
-                        {
-                            descEnd += 2;
-                            continue;
-                        }
-                        break;
-                    }
-                    descEnd++;
-                }
-                
-                if (descEnd >= afterTitle.Length)
-                {
-                    Console.WriteLine($"CSV 라인 {i}: 설명 끝 따옴표 없음");
+                    Console.WriteLine($"❌ 라인 {i}: 설명 끝 따옴표 없음");
                     continue;
                 }
-                
-                string description = afterTitle.Substring(descStart + 1, descEnd - descStart - 1)
+    
+                string description = afterTitle.Substring(1, descEnd - 1)
                     .Replace("\"\"", "\"")
                     .Trim();
     
+                // 4. 태그 추출 (# 이후 전체, 따옴표 없음)
+                string afterDesc = afterTitle.Substring(descEnd + 1).Trim();
+                if (afterDesc.StartsWith(","))
+                {
+                    afterDesc = afterDesc.Substring(1).Trim();
+                }
+    
+                string tags = afterDesc.Trim();
+    
+                // 5. 검증 및 추가
                 if (!string.IsNullOrWhiteSpace(title))
                 {
                     items.Add(new UploadInfoItem
@@ -1281,7 +1231,7 @@
                         Description = description,
                         Tags = tags
                     });
-                    
+    
                     Console.WriteLine($"✅ CSV 라인 {i} 파싱 성공:");
                     Console.WriteLine($"   제목: {title}");
                     Console.WriteLine($"   설명: {(description.Length > 50 ? description.Substring(0, 50) + "..." : description)}");
@@ -1291,6 +1241,7 @@
             catch (Exception ex)
             {
                 Console.WriteLine($"❌ CSV 라인 {i} 파싱 오류: {ex.Message}");
+                Console.WriteLine($"   라인 내용: {line}");
             }
         }
     
@@ -1298,35 +1249,27 @@
         return items;
     }
     
-    // 🔥 새로운 CSV 파싱 헬퍼 메서드 (따옴표 처리)
-    private List<string> ParseCsvLine(string line)
+    // 🔥 따옴표 안의 내용을 고려한 끝 따옴표 찾기 (새로운 헬퍼 메서드)
+    private int FindClosingQuote(string text, int startIndex)
     {
-        var result = new List<string>();
-        var current = new System.Text.StringBuilder();
-        bool inQuotes = false;
-    
-        for (int i = 0; i < line.Length; i++)
+        for (int i = startIndex; i < text.Length; i++)
         {
-            char c = line[i];
-    
-            if (c == '"')
+            if (text[i] == '"')
             {
-                inQuotes = !inQuotes;
-            }
-            else if (c == ',' && !inQuotes)
-            {
-                result.Add(current.ToString());
-                current.Clear();
-            }
-            else
-            {
-                current.Append(c);
+                // 이스케이프된 따옴표("") 체크
+                if (i + 1 < text.Length && text[i + 1] == '"')
+                {
+                    i++; // 다음 따옴표 건너뛰기
+                    continue;
+                }
+                // 진짜 끝 따옴표
+                return i;
             }
         }
-    
-        result.Add(current.ToString());
-        return result;
+        return -1;
     }
+    
+    
     
     private void ShowUploadInfoCsvPreview()
     {
