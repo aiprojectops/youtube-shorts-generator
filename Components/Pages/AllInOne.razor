@@ -426,15 +426,25 @@
                             <div class="mt-3 alert alert-info">
                                 <h6>예상 업로드 스케줄:</h6>
                                 <ul class="mb-0">
-                                    @foreach (var item in schedulePreviewList.Take(5))
+                                @if (schedulePreviewList.Count <= 5)
+                                {
+                                    @foreach (var item in schedulePreviewList)
                                     {
                                         <li>영상 #@item.Index -> @item.ScheduledTime.ToString("MM/dd HH:mm")</li>
                                     }
-                                    @if (schedulePreviewList.Count > 5)
+                                }
+                                else
+                                {
+                                    @* 처음 3개 *@
+                                    @foreach (var item in schedulePreviewList.Take(3))
                                     {
-                                        <li>... 총 @schedulePreviewList.Count 개</li>
+                                        <li>영상 #@item.Index -> @item.ScheduledTime.ToString("MM/dd HH:mm")</li>
                                     }
-                                </ul>
+                                    <li class="text-muted">... 중간 @(schedulePreviewList.Count - 4)개 생략 ...</li>
+                                    @* 마지막 1개 *@
+                                    <li>영상 #@schedulePreviewList.Last().Index -> @schedulePreviewList.Last().ScheduledTime.ToString("MM/dd HH:mm")</li>
+                                }
+                            </ul>
                                 <button type="button" class="btn btn-sm btn-outline-primary mt-2" @onclick="UpdateSchedulePreview" disabled="@(isRunning || hasActiveSchedule)">
                                     스케줄 다시 계산
                                 </button>
@@ -1329,26 +1339,50 @@
     
         int totalVideos = genOptions.IsGenerateVideo ? genOptions.VideoCount : genOptions.LocalVideoFiles.Count;
     
-        var random = new Random();
+        // 🔥 YouTubeUploadService와 동일한 로직 사용
+        var tempList = new List<SchedulePreviewItem>();
+        
         for (int i = 0; i < totalVideos; i++)
         {
-            double totalMinutes = (endTime - startTime).TotalMinutes;
-            double segmentMinutes = totalMinutes / totalVideos;
-            double segmentStart = i * segmentMinutes;
-            double segmentEnd = Math.Min((i + 1) * segmentMinutes, totalMinutes);
-            double randomMinutes = segmentStart + (random.NextDouble() * (segmentEnd - segmentStart));
+            // YouTubeUploadService.CalculateRandomUploadTime과 동일한 계산
+            DateTime scheduledTime = CalculateScheduleTime(startTime, endTime, i, totalVideos, minIntervalMinutes);
             
-            DateTime scheduledTime = startTime.AddMinutes(randomMinutes);
-            
-            schedulePreviewList.Add(new SchedulePreviewItem
+            tempList.Add(new SchedulePreviewItem
             {
                 Index = i + 1,
                 ScheduledTime = scheduledTime
             });
         }
     
-        schedulePreviewList = schedulePreviewList.OrderBy(x => x.ScheduledTime).ToList();
+        schedulePreviewList = tempList.OrderBy(x => x.ScheduledTime).ToList();
         StateHasChanged();
+    }
+    
+    // 🔥 YouTubeUploadService와 동일한 시간 계산 로직
+    private DateTime CalculateScheduleTime(DateTime startTime, DateTime endTime, int index, int totalCount, int minIntervalMinutes)
+    {
+        var random = new Random(index); // 같은 인덱스면 같은 시간 생성
+        double totalMinutes = (endTime - startTime).TotalMinutes;
+        double segmentMinutes = totalMinutes / totalCount;
+    
+        double segmentStart = index * segmentMinutes;
+        double segmentEnd = Math.Min((index + 1) * segmentMinutes, totalMinutes);
+    
+        double randomMinutes = segmentStart + (random.NextDouble() * (segmentEnd - segmentStart));
+    
+        if (index > 0 && totalMinutes > (totalCount * minIntervalMinutes))
+        {
+            var previousTime = startTime.AddMinutes(segmentStart);
+            var proposedTime = startTime.AddMinutes(randomMinutes);
+    
+            if ((proposedTime - previousTime).TotalMinutes < minIntervalMinutes)
+            {
+                randomMinutes = segmentStart + minIntervalMinutes;
+            }
+        }
+    
+        randomMinutes = Math.Min(randomMinutes, totalMinutes);
+        return startTime.AddMinutes(randomMinutes);
     }
     
     private async Task StartAllInOne()
