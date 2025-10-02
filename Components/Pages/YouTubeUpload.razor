@@ -1028,13 +1028,11 @@
                 uploadOptions.RandomTags = null;
             }
     
-            // 🔥 서비스 사용하여 스케줄 등록
+            // 스케줄 등록
             YouTubeService.RegisterScheduledUploads(
                 filePaths,
                 uploadOptions,
-                startTime,
-                scheduleHours,
-                minIntervalMinutes,
+                scheduledTimes,      // ✅ Dictionary 전달
                 randomizeOrder,
                 ScheduledUploadService
             );
