@@ -63,7 +63,8 @@
                         <div class="row mb-3">
                             <div class="col-md-4">
                                 <label class="form-label"><strong>생성할 영상 개수: @genOptions.VideoCount 개</strong></label>
-                                <input type="range" class="form-range" min="1" max="10" @bind="genOptions.VideoCount" @bind:after="OnVideoCountChanged" disabled="@(isRunning || hasActiveSchedule)" />
+                                <input type="range" class="form-range" min="1" max="70" step="1" value="@genOptions.VideoCount" @oninput="OnVideoCountInput" disabled="@(isRunning || hasActiveSchedule)" />
+                                    <small class="text-muted">1~10: 1개 단위, 11~70: 5개 단위</small>
                                 <div class="text-primary">총 예상 비용: $@totalCost</div>
                             </div>
                             <div class="col-md-4">
@@ -397,14 +398,18 @@
                     {
                         <div class="row">
                             <div class="col-md-4">
-                                <label class="form-label">업로드 기간: @scheduleHours 시간</label>
-                                <input type="range" class="form-range" min="0.5" max="24" step="0.5" @bind="scheduleHours" @bind:after="UpdateSchedulePreview" disabled="@(isRunning || hasActiveSchedule)" />
-                                <div class="form-text">@scheduleHours 시간 동안 업로드를 분산</div>
+                                <label class="form-label">업로드 기간: @FormatScheduleHours(scheduleHours)</label>
+                                <input type="range" class="form-range" min="0.5" max="480" step="0.5" 
+                                       value="@scheduleHours" @oninput="OnScheduleHoursInput" disabled="@(isRunning || hasActiveSchedule)" />
+                                <div class="form-text">@FormatScheduleHours(scheduleHours) 동안 업로드를 분산</div>
+                                <small class="text-muted">0.5~24시간: 0.5시간 단위, 24~480시간: 12시간 단위</small>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label">최소 간격: @minIntervalMinutes 분</label>
-                                <input type="range" class="form-range" min="7" max="180" @bind="minIntervalMinutes" @bind:after="UpdateSchedulePreview" disabled="@(isRunning || hasActiveSchedule)" />
-                                <div class="form-text">업로드 간 최소 @minIntervalMinutes 분 간격</div>
+                                <label class="form-label">최소 간격: @FormatMinInterval(minIntervalMinutes)</label>
+                                <input type="range" class="form-range" min="7" max="360" step="1" 
+                                       value="@minIntervalMinutes" @oninput="OnMinIntervalInput" disabled="@(isRunning || hasActiveSchedule)" />
+                                <div class="form-text">업로드 간 최소 @FormatMinInterval(minIntervalMinutes) 간격</div>
+                                <small class="text-muted">7~180분: 1분 단위, 180~360분: 15분 단위</small>
                             </div>
                             <div class="col-md-4">
                                 <div class="form-check mt-3">
@@ -744,7 +749,89 @@
         return genOptions.SelectedAspectRatio == ratio ? "btn-success" : "btn-outline-success";
     }
 
-   
+    // 🔥 스냅 로직이 적용된 입력 핸들러들
+    private void OnVideoCountInput(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int value))
+        {
+            // 10 이상이면 5 단위로 스냅
+            if (value > 10)
+            {
+                value = (int)Math.Round(value / 5.0) * 5;
+                value = Math.Max(10, Math.Min(70, value));
+            }
+            else
+            {
+                value = Math.Max(1, Math.Min(10, value));
+            }
+            
+            genOptions.VideoCount = value;
+            OnVideoCountChanged();
+        }
+    }
+    
+    private void OnScheduleHoursInput(ChangeEventArgs e)
+    {
+        if (float.TryParse(e.Value?.ToString(), out float value))
+        {
+            // 24 이상이면 12 단위로 스냅
+            if (value >= 24)
+            {
+                value = (float)Math.Round(value / 12.0) * 12;
+                value = Math.Max(24, Math.Min(480, value));
+            }
+            else
+            {
+                // 0.5 단위로 스냅
+                value = (float)Math.Round(value * 2) / 2;
+                value = Math.Max(0.5f, Math.Min(24, value));
+            }
+            
+            scheduleHours = value;
+            UpdateSchedulePreview();
+        }
+    }
+    
+    private void OnMinIntervalInput(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int value))
+        {
+            // 180 이상이면 15 단위로 스냅
+            if (value >= 180)
+            {
+                value = (int)Math.Round(value / 15.0) * 15;
+                value = Math.Max(180, Math.Min(360, value));
+            }
+            else
+            {
+                value = Math.Max(7, Math.Min(180, value));
+            }
+            
+            minIntervalMinutes = value;
+            UpdateSchedulePreview();
+        }
+    }
+    
+    // 🔥 포맷팅 메서드들
+    private string FormatScheduleHours(float hours)
+    {
+        if (hours >= 24)
+        {
+            float days = hours / 24;
+            return $"{days:F1} days";
+        }
+        return $"{hours:F1} 시간";
+    }
+    
+    private string FormatMinInterval(int minutes)
+    {
+        if (minutes >= 180)
+        {
+            float hours = minutes / 60f;
+            return $"{hours:F1} 시간";
+        }
+        return $"{minutes} 분";
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
