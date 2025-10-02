@@ -1987,8 +1987,8 @@
         // 이벤트 구독 해제
         ScheduledUploadService.OnAllUploadsCompleted -= HandleAllUploadsCompleted;
         
-        // 기존 Dispose 로직...
-        scheduleInfoTimer?.Stop();
-        scheduleInfoTimer?.Dispose();
+        // scheduleInfoTimer → scheduleStatusTimer로 수정
+        scheduleStatusTimer?.Stop();
+        scheduleStatusTimer?.Dispose();
     }
 }
