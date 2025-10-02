@@ -1338,7 +1338,7 @@
         if (!isScheduleUpload) return;
     
         schedulePreviewList.Clear();
-        savedScheduleTimes.Clear(); // 🔥 기존 저장된 시간 초기화
+        savedScheduleTimes.Clear();
         
         DateTime startTime = DateTime.Now.AddMinutes(5);
         DateTime endTime = startTime.AddHours(scheduleHours);
@@ -1350,7 +1350,7 @@
         for (int i = 0; i < totalVideos; i++)
         {
             double totalMinutes = (endTime - startTime).TotalMinutes;
-            double segmentMinutes = totalMinutes / totalCount;
+            double segmentMinutes = totalMinutes / totalVideos; // ✅ 수정
     
             double segmentStart = i * segmentMinutes;
             double segmentEnd = Math.Min((i + 1) * segmentMinutes, totalMinutes);
@@ -1377,7 +1377,6 @@
                 ScheduledTime = scheduledTime
             });
             
-            // 🔥 시간을 Dictionary에 저장
             savedScheduleTimes[i] = scheduledTime;
         }
     
