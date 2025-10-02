@@ -231,6 +231,21 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
   }
   
  
+     
+    public class VideoGenerationInfo
+    {
+        public string Prompt { get; set; } = "";
+        public int Duration { get; set; } = 5;
+        public string AspectRatio { get; set; } = "9:16";
+        public bool EnablePostProcessing { get; set; } = false;
+        public string? CaptionText { get; set; }
+        public string? CaptionPosition { get; set; }
+        public string? CaptionSize { get; set; }
+        public string? CaptionColor { get; set; }
+        public bool AddBackgroundMusic { get; set; } = false;
+        public string? MusicFilePath { get; set; }
+        public float MusicVolume { get; set; } = 0.3f;
+    }
   
     /// <summary>
     /// 스케줄 업로드 등록
@@ -324,107 +339,6 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
         }
         
         Console.WriteLine($"=== 스케줄 등록 완료: {filesToSchedule.Count}개");
-    }
-    
-    public class VideoGenerationInfo
-    {
-        public string Prompt { get; set; } = "";
-        public int Duration { get; set; } = 5;
-        public string AspectRatio { get; set; } = "9:16";
-        public bool EnablePostProcessing { get; set; } = false;
-        public string? CaptionText { get; set; }
-        public string? CaptionPosition { get; set; }
-        public string? CaptionSize { get; set; }
-        public string? CaptionColor { get; set; }
-        public bool AddBackgroundMusic { get; set; } = false;
-        public string? MusicFilePath { get; set; }
-        public float MusicVolume { get; set; } = 0.3f;
-    }
-  
-    /// <summary>
-    /// 스케줄 업로드 등록
-    /// </summary>
-    public void RegisterScheduledUploads(
-        List<string> filePaths,
-        UploadOptions options,
-        DateTime startTime,
-        float scheduleHours,
-        int minIntervalMinutes,
-        bool randomizeOrder,
-        ScheduledUploadService scheduledUploadService)
-    {
-        var random = new Random();
-        var filesToSchedule = randomizeOrder
-            ? filePaths.OrderBy(x => Guid.NewGuid()).ToList()
-            : filePaths.ToList();
-    
-        DateTime endTime = startTime.AddHours(scheduleHours);
-        
-        // 각 리스트 섞기
-        List<string>? shuffledTitles = null;
-        List<string>? shuffledDescriptions = null;
-        List<string>? shuffledTags = null;
-        
-        if (options.UseRandomInfo)
-        {
-            if (options.RandomTitles != null && options.RandomTitles.Count > 0)
-                shuffledTitles = options.RandomTitles.OrderBy(x => random.Next()).ToList();
-            
-            if (options.RandomDescriptions != null && options.RandomDescriptions.Count > 0)
-                shuffledDescriptions = options.RandomDescriptions.OrderBy(x => random.Next()).ToList();
-            
-            if (options.RandomTags != null && options.RandomTags.Count > 0)
-                shuffledTags = options.RandomTags.OrderBy(x => random.Next()).ToList();
-        }
-    
-        for (int i = 0; i < filesToSchedule.Count; i++)
-        {
-            DateTime scheduledTime = CalculateRandomUploadTime(
-                startTime, endTime, i, filesToSchedule.Count, minIntervalMinutes);
-    
-            string title, description, tags;
-            
-            if (options.UseRandomInfo)
-            {
-                // 🔥 각각 완전히 랜덤하게 선택
-                title = shuffledTitles != null && shuffledTitles.Count > 0
-                    ? shuffledTitles[random.Next(shuffledTitles.Count)]
-                    : (filesToSchedule.Count > 1 
-                        ? options.TitleTemplate.Replace("#NUMBER", $"#{i + 1}")
-                        : options.TitleTemplate.Replace(" #NUMBER", ""));
-                
-                description = shuffledDescriptions != null && shuffledDescriptions.Count > 0
-                    ? shuffledDescriptions[random.Next(shuffledDescriptions.Count)]
-                    : options.Description;
-                
-                tags = shuffledTags != null && shuffledTags.Count > 0
-                    ? shuffledTags[random.Next(shuffledTags.Count)]
-                    : options.Tags;
-                
-                Console.WriteLine($"=== 스케줄 {i + 1}: 완전 랜덤 조합 - {title.Substring(0, Math.Min(30, title.Length))}...");
-            }
-            else
-            {
-                title = filesToSchedule.Count > 1
-                    ? options.TitleTemplate.Replace("#NUMBER", $"#{i + 1}")
-                    : options.TitleTemplate.Replace(" #NUMBER", "");
-                description = options.Description;
-                tags = options.Tags;
-            }
-    
-            var uploadItem = new ScheduledUploadItem
-            {
-                FileName = Path.GetFileName(filesToSchedule[i]),
-                FilePath = filesToSchedule[i],
-                ScheduledTime = scheduledTime,
-                Title = title,
-                Description = description,
-                Tags = tags,
-                PrivacySetting = options.PrivacySetting
-            };
-    
-            scheduledUploadService.AddScheduledUpload(uploadItem);
-        }
     }
   
     /// <summary>
