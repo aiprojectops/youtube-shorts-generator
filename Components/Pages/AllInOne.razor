@@ -1769,6 +1769,7 @@
                 uploadOptions.UseRandomInfo = true;
                 
                 // 각각 독립적인 리스트로 변환
+                uploadOptions.UseRandomInfo = true;
                 uploadOptions.RandomTitles = uploadInfoCsvList.Select(item => item.Title).ToList();
                 uploadOptions.RandomDescriptions = uploadInfoCsvList.Select(item => item.Description).ToList();
                 uploadOptions.RandomTags = uploadInfoCsvList.Select(item => item.Tags).ToList();
