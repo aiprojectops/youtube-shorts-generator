@@ -1163,163 +1163,156 @@
     {
         var items = new List<UploadInfoItem>();
         
-        Console.WriteLine($"=== CSV 파싱 시작 ===");
-        Console.WriteLine($"전체 문자 수: {content.Length}");
-        
-        int pos = 0;
-        int lineNum = 0;
-        
-        // 헤더 스킵
-        while (pos < content.Length && content[pos] != '\n' && content[pos] != '\r')
+        try
         {
-            pos++;
-        }
-        while (pos < content.Length && (content[pos] == '\n' || content[pos] == '\r'))
-        {
-            pos++;
-        }
-        
-        Console.WriteLine($"헤더 스킵 후 시작 위치: {pos}");
-        
-        // 모든 항목 파싱
-        while (pos < content.Length)
-        {
-            lineNum++;
-            Console.WriteLine($"\n=== 항목 {lineNum} 파싱 시작 (위치: {pos}) ===");
+            // 간단한 CSV 파서 구현
+            var lines = new List<string>();
+            var currentLine = new StringBuilder();
+            bool inQuotes = false;
             
-            try
+            // 문자별로 읽어서 따옴표 내부의 개행 처리
+            for (int i = 0; i < content.Length; i++)
             {
-                // 1. 번호 읽기
-                int commaPos = content.IndexOf(',', pos);
-                if (commaPos == -1) break;
+                char c = content[i];
                 
-                string number = content.Substring(pos, commaPos - pos).Trim();
-                Console.WriteLine($"번호: {number}");
-                pos = commaPos + 1;
-                
-                // 2. 제목 읽기
-                while (pos < content.Length && (content[pos] == ' ' || content[pos] == '\t'))
-                    pos++;
-                
-                if (pos >= content.Length || content[pos] != '"')
+                if (c == '"')
                 {
-                    Console.WriteLine($"❌ 제목 시작 따옴표 없음");
-                    break;
-                }
-                
-                pos++;
-                int titleStart = pos;
-                
-                while (pos < content.Length)
-                {
-                    if (content[pos] == '"')
+                    // 연속된 따옴표 처리 ("" -> ")
+                    if (i + 1 < content.Length && content[i + 1] == '"')
                     {
-                        if (pos + 1 < content.Length && content[pos + 1] == '"')
-                        {
-                            pos += 2;
-                            continue;
-                        }
-                        break;
+                        currentLine.Append('"');
+                        i++; // 다음 따옴표 스킵
                     }
-                    pos++;
-                }
-                
-                string title = content.Substring(titleStart, pos - titleStart)
-                    .Replace("\"\"", "\"")
-                    .Replace("\r", "")
-                    .Replace("\n", " ")
-                    .Trim();
-                Console.WriteLine($"제목: {title}");
-                
-                pos++;
-                
-                while (pos < content.Length && content[pos] != ',')
-                    pos++;
-                pos++;
-                
-                // 3. 설명 읽기
-                while (pos < content.Length && (content[pos] == ' ' || content[pos] == '\t'))
-                    pos++;
-                
-                if (pos >= content.Length || content[pos] != '"')
-                {
-                    Console.WriteLine($"❌ 설명 시작 따옴표 없음");
-                    break;
-                }
-                
-                pos++;
-                int descStart = pos;
-                
-                while (pos < content.Length)
-                {
-                    if (content[pos] == '"')
+                    else
                     {
-                        if (pos + 1 < content.Length && content[pos + 1] == '"')
-                        {
-                            pos += 2;
-                            continue;
-                        }
-                        break;
+                        inQuotes = !inQuotes;
                     }
-                    pos++;
                 }
-                
-                string description = content.Substring(descStart, pos - descStart)
-                    .Replace("\"\"", "\"")
-                    .Replace("\r", "")
-                    .Replace("\n", " ")
-                    .Trim();
-                Console.WriteLine($"설명: {description.Substring(0, Math.Min(50, description.Length))}...");
-                
-                pos++;
-                
-                while (pos < content.Length && content[pos] != ',')
-                    pos++;
-                pos++;
-                
-                // 4. 태그 읽기
-                while (pos < content.Length && (content[pos] == ' ' || content[pos] == '\t'))
-                    pos++;
-                
-                int tagStart = pos;
-                while (pos < content.Length && content[pos] != '\n' && content[pos] != '\r')
+                else if ((c == '\r' || c == '\n') && !inQuotes)
                 {
-                    pos++;
-                }
-                
-                string tags = content.Substring(tagStart, pos - tagStart).Trim();
-                Console.WriteLine($"태그: {tags}");
-                
-                while (pos < content.Length && (content[pos] == '\n' || content[pos] == '\r'))
-                {
-                    pos++;
-                }
-                
-                // 5. 리스트에 추가
-                if (!string.IsNullOrWhiteSpace(title))
-                {
-                    items.Add(new UploadInfoItem
+                    // 따옴표 밖의 개행은 라인 구분자
+                    if (currentLine.Length > 0)
                     {
-                        Title = title,
-                        Description = description,
-                        Tags = tags
-                    });
-                    Console.WriteLine($"✅ 항목 {lineNum} 파싱 성공!");
+                        lines.Add(currentLine.ToString());
+                        currentLine.Clear();
+                    }
+                    
+                    // \r\n 처리
+                    if (c == '\r' && i + 1 < content.Length && content[i + 1] == '\n')
+                    {
+                        i++; // \n 스킵
+                    }
+                }
+                else
+                {
+                    // 따옴표 내부의 개행은 그대로 유지하되 공백으로 변환
+                    if ((c == '\r' || c == '\n') && inQuotes)
+                    {
+                        currentLine.Append(' ');
+                    }
+                    else
+                    {
+                        currentLine.Append(c);
+                    }
                 }
             }
-            catch (Exception ex)
+            
+            // 마지막 라인 추가
+            if (currentLine.Length > 0)
             {
-                Console.WriteLine($"❌ 항목 {lineNum} 파싱 오류: {ex.Message}");
-                break;
+                lines.Add(currentLine.ToString());
+            }
+            
+            Console.WriteLine($"총 {lines.Count}개 라인 파싱됨");
+            
+            // 헤더 스킵 (첫 번째 라인)
+            for (int lineIndex = 1; lineIndex < lines.Count; lineIndex++)
+            {
+                string line = lines[lineIndex].Trim();
+                if (string.IsNullOrEmpty(line)) continue;
+                
+                try
+                {
+                    var fields = ParseCsvLine(line);
+                    
+                    if (fields.Length >= 4)
+                    {
+                        string title = fields[1].Trim('"').Trim();
+                        string description = fields[2].Trim('"').Trim();
+                        string tags = fields[3].Trim();
+                        
+                        if (!string.IsNullOrEmpty(title))
+                        {
+                            items.Add(new UploadInfoItem
+                            {
+                                Title = title,
+                                Description = description,
+                                Tags = tags
+                            });
+                            
+                            Console.WriteLine($"항목 {items.Count}: {title.Substring(0, Math.Min(30, title.Length))}...");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"라인 {lineIndex} 파싱 오류: {ex.Message}");
+                    Console.WriteLine($"문제 라인: {line.Substring(0, Math.Min(100, line.Length))}...");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"CSV 파싱 전체 오류: {ex.Message}");
+        }
+        
+        Console.WriteLine($"최종 파싱 결과: {items.Count}개 항목");
+        return items;
+    }    
+
+
+    // CSV 라인을 필드별로 분리하는 헬퍼 메서드
+    private string[] ParseCsvLine(string line)
+    {
+        var fields = new List<string>();
+        var currentField = new StringBuilder();
+        bool inQuotes = false;
+        
+        for (int i = 0; i < line.Length; i++)
+        {
+            char c = line[i];
+            
+            if (c == '"')
+            {
+                if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
+                {
+                    // 연속된 따옴표는 하나의 따옴표로 처리
+                    currentField.Append('"');
+                    i++; // 다음 따옴표 스킵
+                }
+                else
+                {
+                    inQuotes = !inQuotes;
+                }
+            }
+            else if (c == ',' && !inQuotes)
+            {
+                // 쉼표가 따옴표 밖에 있으면 필드 구분자
+                fields.Add(currentField.ToString());
+                currentField.Clear();
+            }
+            else
+            {
+                currentField.Append(c);
             }
         }
         
-        Console.WriteLine($"\n========================================");
-        Console.WriteLine($"=== 최종: {items.Count}개 항목 파싱 완료 ===");
-        Console.WriteLine($"========================================");
+        // 마지막 필드 추가
+        fields.Add(currentField.ToString());
         
-        return items;
+        return fields.ToArray();
     }
+
 
     // 랜덤으로 하나 뽑기
     private UploadInfoItem GetRandomUploadInfo(string csvContent)
