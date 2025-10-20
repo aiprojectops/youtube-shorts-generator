@@ -13,14 +13,17 @@ public class VideoGenerationService
 {
 private readonly Random _random = new Random();
   public class VideoGenerationOptions
-    {
-        public bool IsGenerateVideo { get; set; } = true;
-        public int VideoCount { get; set; } = 1;
-        public int SelectedDuration { get; set; } = 5;
-        public string SelectedAspectRatio { get; set; } = "9:16";
-        public List<string> CsvPrompts { get; set; } = new();
-        public List<IBrowserFile> LocalVideoFiles { get; set; } = new();
-    }
+  {
+      public bool IsGenerateVideo { get; set; } = true;
+      public int VideoCount { get; set; } = 1;
+      public int SelectedDuration { get; set; } = 5;
+      public string SelectedAspectRatio { get; set; } = "9:16";
+      public List<string> CsvPrompts { get; set; } = new();
+      public List<IBrowserFile> LocalVideoFiles { get; set; } = new();
+      
+      // 🔥 새로 추가: 이미지 파일 리스트
+      public List<IBrowserFile> SelectedImages { get; set; } = new();
+  }
 
     public class PostProcessingOptions
     {
@@ -127,71 +130,123 @@ private readonly Random _random = new Random();
     /// <summary>
     /// AI 영상 생성
     /// </summary>
-    private async Task<VideoGenerationResult> GenerateAIVideoAsync(
-        int videoIndex,
-        VideoGenerationOptions genOptions,
-        PostProcessingOptions postOptions,
-        Action<string> updateStatus)
-    {
-        if (genOptions.CsvPrompts.Count == 0)
-        {
-            throw new Exception("CSV 프롬프트가 로드되지 않았습니다.");
-        }
-
-        string selectedPrompt = genOptions.CsvPrompts[_random.Next(genOptions.CsvPrompts.Count)];
-        updateStatus?.Invoke(selectedPrompt.Length > 50 ? selectedPrompt.Substring(0, 50) + "..." : selectedPrompt);
-
-        string combinedPrompt = ConfigManager.CombinePrompts(selectedPrompt);
-
-        var config = ConfigManager.GetConfig();
-        var replicateClient = new ReplicateClient(config.ReplicateApiKey);
-
-        var request = new ReplicateClient.VideoGenerationRequest
-        {
-            prompt = combinedPrompt,
-            duration = genOptions.SelectedDuration,
-            aspect_ratio = genOptions.SelectedAspectRatio,
-            resolution = "1080p",
-            fps = 24,
-            camera_fixed = true
-        };
-
-        var prediction = await replicateClient.StartVideoGeneration(request);
-
-        var progress = new Progress<ReplicateClient.ProgressInfo>(progressInfo =>
-        {
-            updateStatus?.Invoke($"영상 {videoIndex} - {progressInfo.Status}");
-        });
-
-        var result = await replicateClient.WaitForCompletion(prediction.id, progress);
-
-        if (result.output == null)
-        {
-            throw new Exception("영상 생성 결과를 받지 못했습니다.");
-        }
-
-        string videoUrl = result.output.ToString();
-        string fileName = $"ai_{DateTime.Now:yyyyMMdd_HHmmss}_{videoIndex:D2}.mp4";
-        string localPath = await DownloadVideoAsync(videoUrl, fileName);
-
-        string finalPath = localPath;
-        if (postOptions.EnablePostProcessing && (postOptions.AddCaption || postOptions.AddBackgroundMusic))
-        {
-            string processedPath = await ProcessVideoAsync(localPath, selectedPrompt, postOptions, updateStatus);
-            if (File.Exists(localPath)) File.Delete(localPath);
-            finalPath = processedPath;
-        }
-
-        return new VideoGenerationResult
-        {
-            Success = true,
-            VideoPath = finalPath,
-            FileName = Path.GetFileName(finalPath),
-            Prompt = selectedPrompt,
-            CombinedPrompt = combinedPrompt,
-            VideoUrl = videoUrl
-        };
-    }
+    // VideoGenerationService.cs의 GenerateAIVideoAsync 메서드 수정
+  private async Task<VideoGenerationResult> GenerateAIVideoAsync(
+      int videoIndex,
+      VideoGenerationOptions genOptions,
+      PostProcessingOptions postOptions,
+      Action<string> updateStatus)
+  {
+      if (genOptions.CsvPrompts.Count == 0)
+      {
+          throw new Exception("CSV 프롬프트가 로드되지 않았습니다.");
+      }
+  
+      string selectedPrompt = genOptions.CsvPrompts[_random.Next(genOptions.CsvPrompts.Count)];
+      updateStatus?.Invoke(selectedPrompt.Length > 50 ? selectedPrompt.Substring(0, 50) + "..." : selectedPrompt);
+  
+      string combinedPrompt = ConfigManager.CombinePrompts(selectedPrompt);
+  
+      var config = ConfigManager.GetConfig();
+      var replicateClient = new ReplicateClient(config.ReplicateApiKey);
+  
+      // 🔥 이미지 처리 로직 추가
+      string imageBase64 = null;
+      if (genOptions.SelectedImages.Count > 0)
+      {
+          try
+          {
+              // 랜덤하게 이미지 선택
+              var selectedImage = genOptions.SelectedImages[_random.Next(genOptions.SelectedImages.Count)];
+              
+              updateStatus?.Invoke($"이미지 처리 중: {selectedImage.Name}");
+              Console.WriteLine($"=== 선택된 이미지: {selectedImage.Name} ({VideoGenerationService.FormatFileSize(selectedImage.Size)})");
+  
+              // 이미지를 Base64로 변환
+              using var imageStream = selectedImage.OpenReadStream(10 * 1024 * 1024); // 10MB 제한
+              using var memoryStream = new MemoryStream();
+              await imageStream.CopyToAsync(memoryStream);
+              byte[] imageBytes = memoryStream.ToArray();
+              
+              string mimeType = selectedImage.ContentType;
+              if (string.IsNullOrEmpty(mimeType))
+              {
+                  // 확장자로 MIME 타입 추정
+                  string extension = Path.GetExtension(selectedImage.Name).ToLower();
+                  mimeType = extension switch
+                  {
+                      ".jpg" or ".jpeg" => "image/jpeg",
+                      ".png" => "image/png",
+                      ".gif" => "image/gif",
+                      ".webp" => "image/webp",
+                      _ => "image/jpeg"
+                  };
+              }
+              
+              imageBase64 = $"data:{mimeType};base64,{Convert.ToBase64String(imageBytes)}";
+              Console.WriteLine($"=== 이미지 Base64 변환 완료: {imageBase64.Length}자");
+          }
+          catch (Exception ex)
+          {
+              Console.WriteLine($"=== 이미지 처리 실패: {ex.Message}");
+              updateStatus?.Invoke("이미지 처리 실패, 텍스트만으로 진행...");
+              // 이미지 처리 실패해도 텍스트로 계속 진행
+          }
+      }
+  
+      var request = new ReplicateClient.VideoGenerationRequest
+      {
+          prompt = combinedPrompt,
+          image = imageBase64, // 🔥 이미지 추가
+          duration = genOptions.SelectedDuration,
+          aspect_ratio = genOptions.SelectedAspectRatio,
+          resolution = "1080p",
+          fps = 24,
+          camera_fixed = true
+      };
+  
+      Console.WriteLine($"=== Replicate 요청 생성:");
+      Console.WriteLine($"    프롬프트: {combinedPrompt}");
+      Console.WriteLine($"    이미지: {(imageBase64 != null ? "포함됨" : "없음")}");
+      Console.WriteLine($"    시간: {genOptions.SelectedDuration}초");
+      Console.WriteLine($"    비율: {genOptions.SelectedAspectRatio}");
+  
+      var prediction = await replicateClient.StartVideoGeneration(request);
+  
+      var progress = new Progress<ReplicateClient.ProgressInfo>(progressInfo =>
+      {
+          updateStatus?.Invoke($"영상 {videoIndex} - {progressInfo.Status}");
+      });
+  
+      var result = await replicateClient.WaitForCompletion(prediction.id, progress);
+  
+      if (result.output == null)
+      {
+          throw new Exception("영상 생성 결과를 받지 못했습니다.");
+      }
+  
+      string videoUrl = result.output.ToString();
+      string fileName = $"ai_{DateTime.Now:yyyyMMdd_HHmmss}_{videoIndex:D2}.mp4";
+      string localPath = await DownloadVideoAsync(videoUrl, fileName);
+  
+      string finalPath = localPath;
+      if (postOptions.EnablePostProcessing && (postOptions.AddCaption || postOptions.AddBackgroundMusic))
+      {
+          string processedPath = await ProcessVideoAsync(localPath, selectedPrompt, postOptions, updateStatus);
+          if (File.Exists(localPath)) File.Delete(localPath);
+          finalPath = processedPath;
+      }
+  
+      return new VideoGenerationResult
+      {
+          Success = true,
+          VideoPath = finalPath,
+          FileName = Path.GetFileName(finalPath),
+          Prompt = selectedPrompt,
+          CombinedPrompt = combinedPrompt,
+          VideoUrl = videoUrl
+      };
+  }
 
     /// <summary>
     /// 영상 다운로드
