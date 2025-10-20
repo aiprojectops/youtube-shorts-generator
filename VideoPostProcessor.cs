@@ -376,15 +376,12 @@ namespace YouTubeShortsWebApp
             }
         }
 
+        // VideoPostProcessor.cs에서 FFmpeg 타임아웃 늘리기
         private static async Task RunFFmpegAsync(string arguments)
         {
             try
             {
                 Console.WriteLine($"=== FFmpeg 실행 시작");
-                Console.WriteLine($"=== FFmpeg 경로: {FFmpegPath}");
-                Console.WriteLine($"=== 명령어: {arguments}");
-                Console.WriteLine($"=== 현재 시간: {DateTime.Now}");
-
                 var process = new Process
                 {
                     StartInfo = new ProcessStartInfo
@@ -398,29 +395,21 @@ namespace YouTubeShortsWebApp
                         WorkingDirectory = Path.GetTempPath()
                     }
                 };
-
-                Console.WriteLine("=== 프로세스 시작");
+        
                 process.Start();
-
-                // 실시간 출력 읽기
-                var outputTask = process.StandardOutput.ReadToEndAsync();
-                var errorTask = process.StandardError.ReadToEndAsync();
-
-                // 진행률 표시 개선 부분이 여기에 들어갑니다
                 var startTime = DateTime.Now;
                 var processTask = process.WaitForExitAsync();
-                var maxTimeout = TimeSpan.FromMinutes(5);
-
-                Console.WriteLine("=== 프로세스 대기 시작 (최대 5분)");
-
-                // 10초마다 진행률 체크하는 루프
+                
+                // 🔥 3분에서 10분으로 타임아웃 늘리기
+                var maxTimeout = TimeSpan.FromMinutes(10);
+        
                 while (!processTask.IsCompleted)
                 {
                     var elapsed = DateTime.Now - startTime;
-
+        
                     if (elapsed >= maxTimeout)
                     {
-                        Console.WriteLine("=== 5분 타임아웃 발생!");
+                        Console.WriteLine("=== 10분 타임아웃 발생!");
                         try
                         {
                             if (!process.HasExited)
@@ -433,46 +422,30 @@ namespace YouTubeShortsWebApp
                         {
                             Console.WriteLine($"=== 프로세스 종료 실패: {killEx.Message}");
                         }
-                        throw new TimeoutException("FFmpeg 실행이 5분을 초과했습니다.");
+                        throw new TimeoutException("FFmpeg 실행이 10분을 초과했습니다.");
                     }
-
-                    // 10초마다 진행 상황 로그
-                    if (elapsed.TotalSeconds % 10 == 0 || elapsed.TotalSeconds < 1)
+        
+                    // 30초마다 진행 상황 로그 (더 자주)
+                    if (elapsed.TotalSeconds % 30 == 0 || elapsed.TotalSeconds < 1)
                     {
                         Console.WriteLine($"=== FFmpeg 진행 중... ({elapsed.TotalSeconds:F0}초 경과)");
                     }
-
-                    await Task.Delay(1000); // 1초 대기
+        
+                    await Task.Delay(1000);
                 }
-
-                // 출력 읽기
-                string output = await outputTask;
-                string error = await errorTask;
-
-                Console.WriteLine($"=== 프로세스 완료. 종료 코드: {process.ExitCode}");
-                Console.WriteLine($"=== 완료 시간: {DateTime.Now}");
-
-                if (!string.IsNullOrEmpty(output))
-                {
-                    Console.WriteLine($"=== 표준 출력: {output.Substring(0, Math.Min(500, output.Length))}");
-                }
-
-                if (!string.IsNullOrEmpty(error))
-                {
-                    Console.WriteLine($"=== 에러 출력: {error.Substring(0, Math.Min(500, error.Length))}");
-                }
-
+        
+                // 나머지 로직...
                 if (process.ExitCode != 0)
                 {
+                    string error = await process.StandardError.ReadToEndAsync();
                     throw new Exception($"FFmpeg 오류 (종료코드: {process.ExitCode}): {error}");
                 }
-
+        
                 Console.WriteLine("=== FFmpeg 실행 성공");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"=== RunFFmpegAsync 오류: {ex.Message}");
-                Console.WriteLine($"=== 오류 시간: {DateTime.Now}");
                 throw;
             }
         }
