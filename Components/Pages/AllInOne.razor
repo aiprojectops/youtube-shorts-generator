@@ -1533,27 +1533,18 @@
             return;
         }
     
-        // 🔥 즉시 업로드 + 후처리 시 경고 및 선택 추가
+        // 🔥 즉시 업로드 + 후처리 시 경고만 표시 (선택사항)
         if (!isScheduleUpload && postOptions.EnablePostProcessing)
         {
             bool proceed = await JSRuntime.InvokeAsync<bool>("confirm",
-                "⚠️ 즉시 업로드 + 후처리는 시간이 오래 걸려 연결이 끊어질 수 있습니다.\n\n" +
-                "선택해주세요:\n\n" +
-                "• [확인] → 후처리 없이 즉시 업로드 (빠름)\n" +
-                "• [취소] → 스케줄 업로드로 변경 (안전)\n\n" +
-                "후처리 없이 즉시 업로드하시겠습니까?");
+                "⚠️ 즉시 업로드 + 후처리 모드입니다.\n\n" +
+                "후처리 과정에서 시간이 오래 걸릴 수 있습니다.\n" +
+                "연결이 끊어지면 스케줄 업로드를 이용해주세요.\n\n" +
+                "• [확인] → 설정한 대로 후처리 포함하여 진행\n" +
+                "• [취소] → 스케줄 업로드로 변경\n\n" +
+                "후처리 포함하여 즉시 업로드하시겠습니까?");
             
-            if (proceed)
-            {
-                // 후처리 비활성화
-                postOptions.EnablePostProcessing = false;
-                StateHasChanged();
-                
-                await JSRuntime.InvokeVoidAsync("alert", 
-                    "✅ 후처리가 비활성화되었습니다.\n\n" +
-                    "빠른 업로드를 진행합니다!");
-            }
-            else
+            if (!proceed)
             {
                 // 스케줄 업로드로 변경
                 isScheduleUpload = true;
@@ -1565,6 +1556,11 @@
                     "후처리 포함하여 안전하게 업로드됩니다!");
                 return;
             }
+            
+            // [확인] 선택 시 설정한 후처리 그대로 진행
+            await JSRuntime.InvokeVoidAsync("alert", 
+                "✅ 설정한 후처리를 포함하여 즉시 업로드를 진행합니다!\n\n" +
+                "⏱️ 시간이 오래 걸릴 수 있으니 잠시만 기다려주세요.");
         }
     
         if (postOptions.EnablePostProcessing)
