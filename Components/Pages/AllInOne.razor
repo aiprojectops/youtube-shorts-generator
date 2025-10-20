@@ -1533,6 +1533,40 @@
             return;
         }
     
+        // 🔥 즉시 업로드 + 후처리 시 경고 및 선택 추가
+        if (!isScheduleUpload && postOptions.EnablePostProcessing)
+        {
+            bool proceed = await JSRuntime.InvokeAsync<bool>("confirm",
+                "⚠️ 즉시 업로드 + 후처리는 시간이 오래 걸려 연결이 끊어질 수 있습니다.\n\n" +
+                "선택해주세요:\n\n" +
+                "• [확인] → 후처리 없이 즉시 업로드 (빠름)\n" +
+                "• [취소] → 스케줄 업로드로 변경 (안전)\n\n" +
+                "후처리 없이 즉시 업로드하시겠습니까?");
+            
+            if (proceed)
+            {
+                // 후처리 비활성화
+                postOptions.EnablePostProcessing = false;
+                StateHasChanged();
+                
+                await JSRuntime.InvokeVoidAsync("alert", 
+                    "✅ 후처리가 비활성화되었습니다.\n\n" +
+                    "빠른 업로드를 진행합니다!");
+            }
+            else
+            {
+                // 스케줄 업로드로 변경
+                isScheduleUpload = true;
+                UpdateSchedulePreview(); // 스케줄 미리보기 업데이트
+                StateHasChanged();
+                
+                await JSRuntime.InvokeVoidAsync("alert", 
+                    "✅ 스케줄 업로드로 변경되었습니다.\n\n" +
+                    "후처리 포함하여 안전하게 업로드됩니다!");
+                return;
+            }
+        }
+    
         if (postOptions.EnablePostProcessing)
         {
             if (postOptions.AddCaption && postOptions.UseRandomCaption && postOptions.CaptionCsvList.Count == 0)
@@ -1546,7 +1580,7 @@
                 await JSRuntime.InvokeVoidAsync("alert", "캡션 텍스트를 입력해주세요.");
                 return;
             }
-        
+    
             bool ffmpegAvailable = await VideoPostProcessor.IsFFmpegAvailableAsync();
             if (!ffmpegAvailable)
             {
@@ -1584,8 +1618,6 @@
     
                 currentProgress = 100;
                 statusMessage = "스케줄 등록 완료";
-                // ❌ resultMessage는 여기서 설정하지 않음!
-                // resultMessage = $"{totalVideos}개 영상이 스케줄에 등록되었습니다. (업로드 5분 전 자동 생성)";
                 hasActiveSchedule = true;
                 StartScheduleStatusTracking();
             }
@@ -1642,8 +1674,6 @@
     
                     currentProgress = 100;
                     statusMessage = "업로드 진행 중...";
-                    // ❌ resultMessage는 여기서도 설정하지 않음!
-                    // resultMessage = $"{generatedVideos.Count}개 영상이 생성되고 즉시 업로드되었습니다.";
                 }
             }
             // 🔥 로컬 파일 모드
@@ -1700,15 +1730,8 @@
     
                     if (isScheduleUpload)
                     {
-                        // ❌ resultMessage는 여기서도 설정하지 않음!
-                        // resultMessage = $"{generatedVideos.Count}개 영상이 처리되고 YouTube 스케줄에 등록되었습니다.";
                         hasActiveSchedule = true;
                         StartScheduleStatusTracking();
-                    }
-                    else
-                    {
-                        // ❌ resultMessage는 여기서도 설정하지 않음!
-                        // resultMessage = $"{generatedVideos.Count}개 영상이 처리되고 즉시 업로드되었습니다.";
                     }
                 }
             }
