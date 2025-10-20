@@ -18,7 +18,6 @@
 <div class="container">
     <div class="row">
         <div class="col-md-10">
-
             <!-- 1. 영상 생성 설정 -->
             <div class="card mb-4">
                 <div class="card-header bg-primary text-white">
@@ -39,6 +38,7 @@
                             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                         </div>
                     }
+                    
                     <!-- 영상 소스 선택 -->
                     <div class="mb-4">
                         <label class="form-label"><strong>영상 소스:</strong></label>
@@ -57,7 +57,7 @@
                             </label>
                         </div>
                     </div>
-
+            
                     @if (genOptions.IsGenerateVideo)
                     {
                         <!-- AI 영상 생성 옵션들 -->
@@ -65,7 +65,7 @@
                             <div class="col-md-4">
                                 <label class="form-label"><strong>생성할 영상 개수: @genOptions.VideoCount 개</strong></label>
                                 <input type="range" class="form-range" min="1" max="70" step="1" value="@genOptions.VideoCount" @oninput="OnVideoCountInput" disabled="@(isRunning || hasActiveSchedule)" />
-                                    <small class="text-muted">1~10: 1개 단위, 11~70: 5개 단위</small>
+                                <small class="text-muted">1~10: 1개 단위, 11~70: 5개 단위</small>
                                 <div class="text-primary">총 예상 비용: $@totalCost</div>
                             </div>
                             <div class="col-md-4">
@@ -84,13 +84,40 @@
                                 </div>
                             </div>
                         </div>
-
+            
+                        <!-- 🔥 새로 추가: 이미지 업로드 옵션 -->
+                        <div class="mb-3">
+                            <label class="form-label"><strong>기준 이미지 (선택사항):</strong></label>
+                            <InputFile OnChange="HandleImageFileSelection" accept="image/*" multiple class="form-control" disabled="@(isRunning || hasActiveSchedule)" />
+                            <div class="form-text">이미지를 기반으로 영상을 생성합니다. 여러 이미지 선택 가능 (각 최대 10MB, JPG/PNG)</div>
+            
+                            @if (genOptions.SelectedImages.Count > 0)
+                            {
+                                <div class="mt-2 alert alert-success">
+                                    <strong>선택된 이미지:</strong> @genOptions.SelectedImages.Count 개
+                                    <ul class="mb-0 mt-2">
+                                        @foreach (var image in genOptions.SelectedImages.Take(5))
+                                        {
+                                            <li>@image.Name (@VideoGenerationService.FormatFileSize(image.Size))</li>
+                                        }
+                                        @if (genOptions.SelectedImages.Count > 5)
+                                        {
+                                            <li>... 외 @(genOptions.SelectedImages.Count - 5)개 더</li>
+                                        }
+                                    </ul>
+                                    <button type="button" class="btn btn-sm btn-outline-danger mt-2" @onclick="ClearSelectedImages" disabled="@(isRunning || hasActiveSchedule)">
+                                        🗑️ 이미지 초기화
+                                    </button>
+                                </div>
+                            }
+                        </div>
+            
                         <!-- CSV 파일 업로드 -->
                         <div class="mb-3">
                             <label class="form-label"><strong>랜덤 프롬프트 CSV 파일:</strong></label>
                             <InputFile OnChange="HandleCsvFileSelection" accept=".csv" class="form-control" disabled="@(isRunning || hasActiveSchedule)" />
                             <div class="form-text">CSV 파일 형식: 첫 번째 열은 번호, 두 번째 열은 프롬프트 내용</div>
-
+            
                             @if (genOptions.CsvPrompts.Count > 0)
                             {
                                 <div class="mt-2 alert alert-success">
@@ -109,7 +136,7 @@
                             <label class="form-label"><strong>로컬 영상 파일들:</strong></label>
                             <InputFile OnChange="HandleLocalVideoSelection" accept="video/*" multiple class="form-control" disabled="@(isRunning || hasActiveSchedule)" />
                             <div class="form-text">하나 또는 여러 개의 비디오 파일을 선택하세요 (각각 최대 2GB)</div>
-
+            
                             @if (genOptions.LocalVideoFiles.Count > 0)
                             {
                                 <div class="mt-2 alert alert-success">
@@ -130,6 +157,7 @@
                     }
                 </div>
             </div>
+            
 
             <!-- 2. 후처리 설정 -->
             <div class="card mb-4">
@@ -771,6 +799,67 @@
     {
         return genOptions.SelectedAspectRatio == ratio ? "btn-success" : "btn-outline-success";
     }
+
+
+
+    // 🔥 이미지 파일 선택 처리
+    private async Task HandleImageFileSelection(InputFileChangeEventArgs e)
+    {
+        genOptions.SelectedImages.Clear();
+        
+        var files = e.GetMultipleFiles(10); // 최대 10개 이미지
+        
+        try
+        {
+            const long maxSize = 10 * 1024 * 1024; // 10MB
+            
+            foreach (var file in files)
+            {
+                if (file.Size > maxSize)
+                {
+                    await JSRuntime.InvokeVoidAsync("alert", $"{file.Name}이 너무 큽니다. 10MB 이하만 가능합니다.");
+                    continue;
+                }
+    
+                // 이미지 파일 형식 확인
+                string[] supportedTypes = { "image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp" };
+                if (!supportedTypes.Contains(file.ContentType.ToLower()) && 
+                    !file.Name.ToLower().EndsWith(".jpg") && 
+                    !file.Name.ToLower().EndsWith(".jpeg") && 
+                    !file.Name.ToLower().EndsWith(".png") && 
+                    !file.Name.ToLower().EndsWith(".gif") && 
+                    !file.Name.ToLower().EndsWith(".webp"))
+                {
+                    await JSRuntime.InvokeVoidAsync("alert", $"{file.Name}은 지원되지 않는 이미지 형식입니다.\n지원 형식: JPG, PNG, GIF, WebP");
+                    continue;
+                }
+                
+                genOptions.SelectedImages.Add(file);
+            }
+            
+            Console.WriteLine($"=== 선택된 이미지: {genOptions.SelectedImages.Count}개");
+            foreach (var img in genOptions.SelectedImages)
+            {
+                Console.WriteLine($"    - {img.Name} ({VideoGenerationService.FormatFileSize(img.Size)})");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"이미지 파일 선택 오류: {ex.Message}");
+            genOptions.SelectedImages.Clear();
+        }
+    
+        StateHasChanged();
+    }
+    
+    // 🔥 선택된 이미지 초기화
+    private void ClearSelectedImages()
+    {
+        genOptions.SelectedImages.Clear();
+        Console.WriteLine("=== 선택된 이미지 초기화됨");
+        StateHasChanged();
+    }
+
 
     // 🔥 스냅 로직이 적용된 입력 핸들러들
     private void OnVideoCountInput(ChangeEventArgs e)
