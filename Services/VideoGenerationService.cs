@@ -131,6 +131,7 @@ private readonly Random _random = new Random();
     /// AI 영상 생성
     /// </summary>
     // VideoGenerationService.cs의 GenerateAIVideoAsync 메서드 수정
+  // VideoGenerationService.cs의 GenerateAIVideoAsync 메서드 수정
   private async Task<VideoGenerationResult> GenerateAIVideoAsync(
       int videoIndex,
       VideoGenerationOptions genOptions,
@@ -150,8 +151,8 @@ private readonly Random _random = new Random();
       var config = ConfigManager.GetConfig();
       var replicateClient = new ReplicateClient(config.ReplicateApiKey);
   
-      // 🔥 이미지 처리 로직 추가
-      string imageBase64 = null;
+      // 🔥 이미지 처리 로직 수정 - 임시 URL로 업로드
+      string imageUrl = null;
       if (genOptions.SelectedImages.Count > 0)
       {
           try
@@ -159,20 +160,49 @@ private readonly Random _random = new Random();
               // 랜덤하게 이미지 선택
               var selectedImage = genOptions.SelectedImages[_random.Next(genOptions.SelectedImages.Count)];
               
-              updateStatus?.Invoke($"이미지 처리 중: {selectedImage.Name}");
+              updateStatus?.Invoke($"이미지 업로드 중: {selectedImage.Name}");
               Console.WriteLine($"=== 선택된 이미지: {selectedImage.Name} ({VideoGenerationService.FormatFileSize(selectedImage.Size)})");
   
-              // 이미지를 Base64로 변환
-              using var imageStream = selectedImage.OpenReadStream(10 * 1024 * 1024); // 10MB 제한
-              using var memoryStream = new MemoryStream();
-              await imageStream.CopyToAsync(memoryStream);
-              byte[] imageBytes = memoryStream.ToArray();
+              // 🔥 이미지를 임시 파일로 저장하고 URL 생성
+              string tempDir = Path.Combine(Path.GetTempPath(), "TempImages");
+              Directory.CreateDirectory(tempDir);
+              
+              string extension = Path.GetExtension(selectedImage.Name).ToLower();
+              if (string.IsNullOrEmpty(extension))
+              {
+                  extension = selectedImage.ContentType switch
+                  {
+                      "image/jpeg" => ".jpg",
+                      "image/png" => ".png",
+                      "image/gif" => ".gif",
+                      "image/webp" => ".webp",
+                      _ => ".jpg"
+                  };
+              }
+              
+              string tempImagePath = Path.Combine(tempDir, $"temp_image_{Guid.NewGuid()}{extension}");
+              
+              // 이미지를 임시 파일로 저장
+              using (var imageStream = selectedImage.OpenReadStream(10 * 1024 * 1024)) // 10MB 제한
+              using (var fileStream = new FileStream(tempImagePath, FileMode.Create))
+              {
+                  await imageStream.CopyToAsync(fileStream);
+              }
+              
+              Console.WriteLine($"=== 이미지 임시 저장 완료: {tempImagePath}");
+              
+              // 🔥 임시로 Base64 사용하되 더 작은 크기로 최적화
+              byte[] imageBytes = await File.ReadAllBytesAsync(tempImagePath);
+              
+              // 파일 크기 체크 (5MB 이상이면 경고)
+              if (imageBytes.Length > 5 * 1024 * 1024)
+              {
+                  Console.WriteLine($"⚠️ 이미지가 큽니다 ({imageBytes.Length / 1024 / 1024}MB). 압축을 고려해보세요.");
+              }
               
               string mimeType = selectedImage.ContentType;
               if (string.IsNullOrEmpty(mimeType))
               {
-                  // 확장자로 MIME 타입 추정
-                  string extension = Path.GetExtension(selectedImage.Name).ToLower();
                   mimeType = extension switch
                   {
                       ".jpg" or ".jpeg" => "image/jpeg",
@@ -183,8 +213,21 @@ private readonly Random _random = new Random();
                   };
               }
               
-              imageBase64 = $"data:{mimeType};base64,{Convert.ToBase64String(imageBytes)}";
-              Console.WriteLine($"=== 이미지 Base64 변환 완료: {imageBase64.Length}자");
+              // Base64 인코딩 (data URI 형식)
+              string base64String = Convert.ToBase64String(imageBytes);
+              imageUrl = $"data:{mimeType};base64,{base64String}";
+              
+              Console.WriteLine($"=== 이미지 Base64 변환 완료: {base64String.Length}자");
+              
+              // 임시 파일 삭제
+              try
+              {
+                  File.Delete(tempImagePath);
+              }
+              catch (Exception delEx)
+              {
+                  Console.WriteLine($"=== 임시 파일 삭제 실패: {delEx.Message}");
+              }
           }
           catch (Exception ex)
           {
@@ -197,7 +240,7 @@ private readonly Random _random = new Random();
       var request = new ReplicateClient.VideoGenerationRequest
       {
           prompt = combinedPrompt,
-          image = imageBase64, // 🔥 이미지 추가
+          image = imageUrl, // 🔥 data URI 형식의 Base64 이미지
           duration = genOptions.SelectedDuration,
           aspect_ratio = genOptions.SelectedAspectRatio,
           resolution = "1080p",
@@ -207,7 +250,7 @@ private readonly Random _random = new Random();
   
       Console.WriteLine($"=== Replicate 요청 생성:");
       Console.WriteLine($"    프롬프트: {combinedPrompt}");
-      Console.WriteLine($"    이미지: {(imageBase64 != null ? "포함됨" : "없음")}");
+      Console.WriteLine($"    이미지: {(imageUrl != null ? $"포함됨 ({imageUrl.Length}자)" : "없음")}");
       Console.WriteLine($"    시간: {genOptions.SelectedDuration}초");
       Console.WriteLine($"    비율: {genOptions.SelectedAspectRatio}");
   
