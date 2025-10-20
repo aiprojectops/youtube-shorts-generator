@@ -409,9 +409,9 @@ namespace YouTubeShortsWebApp
                 // 진행률 표시 개선 부분이 여기에 들어갑니다
                 var startTime = DateTime.Now;
                 var processTask = process.WaitForExitAsync();
-                var maxTimeout = TimeSpan.FromMinutes(3);
+                var maxTimeout = TimeSpan.FromMinutes(5);
 
-                Console.WriteLine("=== 프로세스 대기 시작 (최대 3분)");
+                Console.WriteLine("=== 프로세스 대기 시작 (최대 5분)");
 
                 // 10초마다 진행률 체크하는 루프
                 while (!processTask.IsCompleted)
@@ -420,7 +420,7 @@ namespace YouTubeShortsWebApp
 
                     if (elapsed >= maxTimeout)
                     {
-                        Console.WriteLine("=== 3분 타임아웃 발생!");
+                        Console.WriteLine("=== 5분 타임아웃 발생!");
                         try
                         {
                             if (!process.HasExited)
@@ -433,7 +433,7 @@ namespace YouTubeShortsWebApp
                         {
                             Console.WriteLine($"=== 프로세스 종료 실패: {killEx.Message}");
                         }
-                        throw new TimeoutException("FFmpeg 실행이 3분을 초과했습니다.");
+                        throw new TimeoutException("FFmpeg 실행이 5분을 초과했습니다.");
                     }
 
                     // 10초마다 진행 상황 로그
