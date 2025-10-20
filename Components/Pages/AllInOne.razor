@@ -326,9 +326,16 @@
                             <div class="form-text">
                                 CSV 파일 형식: 1열(번호), 2열(제목), 3열(설명), 4열(태그)
                                 <br />
-                                예시: 1, "제목 예시", "설명 예시", "태그1, 태그2, 태그3"
+                                예시: 1, "제목 예시", "설명 예시", "#태그1, #태그2, #태그3"
                             </div>
-            
+                            
+                            <!-- 쉼표 사용 금지 경고 -->
+                            <div class="alert alert-warning mt-2 py-2">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <strong>중요:</strong> 제목과 설명에는 <span class="text-danger fw-bold">쉼표(,) 사용을 금지</span>합니다. 
+                                쉼표 대신 <span class="text-primary">마침표(.), 슬래쉬(/), 세미콜론(;), 또는 줄표(-)</span>를 사용해주세요.
+                            </div>
+                        
                             @if (uploadInfoCsvList.Count > 0)
                             {
                                 <div class="mt-2 alert alert-success">
