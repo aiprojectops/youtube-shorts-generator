@@ -158,7 +158,6 @@ namespace YouTubeShortsWebApp
                     throw new Exception("YouTube API 클라이언트 ID와 시크릿이 설정되지 않았습니다.");
                 }
         
-                // 🔥 안전한 파일 저장소 사용
                 var dataStore = new SafeFileDataStore("/tmp/youtube_tokens");
         
                 var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
@@ -559,40 +558,6 @@ namespace YouTubeShortsWebApp
         public void Dispose()
         {
             youtubeService?.Dispose();
-        }
-    }
-}
-
-    // 메모리 데이터 저장소 클래스
-    public class MemoryDataStore : IDataStore
-    {
-        private static readonly ConcurrentDictionary<string, object> _store = new();
-
-        public Task StoreAsync<T>(string key, T value)
-        {
-            _store[key] = value;
-            return Task.CompletedTask;
-        }
-
-        public Task DeleteAsync<T>(string key)
-        {
-            _store.TryRemove(key, out _);
-            return Task.CompletedTask;
-        }
-
-        public Task<T> GetAsync<T>(string key)
-        {
-            if (_store.TryGetValue(key, out object value) && value is T)
-            {
-                return Task.FromResult((T)value);
-            }
-            return Task.FromResult(default(T));
-        }
-
-        public Task ClearAsync()
-        {
-            _store.Clear();
-            return Task.CompletedTask;
         }
     }
 }
