@@ -4,6 +4,7 @@
 @using YouTubeShortsWebApp
 @using YouTubeShortsWebApp.Services
 @using System.Text
+@using System.Text.Json
 @inject IJSRuntime JSRuntime
 @inject ScheduledUploadService ScheduledUploadService
 @inject VideoGenerationService VideoGenService
@@ -698,7 +699,10 @@
 }
 
 
-<!-- ----------------------code ------------------------ -->
+
+
+
+<!-- --------------------------------------------------code -------------------------------------------------------- -->
 
 @code {
     // 🔥 서비스의 Options 클래스 사용
