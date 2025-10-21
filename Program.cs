@@ -1,6 +1,8 @@
 using YouTubeShortsWebApp;
 using YouTubeShortsWebApp.Components;
 using YouTubeShortsWebApp.Services;
+using Microsoft.AspNetCore.Server.Kestrel.Core;  // KestrelServerOptions용
+using Microsoft.AspNetCore.Http.Features;        // FormOptions용
 
 var builder = WebApplication.CreateBuilder(args);
 
