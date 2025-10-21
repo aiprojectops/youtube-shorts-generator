@@ -130,14 +130,12 @@ private readonly Random _random = new Random();
     /// <summary>
     /// AI 영상 생성
     /// </summary>
-    // VideoGenerationService.cs의 GenerateAIVideoAsync 메서드 수정
-  // VideoGenerationService.cs의 GenerateAIVideoAsync 메서드 수정
-  private async Task<VideoGenerationResult> GenerateAIVideoAsync(
-    int videoIndex,
-    VideoGenerationOptions genOptions,
-    PostProcessingOptions postOptions,
-    Action<string> updateStatus)
-  {
+    private async Task<VideoGenerationResult> GenerateAIVideoAsync(
+        int videoIndex,
+        VideoGenerationOptions genOptions,
+        PostProcessingOptions postOptions,
+        Action<string> updateStatus)
+    {
         if (genOptions.CsvPrompts.Count == 0)
         {
             throw new Exception("CSV 프롬프트가 로드되지 않았습니다.");
@@ -151,149 +149,147 @@ private readonly Random _random = new Random();
         var config = ConfigManager.GetConfig();
         var replicateClient = new ReplicateClient(config.ReplicateApiKey);
     
-            // 🔥 이미지 처리 로직 - 파일 크기 제한 및 최적화
-      string imageUrl = null;
-      if (genOptions.SelectedImages.Count > 0)
-      {
-          try
-          {
-              var selectedImage = genOptions.SelectedImages[_random.Next(genOptions.SelectedImages.Count)];
-              
-              // 🔥 5MB 제한 (Base64 인코딩 시 약 33% 증가하므로 원본 3.75MB 제한)
-              const long maxImageSize = 3 * 1024 * 1024; // 3MB
-              
-              if (selectedImage.Size > maxImageSize)
-              {
-                  Console.WriteLine($"⚠️ 이미지가 너무 큽니다 ({selectedImage.Size / 1024 / 1024}MB). 건너뜁니다.");
-                  updateStatus?.Invoke("이미지가 너무 커서 건너뜁니다. (3MB 이하만 지원)");
-              }
-              else
-              {
-                  updateStatus?.Invoke($"이미지 처리 중: {selectedImage.Name}");
-                  
-                  string tempDir = Path.Combine(Path.GetTempPath(), "TempImages");
-                  Directory.CreateDirectory(tempDir);
-                  
-                  string extension = Path.GetExtension(selectedImage.Name).ToLower();
-                  if (string.IsNullOrEmpty(extension))
-                  {
-                      extension = ".jpg";
-                  }
-                  
-                  string tempImagePath = Path.Combine(tempDir, $"temp_image_{Guid.NewGuid()}{extension}");
-                  
-                  // 🔥 메모리 효율적으로 읽기
-                  using (var imageStream = selectedImage.OpenReadStream(maxImageSize))
-                  using (var fileStream = new FileStream(tempImagePath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true))
-                  {
-                      await imageStream.CopyToAsync(fileStream);
-                  }
-                  
-                  Console.WriteLine($"=== 이미지 임시 저장 완료: {tempImagePath}");
-                  
-                  try
-                  {
-                      // Base64 인코딩
-                      byte[] imageBytes = await File.ReadAllBytesAsync(tempImagePath);
-                      string mimeType = selectedImage.ContentType;
-                      if (string.IsNullOrEmpty(mimeType))
-                      {
-                          mimeType = extension switch
-                          {
-                              ".jpg" or ".jpeg" => "image/jpeg",
-                              ".png" => "image/png",
-                              ".gif" => "image/gif",
-                              ".webp" => "image/webp",
-                              _ => "image/jpeg"
-                          };
-                      }
-                      
-                      string base64String = Convert.ToBase64String(imageBytes);
-                      imageUrl = $"data:{mimeType};base64,{base64String}";
-                      
-                      Console.WriteLine($"=== 이미지 Base64 변환 완료: {base64String.Length}자");
-                      
-                      // 🔥 즉시 메모리 해제
-                      imageBytes = null;
-                      GC.Collect();
-                  }
-                  finally
-                  {
-                      // 임시 파일 삭제
-                      try
-                      {
-                          if (File.Exists(tempImagePath))
-                          {
-                              File.Delete(tempImagePath);
-                          }
-                      }
-                      catch (Exception delEx)
-                      {
-                          Console.WriteLine($"=== 임시 파일 삭제 실패: {delEx.Message}");
-                      }
-                  }
-              }
-          }
-          catch (Exception ex)
-          {
-              Console.WriteLine($"=== 이미지 처리 실패: {ex.Message}");
-              updateStatus?.Invoke("이미지 처리 실패, 텍스트만으로 진행...");
-          }
-      }
-  
-      var request = new ReplicateClient.VideoGenerationRequest
-      {
-          prompt = combinedPrompt,
-          image = imageUrl, // 🔥 data URI 형식의 Base64 이미지
-          duration = genOptions.SelectedDuration,
-          aspect_ratio = genOptions.SelectedAspectRatio,
-          resolution = "1080p",
-          fps = 24,
-          camera_fixed = true
-      };
-  
-      Console.WriteLine($"=== Replicate 요청 생성:");
-      Console.WriteLine($"    프롬프트: {combinedPrompt}");
-      Console.WriteLine($"    이미지: {(imageUrl != null ? $"포함됨 ({imageUrl.Length}자)" : "없음")}");
-      Console.WriteLine($"    시간: {genOptions.SelectedDuration}초");
-      Console.WriteLine($"    비율: {genOptions.SelectedAspectRatio}");
-  
-      var prediction = await replicateClient.StartVideoGeneration(request);
-  
-      var progress = new Progress<ReplicateClient.ProgressInfo>(progressInfo =>
-      {
-          updateStatus?.Invoke($"영상 {videoIndex} - {progressInfo.Status}");
-      });
-  
-      var result = await replicateClient.WaitForCompletion(prediction.id, progress);
-  
-      if (result.output == null)
-      {
-          throw new Exception("영상 생성 결과를 받지 못했습니다.");
-      }
-  
-      string videoUrl = result.output.ToString();
-      string fileName = $"ai_{DateTime.Now:yyyyMMdd_HHmmss}_{videoIndex:D2}.mp4";
-      string localPath = await DownloadVideoAsync(videoUrl, fileName);
-  
-      string finalPath = localPath;
-      if (postOptions.EnablePostProcessing && (postOptions.AddCaption || postOptions.AddBackgroundMusic))
-      {
-          string processedPath = await ProcessVideoAsync(localPath, selectedPrompt, postOptions, updateStatus);
-          if (File.Exists(localPath)) File.Delete(localPath);
-          finalPath = processedPath;
-      }
-  
-      return new VideoGenerationResult
-      {
-          Success = true,
-          VideoPath = finalPath,
-          FileName = Path.GetFileName(finalPath),
-          Prompt = selectedPrompt,
-          CombinedPrompt = combinedPrompt,
-          VideoUrl = videoUrl
-      };
-  }
+        // 🔥 개선된 이미지 처리 로직
+        string imageUrl = null;
+        if (genOptions.SelectedImages.Count > 0)
+        {
+            try
+            {
+                var selectedImage = genOptions.SelectedImages[_random.Next(genOptions.SelectedImages.Count)];
+                
+                // 🔥 2MB로 제한 축소 (Base64 인코딩 후 약 2.7MB)
+                const long maxImageSize = 2 * 1024 * 1024;
+                
+                if (selectedImage.Size > maxImageSize)
+                {
+                    Console.WriteLine($"⚠️ 이미지 크기 초과: {selectedImage.Size / 1024 / 1024}MB");
+                    updateStatus?.Invoke("이미지가 2MB를 초과하여 건너뜁니다.");
+                }
+                else
+                {
+                    updateStatus?.Invoke($"이미지 처리 중: {selectedImage.Name}");
+                    
+                    string tempDir = Path.Combine(Path.GetTempPath(), "TempImages");
+                    Directory.CreateDirectory(tempDir);
+                    
+                    string extension = Path.GetExtension(selectedImage.Name).ToLower();
+                    if (string.IsNullOrEmpty(extension)) extension = ".jpg";
+                    
+                    string tempImagePath = Path.Combine(tempDir, $"temp_image_{Guid.NewGuid()}{extension}");
+                    
+                    try
+                    {
+                        // 🔥 스트리밍 방식으로 변경 (메모리 효율적)
+                        using (var imageStream = selectedImage.OpenReadStream(maxImageSize))
+                        using (var fileStream = new FileStream(tempImagePath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true))
+                        {
+                            await imageStream.CopyToAsync(fileStream);
+                        }
+                        
+                        Console.WriteLine($"=== 이미지 임시 저장: {tempImagePath}");
+                        
+                        // 🔥 Base64 변환 - using으로 메모리 자동 정리
+                        string mimeType = selectedImage.ContentType;
+                        if (string.IsNullOrEmpty(mimeType))
+                        {
+                            mimeType = extension switch
+                            {
+                                ".jpg" or ".jpeg" => "image/jpeg",
+                                ".png" => "image/png",
+                                ".gif" => "image/gif",
+                                ".webp" => "image/webp",
+                                _ => "image/jpeg"
+                            };
+                        }
+                        
+                        using (var fs = new FileStream(tempImagePath, FileMode.Open, FileAccess.Read))
+                        using (var ms = new MemoryStream())
+                        {
+                            await fs.CopyToAsync(ms);
+                            byte[] imageBytes = ms.ToArray();
+                            imageUrl = $"data:{mimeType};base64,{Convert.ToBase64String(imageBytes)}";
+                        }
+                        
+                        Console.WriteLine($"=== Base64 변환 완료 (크기: {imageUrl.Length / 1024}KB)");
+                    }
+                    finally
+                    {
+                        // 임시 파일 삭제
+                        try
+                        {
+                            if (File.Exists(tempImagePath))
+                            {
+                                File.Delete(tempImagePath);
+                                Console.WriteLine($"=== 임시 파일 삭제: {tempImagePath}");
+                            }
+                        }
+                        catch (Exception delEx)
+                        {
+                            Console.WriteLine($"=== 임시 파일 삭제 실패: {delEx.Message}");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"=== 이미지 처리 실패: {ex.Message}");
+                updateStatus?.Invoke("이미지 처리 실패, 텍스트만으로 진행");
+            }
+        }
+    
+        var request = new ReplicateClient.VideoGenerationRequest
+        {
+            prompt = combinedPrompt,
+            image = imageUrl, // 🔥 data URI 형식의 Base64 이미지
+            duration = genOptions.SelectedDuration,
+            aspect_ratio = genOptions.SelectedAspectRatio,
+            resolution = "1080p",
+            fps = 24,
+            camera_fixed = true
+        };
+    
+        Console.WriteLine($"=== Replicate 요청 생성:");
+        Console.WriteLine($"    프롬프트: {combinedPrompt}");
+        Console.WriteLine($"    이미지: {(imageUrl != null ? $"포함됨 ({imageUrl.Length / 1024}KB)" : "없음")}");
+        Console.WriteLine($"    시간: {genOptions.SelectedDuration}초");
+        Console.WriteLine($"    비율: {genOptions.SelectedAspectRatio}");
+    
+        var prediction = await replicateClient.StartVideoGeneration(request);
+    
+        var progress = new Progress<ReplicateClient.ProgressInfo>(progressInfo =>
+        {
+            updateStatus?.Invoke($"영상 {videoIndex} - {progressInfo.Status}");
+        });
+    
+        var result = await replicateClient.WaitForCompletion(prediction.id, progress);
+    
+        if (result.output == null)
+        {
+            throw new Exception("영상 생성 결과를 받지 못했습니다.");
+        }
+    
+        string videoUrl = result.output.ToString();
+        string fileName = $"ai_{DateTime.Now:yyyyMMdd_HHmmss}_{videoIndex:D2}.mp4";
+        string localPath = await DownloadVideoAsync(videoUrl, fileName);
+    
+        string finalPath = localPath;
+        if (postOptions.EnablePostProcessing && (postOptions.AddCaption || postOptions.AddBackgroundMusic))
+        {
+            string processedPath = await ProcessVideoAsync(localPath, selectedPrompt, postOptions, updateStatus);
+            if (File.Exists(localPath)) File.Delete(localPath);
+            finalPath = processedPath;
+        }
+    
+        return new VideoGenerationResult
+        {
+            Success = true,
+            VideoPath = finalPath,
+            FileName = Path.GetFileName(finalPath),
+            Prompt = selectedPrompt,
+            CombinedPrompt = combinedPrompt,
+            VideoUrl = videoUrl
+        };
+    }
 
     /// <summary>
     /// 영상 다운로드
