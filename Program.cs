@@ -21,6 +21,21 @@ builder.Services.AddSingleton<ScheduledUploadService>();
 builder.Services.AddHostedService<ScheduledUploadService>(provider =>
     provider.GetRequiredService<ScheduledUploadService>());
 
+// Program.cs에 추가
+builder.Services.Configure<KestrelServerOptions>(options =>
+{
+    options.Limits.KeepAliveTimeout = TimeSpan.FromMinutes(30);
+    options.Limits.RequestHeadersTimeout = TimeSpan.FromMinutes(30);
+});
+
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 2L * 1024 * 1024 * 1024; // 2GB
+    options.ValueLengthLimit = int.MaxValue;
+    options.MultipartHeadersLengthLimit = int.MaxValue;
+});
+
+
 // Self-Ping 서비스 추가
 builder.Services.AddHostedService<SelfPingService>();
 
