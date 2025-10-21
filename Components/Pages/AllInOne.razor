@@ -1622,34 +1622,47 @@
             return;
         }
     
-        // 🔥 즉시 업로드 + 후처리 시 경고만 표시 (선택사항)
+        // 🔥 즉시 업로드 시 후처리 강제 제한 (서버 안정성 우선)
         if (!isScheduleUpload && postOptions.EnablePostProcessing)
         {
+            // 배경음악은 무조건 비활성화 (서버 재시작 방지)
+            if (postOptions.AddBackgroundMusic)
+            {
+                postOptions.AddBackgroundMusic = false;
+                Console.WriteLine("=== 즉시 업로드: 배경음악 비활성화 (안전성 우선)");
+            }
+            
+            // 캡션도 간단한 것만 허용
+            if (postOptions.AddCaption)
+            {
+                Console.WriteLine("=== 즉시 업로드: 간단 캡션만 활성화");
+            }
+            
             bool proceed = await JSRuntime.InvokeAsync<bool>("confirm",
-                "⚠️ 즉시 업로드 + 후처리 모드입니다.\n\n" +
-                "후처리 과정에서 시간이 오래 걸릴 수 있습니다.\n" +
-                "연결이 끊어지면 스케줄 업로드를 이용해주세요.\n\n" +
-                "• [확인] → 설정한 대로 후처리 포함하여 진행\n" +
+                "⚠️ 서버 안정성을 위해 즉시 업로드 시 후처리가 제한됩니다.\n\n" +
+                "• 캡션: 간단한 텍스트만 추가\n" +
+                "• 배경음악: 비활성화 (안전성 우선)\n\n" +
+                "전체 후처리가 필요하면 스케줄 업로드를 사용하세요.\n\n" +
+                "• [확인] → 제한된 후처리로 즉시 업로드\n" +
                 "• [취소] → 스케줄 업로드로 변경\n\n" +
-                "후처리 포함하여 즉시 업로드하시겠습니까?");
+                "제한된 후처리로 진행하시겠습니까?");
             
             if (!proceed)
             {
                 // 스케줄 업로드로 변경
                 isScheduleUpload = true;
-                UpdateSchedulePreview(); // 스케줄 미리보기 업데이트
+                UpdateSchedulePreview();
                 StateHasChanged();
                 
                 await JSRuntime.InvokeVoidAsync("alert", 
                     "✅ 스케줄 업로드로 변경되었습니다.\n\n" +
-                    "후처리 포함하여 안전하게 업로드됩니다!");
+                    "전체 후처리를 포함하여 안전하게 업로드됩니다!");
                 return;
             }
             
-            // [확인] 선택 시 설정한 후처리 그대로 진행
             await JSRuntime.InvokeVoidAsync("alert", 
-                "✅ 설정한 후처리를 포함하여 즉시 업로드를 진행합니다!\n\n" +
-                "⏱️ 시간이 오래 걸릴 수 있으니 잠시만 기다려주세요.");
+                "✅ 안전 모드로 즉시 업로드를 진행합니다!\n\n" +
+                "🔒 서버 안정성이 최우선으로 보장됩니다.");
         }
     
         if (postOptions.EnablePostProcessing)
