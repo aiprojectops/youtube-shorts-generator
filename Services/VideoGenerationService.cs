@@ -133,107 +133,111 @@ private readonly Random _random = new Random();
     // VideoGenerationService.cs의 GenerateAIVideoAsync 메서드 수정
   // VideoGenerationService.cs의 GenerateAIVideoAsync 메서드 수정
   private async Task<VideoGenerationResult> GenerateAIVideoAsync(
-      int videoIndex,
-      VideoGenerationOptions genOptions,
-      PostProcessingOptions postOptions,
-      Action<string> updateStatus)
+    int videoIndex,
+    VideoGenerationOptions genOptions,
+    PostProcessingOptions postOptions,
+    Action<string> updateStatus)
   {
-      if (genOptions.CsvPrompts.Count == 0)
-      {
-          throw new Exception("CSV 프롬프트가 로드되지 않았습니다.");
-      }
-  
-      string selectedPrompt = genOptions.CsvPrompts[_random.Next(genOptions.CsvPrompts.Count)];
-      updateStatus?.Invoke(selectedPrompt.Length > 50 ? selectedPrompt.Substring(0, 50) + "..." : selectedPrompt);
-  
-      string combinedPrompt = ConfigManager.CombinePrompts(selectedPrompt);
-  
-      var config = ConfigManager.GetConfig();
-      var replicateClient = new ReplicateClient(config.ReplicateApiKey);
-  
-      // 🔥 이미지 처리 로직 수정 - 임시 URL로 업로드
+        if (genOptions.CsvPrompts.Count == 0)
+        {
+            throw new Exception("CSV 프롬프트가 로드되지 않았습니다.");
+        }
+    
+        string selectedPrompt = genOptions.CsvPrompts[_random.Next(genOptions.CsvPrompts.Count)];
+        updateStatus?.Invoke(selectedPrompt.Length > 50 ? selectedPrompt.Substring(0, 50) + "..." : selectedPrompt);
+    
+        string combinedPrompt = ConfigManager.CombinePrompts(selectedPrompt);
+    
+        var config = ConfigManager.GetConfig();
+        var replicateClient = new ReplicateClient(config.ReplicateApiKey);
+    
+            // 🔥 이미지 처리 로직 - 파일 크기 제한 및 최적화
       string imageUrl = null;
       if (genOptions.SelectedImages.Count > 0)
       {
           try
           {
-              // 랜덤하게 이미지 선택
               var selectedImage = genOptions.SelectedImages[_random.Next(genOptions.SelectedImages.Count)];
               
-              updateStatus?.Invoke($"이미지 업로드 중: {selectedImage.Name}");
-              Console.WriteLine($"=== 선택된 이미지: {selectedImage.Name} ({VideoGenerationService.FormatFileSize(selectedImage.Size)})");
-  
-              // 🔥 이미지를 임시 파일로 저장하고 URL 생성
-              string tempDir = Path.Combine(Path.GetTempPath(), "TempImages");
-              Directory.CreateDirectory(tempDir);
+              // 🔥 5MB 제한 (Base64 인코딩 시 약 33% 증가하므로 원본 3.75MB 제한)
+              const long maxImageSize = 3 * 1024 * 1024; // 3MB
               
-              string extension = Path.GetExtension(selectedImage.Name).ToLower();
-              if (string.IsNullOrEmpty(extension))
+              if (selectedImage.Size > maxImageSize)
               {
-                  extension = selectedImage.ContentType switch
+                  Console.WriteLine($"⚠️ 이미지가 너무 큽니다 ({selectedImage.Size / 1024 / 1024}MB). 건너뜁니다.");
+                  updateStatus?.Invoke("이미지가 너무 커서 건너뜁니다. (3MB 이하만 지원)");
+              }
+              else
+              {
+                  updateStatus?.Invoke($"이미지 처리 중: {selectedImage.Name}");
+                  
+                  string tempDir = Path.Combine(Path.GetTempPath(), "TempImages");
+                  Directory.CreateDirectory(tempDir);
+                  
+                  string extension = Path.GetExtension(selectedImage.Name).ToLower();
+                  if (string.IsNullOrEmpty(extension))
                   {
-                      "image/jpeg" => ".jpg",
-                      "image/png" => ".png",
-                      "image/gif" => ".gif",
-                      "image/webp" => ".webp",
-                      _ => ".jpg"
-                  };
-              }
-              
-              string tempImagePath = Path.Combine(tempDir, $"temp_image_{Guid.NewGuid()}{extension}");
-              
-              // 이미지를 임시 파일로 저장
-              using (var imageStream = selectedImage.OpenReadStream(10 * 1024 * 1024)) // 10MB 제한
-              using (var fileStream = new FileStream(tempImagePath, FileMode.Create))
-              {
-                  await imageStream.CopyToAsync(fileStream);
-              }
-              
-              Console.WriteLine($"=== 이미지 임시 저장 완료: {tempImagePath}");
-              
-              // 🔥 임시로 Base64 사용하되 더 작은 크기로 최적화
-              byte[] imageBytes = await File.ReadAllBytesAsync(tempImagePath);
-              
-              // 파일 크기 체크 (5MB 이상이면 경고)
-              if (imageBytes.Length > 5 * 1024 * 1024)
-              {
-                  Console.WriteLine($"⚠️ 이미지가 큽니다 ({imageBytes.Length / 1024 / 1024}MB). 압축을 고려해보세요.");
-              }
-              
-              string mimeType = selectedImage.ContentType;
-              if (string.IsNullOrEmpty(mimeType))
-              {
-                  mimeType = extension switch
+                      extension = ".jpg";
+                  }
+                  
+                  string tempImagePath = Path.Combine(tempDir, $"temp_image_{Guid.NewGuid()}{extension}");
+                  
+                  // 🔥 메모리 효율적으로 읽기
+                  using (var imageStream = selectedImage.OpenReadStream(maxImageSize))
+                  using (var fileStream = new FileStream(tempImagePath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true))
                   {
-                      ".jpg" or ".jpeg" => "image/jpeg",
-                      ".png" => "image/png",
-                      ".gif" => "image/gif",
-                      ".webp" => "image/webp",
-                      _ => "image/jpeg"
-                  };
-              }
-              
-              // Base64 인코딩 (data URI 형식)
-              string base64String = Convert.ToBase64String(imageBytes);
-              imageUrl = $"data:{mimeType};base64,{base64String}";
-              
-              Console.WriteLine($"=== 이미지 Base64 변환 완료: {base64String.Length}자");
-              
-              // 임시 파일 삭제
-              try
-              {
-                  File.Delete(tempImagePath);
-              }
-              catch (Exception delEx)
-              {
-                  Console.WriteLine($"=== 임시 파일 삭제 실패: {delEx.Message}");
+                      await imageStream.CopyToAsync(fileStream);
+                  }
+                  
+                  Console.WriteLine($"=== 이미지 임시 저장 완료: {tempImagePath}");
+                  
+                  try
+                  {
+                      // Base64 인코딩
+                      byte[] imageBytes = await File.ReadAllBytesAsync(tempImagePath);
+                      string mimeType = selectedImage.ContentType;
+                      if (string.IsNullOrEmpty(mimeType))
+                      {
+                          mimeType = extension switch
+                          {
+                              ".jpg" or ".jpeg" => "image/jpeg",
+                              ".png" => "image/png",
+                              ".gif" => "image/gif",
+                              ".webp" => "image/webp",
+                              _ => "image/jpeg"
+                          };
+                      }
+                      
+                      string base64String = Convert.ToBase64String(imageBytes);
+                      imageUrl = $"data:{mimeType};base64,{base64String}";
+                      
+                      Console.WriteLine($"=== 이미지 Base64 변환 완료: {base64String.Length}자");
+                      
+                      // 🔥 즉시 메모리 해제
+                      imageBytes = null;
+                      GC.Collect();
+                  }
+                  finally
+                  {
+                      // 임시 파일 삭제
+                      try
+                      {
+                          if (File.Exists(tempImagePath))
+                          {
+                              File.Delete(tempImagePath);
+                          }
+                      }
+                      catch (Exception delEx)
+                      {
+                          Console.WriteLine($"=== 임시 파일 삭제 실패: {delEx.Message}");
+                      }
+                  }
               }
           }
           catch (Exception ex)
           {
               Console.WriteLine($"=== 이미지 처리 실패: {ex.Message}");
               updateStatus?.Invoke("이미지 처리 실패, 텍스트만으로 진행...");
-              // 이미지 처리 실패해도 텍스트로 계속 진행
           }
       }
   
