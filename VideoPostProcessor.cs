@@ -376,18 +376,18 @@ namespace YouTubeShortsWebApp
             }
         }
 
-        // VideoPostProcessor.cs - 서버 재시작을 방지하는 안전한 FFmpeg 실행
+        // VideoPostProcessor.cs의 RunFFmpegAsync 개선
         private static async Task RunFFmpegAsync(string arguments)
         {
+            Process process = null;
+            
             try
             {
                 Console.WriteLine($"=== 안전한 FFmpeg 실행 시작");
-                Console.WriteLine($"=== 명령어: {arguments}");
-        
-                // 🔥 CancellationToken으로 강제 종료 방지
-                using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5)); // 5분 타임아웃
-        
-                var process = new Process
+                
+                using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+                
+                process = new Process
                 {
                     StartInfo = new ProcessStartInfo
                     {
@@ -400,96 +400,62 @@ namespace YouTubeShortsWebApp
                         WorkingDirectory = Path.GetTempPath()
                     }
                 };
-        
+                
                 var startTime = DateTime.Now;
                 
-                // 🔥 Task.Run으로 별도 스레드에서 실행
-                var processTask = Task.Run(async () =>
+                process.Start();
+                Console.WriteLine("=== FFmpeg 프로세스 시작됨");
+                
+                // 🔥 비동기 출력 읽기
+                var outputTask = Task.Run(async () => await process.StandardOutput.ReadToEndAsync());
+                var errorTask = Task.Run(async () => await process.StandardError.ReadToEndAsync());
+                
+                // 프로세스 완료 대기
+                var completedTask = await Task.WhenAny(
+                    process.WaitForExitAsync(cts.Token),
+                    Task.Delay(Timeout.Infinite, cts.Token)
+                );
+                
+                if (cts.Token.IsCancellationRequested)
                 {
-                    try
-                    {
-                        process.Start();
-                        Console.WriteLine("=== FFmpeg 프로세스 시작됨");
-        
-                        // 🔥 비동기적으로 출력 읽기
-                        var outputTask = process.StandardOutput.ReadToEndAsync();
-                        var errorTask = process.StandardError.ReadToEndAsync();
-        
-                        // 🔥 프로세스 완료 대기 (별도 스레드에서)
-                        await process.WaitForExitAsync(cts.Token);
-        
-                        var output = await outputTask;
-                        var error = await errorTask;
-        
-                        return new { ExitCode = process.ExitCode, Output = output, Error = error, Success = true };
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        Console.WriteLine("=== FFmpeg 타임아웃으로 취소됨");
-                        try
-                        {
-                            if (!process.HasExited)
-                            {
-                                process.Kill(true); // 하위 프로세스까지 종료
-                                await Task.Delay(1000); // 1초 대기
-                            }
-                        }
-                        catch (Exception killEx)
-                        {
-                            Console.WriteLine($"=== 프로세스 종료 실패: {killEx.Message}");
-                        }
-                        return new { ExitCode = -1, Output = "", Error = "Timeout", Success = false };
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"=== FFmpeg 실행 예외: {ex.Message}");
-                        return new { ExitCode = -1, Output = "", Error = ex.Message, Success = false };
-                    }
-                }, cts.Token);
-        
-                // 🔥 진행 상황 모니터링 (메인 스레드)
-                while (!processTask.IsCompleted)
-                {
-                    var elapsed = DateTime.Now - startTime;
-                    
-                    if (elapsed.TotalSeconds % 15 == 0) // 15초마다 로그
-                    {
-                        Console.WriteLine($"=== FFmpeg 진행 중... ({elapsed.TotalSeconds:F0}초 경과)");
-                    }
-        
-                    try
-                    {
-                        await Task.Delay(1000, cts.Token); // 1초 대기
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        break;
-                    }
+                    throw new OperationCanceledException("FFmpeg 타임아웃");
                 }
-        
-                var result = await processTask;
+                
+                var output = await outputTask;
+                var error = await errorTask;
+                
                 var totalTime = DateTime.Now - startTime;
-        
                 Console.WriteLine($"=== FFmpeg 완료 (총 {totalTime.TotalSeconds:F1}초)");
-                Console.WriteLine($"=== 종료 코드: {result.ExitCode}");
-        
-                if (!result.Success)
+                
+                if (process.ExitCode != 0)
                 {
-                    throw new Exception($"FFmpeg 실행 실패: {result.Error}");
+                    Console.WriteLine($"=== FFmpeg 에러: {error?.Substring(0, Math.Min(500, error.Length ?? 0))}");
+                    throw new Exception($"FFmpeg 오류 (코드: {process.ExitCode})");
                 }
-        
-                if (result.ExitCode != 0)
-                {
-                    Console.WriteLine($"=== FFmpeg 에러 출력: {result.Error?.Substring(0, Math.Min(500, result.Error.Length ?? 0))}");
-                    throw new Exception($"FFmpeg 오류 (코드: {result.ExitCode}): {result.Error}");
-                }
-        
-                Console.WriteLine("=== FFmpeg 실행 성공");
             }
-            catch (Exception ex)
+            catch (OperationCanceledException)
             {
-                Console.WriteLine($"=== RunFFmpegAsync 최종 오류: {ex.Message}");
-                throw;
+                Console.WriteLine("=== FFmpeg 타임아웃, 강제 종료 시도");
+                
+                // 🔥 프로세스 강제 종료
+                if (process != null && !process.HasExited)
+                {
+                    try
+                    {
+                        process.Kill(true); // 하위 프로세스까지 종료
+                        await Task.Delay(1000);
+                    }
+                    catch (Exception killEx)
+                    {
+                        Console.WriteLine($"=== 프로세스 종료 실패: {killEx.Message}");
+                    }
+                }
+                
+                throw new Exception("FFmpeg 타임아웃으로 종료됨");
+            }
+            finally
+            {
+                process?.Dispose();
             }
         }
 
