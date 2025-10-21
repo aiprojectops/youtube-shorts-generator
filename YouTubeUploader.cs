@@ -170,7 +170,7 @@ namespace YouTubeShortsWebApp
         }
 
         
-        // 기존 토큰으로 인증 시도
+        // 추가 개선: 토큰 만료 처리
         public async Task<bool> AuthenticateAsync(bool forceReauth = false)
         {
             try
@@ -183,12 +183,12 @@ namespace YouTubeShortsWebApp
         
                 var config = ConfigManager.GetConfig();
         
-                if (string.IsNullOrEmpty(config.YouTubeClientId) || string.IsNullOrEmpty(config.YouTubeClientSecret))
+                if (string.IsNullOrEmpty(config.YouTubeClientId) || 
+                    string.IsNullOrEmpty(config.YouTubeClientSecret))
                 {
-                    throw new Exception("YouTube API 클라이언트 ID와 시크릿이 설정되지 않았습니다.");
+                    throw new Exception("YouTube API 설정이 없습니다.");
                 }
         
-                // 🔥 파일 저장소 사용
                 var dataStore = new FileDataStore("/tmp/youtube_tokens", true);
         
                 var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
@@ -199,13 +199,39 @@ namespace YouTubeShortsWebApp
                         ClientSecret = config.YouTubeClientSecret
                     },
                     Scopes = Scopes,
-                    DataStore = dataStore  // 🔥 변경됨
+                    DataStore = dataStore
                 });
         
                 var token = await dataStore.GetAsync<TokenResponse>("user");
                 
                 if (token != null && !string.IsNullOrEmpty(token.AccessToken))
                 {
+                    // 🔥 토큰 만료 확인
+                    if (token.IssuedUtc.AddSeconds(token.ExpiresInSeconds ?? 3600) < DateTime.UtcNow)
+                    {
+                        Console.WriteLine("=== 토큰 만료됨, 갱신 필요");
+                        
+                        // 리프레시 토큰으로 자동 갱신 시도
+                        if (!string.IsNullOrEmpty(token.RefreshToken))
+                        {
+                            try
+                            {
+                                var newToken = await flow.RefreshTokenAsync("user", token.RefreshToken, CancellationToken.None);
+                                Console.WriteLine("=== 토큰 갱신 성공");
+                                token = newToken;
+                            }
+                            catch (Exception refreshEx)
+                            {
+                                Console.WriteLine($"=== 토큰 갱신 실패: {refreshEx.Message}");
+                                return false;
+                            }
+                        }
+                        else
+                        {
+                            return false;
+                        }
+                    }
+                    
                     credential = new UserCredential(flow, "user", token);
         
                     youtubeService = new YouTubeService(new BaseClientService.Initializer()
@@ -222,21 +248,21 @@ namespace YouTubeShortsWebApp
                         channelsRequest.MaxResults = 1;
                         await channelsRequest.ExecuteAsync();
                         
-                        System.Diagnostics.Debug.WriteLine("기존 토큰으로 인증 성공!");
+                        Console.WriteLine("=== 기존 토큰으로 인증 성공!");
                         return true;
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"기존 토큰 유효하지 않음: {ex.Message}");
+                        Console.WriteLine($"=== 토큰 유효하지 않음: {ex.Message}");
                     }
                 }
         
-                System.Diagnostics.Debug.WriteLine("새로운 인증이 필요합니다.");
+                Console.WriteLine("=== 새로운 인증 필요");
                 return false;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"인증 확인 실패: {ex.Message}");
+                Console.WriteLine($"=== 인증 확인 실패: {ex.Message}");
                 return false;
             }
         }
