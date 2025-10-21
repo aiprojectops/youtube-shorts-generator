@@ -1257,18 +1257,18 @@
     // 기존 ParseUploadInfoCsv를 이것으로 교체
     // ========================================
     
+    // AllInOne.razor의 ParseUploadInfoCsv 메서드 개선
     private List<UploadInfoItem> ParseUploadInfoCsv(string content)
     {
         var items = new List<UploadInfoItem>();
         
         try
         {
-            // 간단한 CSV 파서 구현
             var lines = new List<string>();
             var currentLine = new StringBuilder();
             bool inQuotes = false;
             
-            // 문자별로 읽어서 따옴표 내부의 개행 처리
+            // 🔥 문자별 파싱으로 멀티라인 지원
             for (int i = 0; i < content.Length; i++)
             {
                 char c = content[i];
@@ -1279,7 +1279,7 @@
                     if (i + 1 < content.Length && content[i + 1] == '"')
                     {
                         currentLine.Append('"');
-                        i++; // 다음 따옴표 스킵
+                        i++;
                     }
                     else
                     {
@@ -1295,15 +1295,14 @@
                         currentLine.Clear();
                     }
                     
-                    // \r\n 처리
                     if (c == '\r' && i + 1 < content.Length && content[i + 1] == '\n')
                     {
-                        i++; // \n 스킵
+                        i++;
                     }
                 }
                 else
                 {
-                    // 따옴표 내부의 개행은 그대로 유지하되 공백으로 변환
+                    // 🔥 따옴표 내부의 개행은 공백으로 변환
                     if ((c == '\r' || c == '\n') && inQuotes)
                     {
                         currentLine.Append(' ');
@@ -1315,7 +1314,6 @@
                 }
             }
             
-            // 마지막 라인 추가
             if (currentLine.Length > 0)
             {
                 lines.Add(currentLine.ToString());
@@ -1323,7 +1321,7 @@
             
             Console.WriteLine($"총 {lines.Count}개 라인 파싱됨");
             
-            // 헤더 스킵 (첫 번째 라인)
+            // 헤더 스킵
             for (int lineIndex = 1; lineIndex < lines.Count; lineIndex++)
             {
                 string line = lines[lineIndex].Trim();
@@ -1347,15 +1345,12 @@
                                 Description = description,
                                 Tags = tags
                             });
-                            
-                            Console.WriteLine($"항목 {items.Count}: {title.Substring(0, Math.Min(30, title.Length))}...");
                         }
                     }
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"라인 {lineIndex} 파싱 오류: {ex.Message}");
-                    Console.WriteLine($"문제 라인: {line.Substring(0, Math.Min(100, line.Length))}...");
                 }
             }
         }
@@ -1364,9 +1359,8 @@
             Console.WriteLine($"CSV 파싱 전체 오류: {ex.Message}");
         }
         
-        Console.WriteLine($"최종 파싱 결과: {items.Count}개 항목");
         return items;
-    }    
+    }  
 
 
     // CSV 라인을 필드별로 분리하는 헬퍼 메서드
