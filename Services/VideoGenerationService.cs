@@ -12,7 +12,8 @@ namespace YouTubeShortsWebApp.Services
 public class VideoGenerationService
 {
 private readonly Random _random = new Random();
-  public class VideoGenerationOptions
+    // VideoGenerationOptions 클래스에 이미지 옵션 추가
+    public class VideoGenerationOptions
     {
         public bool IsGenerateVideo { get; set; } = true;
         public int VideoCount { get; set; } = 1;
@@ -20,6 +21,8 @@ private readonly Random _random = new Random();
         public string SelectedAspectRatio { get; set; } = "9:16";
         public List<string> CsvPrompts { get; set; } = new();
         public List<IBrowserFile> LocalVideoFiles { get; set; } = new();
+        // 🔥 이미지 옵션 추가
+        public IBrowserFile SourceImageFile { get; set; } = null;
     }
 
     public class PostProcessingOptions
@@ -215,18 +218,7 @@ private readonly Random _random = new Random();
         };
     }
 
-    // VideoGenerationOptions 클래스에 이미지 옵션 추가
-    public class VideoGenerationOptions
-    {
-        public bool IsGenerateVideo { get; set; } = true;
-        public int VideoCount { get; set; } = 1;
-        public int SelectedDuration { get; set; } = 5;
-        public string SelectedAspectRatio { get; set; } = "9:16";
-        public List<string> CsvPrompts { get; set; } = new();
-        public List<IBrowserFile> LocalVideoFiles { get; set; } = new();
-        // 🔥 이미지 옵션 추가
-        public IBrowserFile SourceImageFile { get; set; } = null;
-    }
+
 
     /// <summary>
     /// 영상 다운로드
