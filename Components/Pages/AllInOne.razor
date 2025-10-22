@@ -1198,10 +1198,10 @@
             using var reader = new StreamReader(stream);
             var content = await reader.ReadToEndAsync();
     
-            Console.WriteLine("========================================");
-            Console.WriteLine("=== CSV 원본 내용 (처음 500자) ===");
-            Console.WriteLine(content.Substring(0, Math.Min(500, content.Length)));
-            Console.WriteLine("========================================");
+            // 자세한 로그 제거
+            // Console.WriteLine("========================================");
+            // Console.WriteLine("=== CSV 원본 내용 (처음 500자) ===");
+            // ...
     
             uploadInfoCsvList = ParseUploadInfoCsv(content);
     
@@ -1211,16 +1211,8 @@
             }
             else
             {
-                Console.WriteLine($"=== ✅ {uploadInfoCsvList.Count}개 업로드 정보 로드됨");
-                
-                // 처음 3개 출력
-                for (int i = 0; i < Math.Min(3, uploadInfoCsvList.Count); i++)
-                {
-                    Console.WriteLine($"\n=== 항목 {i + 1} ===");
-                    Console.WriteLine($"제목: {uploadInfoCsvList[i].Title}");
-                    Console.WriteLine($"설명: {uploadInfoCsvList[i].Description.Substring(0, Math.Min(50, uploadInfoCsvList[i].Description.Length))}...");
-                    Console.WriteLine($"태그: {uploadInfoCsvList[i].Tags}");
-                }
+                Console.WriteLine($"✅ {uploadInfoCsvList.Count}개 업로드 정보 로드 완료");
+                // 세부 항목 로그 제거
             }
         }
         catch (Exception ex)
