@@ -521,3 +521,4 @@ namespace YouTubeShortsWebApp
         public float MusicVolume { get; set; } = 0.3f;
     }
 }
+}
