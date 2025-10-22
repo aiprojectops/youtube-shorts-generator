@@ -447,13 +447,18 @@ namespace YouTubeShortsWebApp
                     throw new Exception("YouTube 인증 실패");
                 }
         
-                string uploadedUrl = await youtubeUploader.UploadVideoAsync(
-                    item.FilePath,
-                    item.Title,
-                    item.Description,
-                    item.Tags.Split(',').Select(t => t.Trim()).ToList(),
-                    item.PrivacySetting
-                );
+                // VideoUploadInfo 객체 생성
+                var uploadInfo = new YouTubeUploader.VideoUploadInfo
+                {
+                    FilePath = item.FilePath,
+                    Title = item.Title,
+                    Description = item.Description,
+                    Tags = item.Tags,  // 문자열 그대로 전달 (Split은 UploadVideoAsync 안에서 처리됨)
+                    PrivacyStatus = item.PrivacySetting
+                };
+                
+                // 객체를 전달하여 업로드
+                string uploadedUrl = await youtubeUploader.UploadVideoAsync(uploadInfo);
         
                 item.Status = "완료";
                 item.UploadedUrl = uploadedUrl;
