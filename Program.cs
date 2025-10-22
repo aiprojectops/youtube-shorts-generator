@@ -12,9 +12,13 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddControllers();
 
-// 🔥 공통 서비스 등록
+// 🔥 기존 서비스 등록
 builder.Services.AddScoped<VideoGenerationService>();
 builder.Services.AddScoped<YouTubeUploadService>();
+
+// 🔥 새로운 통합 서비스 등록
+builder.Services.AddScoped<VideoPostProcessingService>();
+builder.Services.AddScoped<UploadScheduleService>();
 
 // ScheduledUploadService 등록
 builder.Services.AddSingleton<ScheduledUploadService>();
