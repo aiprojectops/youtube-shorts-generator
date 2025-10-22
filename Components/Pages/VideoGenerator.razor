@@ -90,13 +90,13 @@
 
                         <!-- 영상 길이 -->
                         <div class="mb-3">
-                            <label class="form-label"><strong>영상 길이: @selectedDuration 초</strong></label>
+                            <label class="form-label"><strong>영상 길이: @genOptions.SelectedDuration 초</strong></label>
                             <input type="range" 
                                    class="form-range" 
                                    min="2" 
                                    max="12" 
                                    step="1" 
-                                   value="@selectedDuration" 
+                                   value="@genOptions.SelectedDuration"
                                    @oninput="OnDurationInput" />
                             <small class="text-muted">2초 ~ 12초</small>
                         </div>
@@ -474,7 +474,7 @@
     private bool showCsvPreview = false;
     private bool showCaptionCsvPreview = false;
 
-    private string totalCost => (videoCount * selectedDuration * 0.15m).ToString("F2");
+    private string totalCost => (genOptions.VideoCount * genOptions.SelectedDuration * 0.15m).ToString("F2");
 
     
     private string GetAspectClass(string ratio) => genOptions.SelectedAspectRatio == ratio ? "btn-success" : "btn-outline-success";
@@ -507,7 +507,7 @@
     {
         if (int.TryParse(e.Value?.ToString(), out int duration))
         {
-            selectedDuration = duration;
+            genOptions.SelectedDuration = duration;
             StateHasChanged();
         }
     }
