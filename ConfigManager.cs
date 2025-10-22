@@ -57,8 +57,7 @@ namespace YouTubeShortsWebApp
                     var fileConfig = Newtonsoft.Json.JsonConvert.DeserializeObject<Config>(json);
                     if (fileConfig != null)
                     {
-                        /*if (string.IsNullOrEmpty(_config.ReplicateApiKey))
-                            _config.ReplicateApiKey = fileConfig.ReplicateApiKey ?? "";*/
+                        
                         // 그리고 파일에서 로드하는 부분에도 추가:
                         if (string.IsNullOrEmpty(_config.RunwayApiKey))
                             _config.RunwayApiKey = fileConfig.RunwayApiKey ?? "";
