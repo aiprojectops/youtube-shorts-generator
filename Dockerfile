@@ -34,6 +34,6 @@ RUN chmod 755 /app/music
 # 환경 변수 설정
 ENV ASPNETCORE_URLS=http://+:8080
 ENV ASPNETCORE_ENVIRONMENT=Production
-ENV TZ=Asia/Seoul
+
 
 ENTRYPOINT ["dotnet", "YouTubeShortsWebApp.dll"]
