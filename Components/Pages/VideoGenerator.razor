@@ -90,11 +90,15 @@
 
                         <!-- 영상 길이 -->
                         <div class="mb-3">
-                            <label class="form-label"><strong>영상 길이:</strong></label>
-                            <div>
-                                <button type="button" class="btn @GetDurationClass(5)" @onclick="() => genOptions.SelectedDuration = 5" disabled="@isGenerating">5초</button>
-                                <button type="button" class="btn @GetDurationClass(10)" @onclick="() => genOptions.SelectedDuration = 10" disabled="@isGenerating">10초</button>
-                            </div>
+                            <label class="form-label"><strong>영상 길이: @selectedDuration 초</strong></label>
+                            <input type="range" 
+                                   class="form-range" 
+                                   min="2" 
+                                   max="12" 
+                                   step="1" 
+                                   value="@selectedDuration" 
+                                   @oninput="OnDurationInput" />
+                            <small class="text-muted">2초 ~ 12초</small>
                         </div>
 
                         <!-- 화면 비율 -->
@@ -470,9 +474,9 @@
     private bool showCsvPreview = false;
     private bool showCaptionCsvPreview = false;
 
-    private string totalCost => (genOptions.VideoCount * (genOptions.SelectedDuration == 5 ? 0.75m : 1.5m)).ToString("F2");
+    private string totalCost => (videoCount * selectedDuration * 0.15m).ToString("F2");
 
-    private string GetDurationClass(int duration) => genOptions.SelectedDuration == duration ? "btn-primary" : "btn-outline-primary";
+    
     private string GetAspectClass(string ratio) => genOptions.SelectedAspectRatio == ratio ? "btn-success" : "btn-outline-success";
 
     private async Task HandleLocalVideoSelection(InputFileChangeEventArgs e)
@@ -497,6 +501,17 @@
 
         StateHasChanged();
     }
+
+
+    private void OnDurationInput(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int duration))
+        {
+            selectedDuration = duration;
+            StateHasChanged();
+        }
+    }
+
 
     private async Task HandleCsvFileSelection(InputFileChangeEventArgs e)
     {
