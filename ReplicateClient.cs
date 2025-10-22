@@ -1,4 +1,4 @@
-using System;
+ using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
@@ -19,21 +19,19 @@ namespace YouTubeShortsWebApp
         {
             _apiKey = apiKey;
             
-            // 프록시 URL 확인
             string proxyUrl = Environment.GetEnvironmentVariable("REPLICATE_PROXY_URL");
             
             if (!string.IsNullOrEmpty(proxyUrl))
             {
                 _baseUrl = $"{proxyUrl.TrimEnd('/')}/api/replicate/v1";
-                Console.WriteLine($"=== Replicate 프록시 사용: {_baseUrl}");
+                // Console.WriteLine($"=== Replicate 프록시 사용: {_baseUrl}"); // 제거
             }
             else
             {
                 _baseUrl = "https://api.replicate.com/v1";
-                Console.WriteLine($"=== Replicate 직접 접근: {_baseUrl}");
+                // Console.WriteLine($"=== Replicate 직접 접근: {_baseUrl}"); // 제거
             }
             
-            // HttpClientHandler로 압축 자동 해제 설정
             var handler = new HttpClientHandler()
             {
                 AutomaticDecompression = System.Net.DecompressionMethods.All
@@ -41,39 +39,27 @@ namespace YouTubeShortsWebApp
             
             _httpClient = new HttpClient(handler);
             
-            Console.WriteLine("=== ReplicateClient 초기화 - Cloudflare 우회 헤더 설정");
+            // Console.WriteLine("=== ReplicateClient 초기화 - Cloudflare 우회 헤더 설정"); // 제거
             
-            // 기존 헤더 모두 제거
             _httpClient.DefaultRequestHeaders.Clear();
-            
-            // Cloudflare가 좋아하는 실제 브라우저처럼 보이는 헤더들
             _httpClient.DefaultRequestHeaders.Add("User-Agent", 
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-            
             _httpClient.DefaultRequestHeaders.Add("Accept", "application/json, text/plain, */*");
             _httpClient.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.9");
-            
-            // Accept-Encoding 헤더는 제거하거나 gzip만 허용
-            // _httpClient.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate, br"); // 이 줄 제거
-            _httpClient.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate"); // br 제거
-            
+            _httpClient.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate");
             _httpClient.DefaultRequestHeaders.Add("Cache-Control", "no-cache");
             _httpClient.DefaultRequestHeaders.Add("Pragma", "no-cache");
-            
-            // Chrome 보안 헤더들
             _httpClient.DefaultRequestHeaders.Add("Sec-Ch-Ua", "\"Not_A Brand\";v=\"8\", \"Chromium\";v=\"120\", \"Google Chrome\";v=\"120\"");
             _httpClient.DefaultRequestHeaders.Add("Sec-Ch-Ua-Mobile", "?0");
             _httpClient.DefaultRequestHeaders.Add("Sec-Ch-Ua-Platform", "\"Windows\"");
             _httpClient.DefaultRequestHeaders.Add("Sec-Fetch-Dest", "empty");
             _httpClient.DefaultRequestHeaders.Add("Sec-Fetch-Mode", "cors");
             _httpClient.DefaultRequestHeaders.Add("Sec-Fetch-Site", "cross-site");
-            
-            // Authorization 헤더는 마지막에 추가
             _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_apiKey}");
             
             _httpClient.Timeout = TimeSpan.FromMinutes(30);
             
-            Console.WriteLine("=== ReplicateClient 헤더 설정 완료");
+            // Console.WriteLine("=== ReplicateClient 헤더 설정 완료"); // 제거
         }
 
         public class VideoGenerationRequest
@@ -112,31 +98,30 @@ namespace YouTubeShortsWebApp
         {
             try
             {
-                Console.WriteLine($"=== 연결 테스트 시작: {_baseUrl}");
+                // Console.WriteLine($"=== 연결 테스트 시작: {_baseUrl}"); // 제거
                 
-                // 단순한 GET 요청으로 연결 테스트
                 var response = await _httpClient.GetAsync($"{_baseUrl}/models");
                 var content = await response.Content.ReadAsStringAsync();
                 
-                Console.WriteLine($"=== 연결 테스트 결과: {response.StatusCode}");
-                Console.WriteLine($"=== 응답 내용 (일부): {content.Substring(0, Math.Min(200, content.Length))}");
+                // Console.WriteLine($"=== 연결 테스트 결과: {response.StatusCode}"); // 제거
+                // Console.WriteLine($"=== 응답 내용 (일부): {content.Substring(0, Math.Min(200, content.Length))}"); // 제거
                 
                 return response.IsSuccessStatusCode;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"=== 연결 테스트 실패: {ex.Message}");
+                Console.WriteLine($"❌ Replicate 연결 실패: {ex.Message}");
                 return false;
             }
         }
 
-        public async Task<PredictionResponse> StartVideoGeneration(VideoGenerationRequest request)
+       public async Task<PredictionResponse> StartVideoGeneration(VideoGenerationRequest request)
         {
             try
             {
-                Console.WriteLine("=== 영상 생성 API 호출 전 지연 시작 (Cloudflare 우회)");
-                await Task.Delay(3000); // 3초 지연
-                Console.WriteLine("=== 지연 완료, API 호출 시작");
+                // Console.WriteLine("=== 영상 생성 API 호출 전 지연 시작 (Cloudflare 우회)"); // 제거
+                await Task.Delay(3000);
+                // Console.WriteLine("=== 지연 완료, API 호출 시작"); // 제거
                 
                 var input = new Dictionary<string, object>
                 {
@@ -147,55 +132,48 @@ namespace YouTubeShortsWebApp
                     ["fps"] = request.fps,
                     ["camera_fixed"] = request.camera_fixed
                 };
-
+        
                 if (!string.IsNullOrEmpty(request.image))
                 {
                     input["image"] = request.image;
                 }
-
+        
                 if (request.seed.HasValue)
                 {
                     input["seed"] = request.seed.Value;
                 }
-
+        
                 var requestBody = new { input = input };
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(requestBody, Newtonsoft.Json.Formatting.Indented);
-
+        
+                // Debug 로그는 유지 (개발 환경에서만 보임)
                 System.Diagnostics.Debug.WriteLine("=== API 요청 ===");
                 System.Diagnostics.Debug.WriteLine($"URL: {_baseUrl}/models/{ModelPath}/predictions");
                 System.Diagnostics.Debug.WriteLine("JSON:");
                 System.Diagnostics.Debug.WriteLine(json);
-
+        
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
                 HttpResponseMessage response = await _httpClient.PostAsync($"{_baseUrl}/models/{ModelPath}/predictions", content);
                 string responseContent = await response.Content.ReadAsStringAsync();
-
+        
                 System.Diagnostics.Debug.WriteLine("=== API 응답 ===");
                 System.Diagnostics.Debug.WriteLine($"상태 코드: {response.StatusCode}");
                 System.Diagnostics.Debug.WriteLine("응답 내용:");
                 System.Diagnostics.Debug.WriteLine(responseContent);
-
+        
                 if (!response.IsSuccessStatusCode)
                 {
-                    // 더 자세한 오류 정보 출력
-                    Console.WriteLine($"=== 상세 오류 정보 ===");
-                    Console.WriteLine($"Status Code: {response.StatusCode}");
-                    Console.WriteLine($"Reason Phrase: {response.ReasonPhrase}");
-                    Console.WriteLine($"Response Headers:");
-                    foreach (var header in response.Headers)
-                    {
-                        Console.WriteLine($"  {header.Key}: {string.Join(", ", header.Value)}");
-                    }
-                    Console.WriteLine($"Content Headers:");
-                    foreach (var header in response.Content.Headers)
-                    {
-                        Console.WriteLine($"  {header.Key}: {string.Join(", ", header.Value)}");
-                    }
-                    Console.WriteLine($"Full Response: {responseContent}");
+                    // 오류 시에만 Console 출력
+                    Console.WriteLine($"❌ Replicate API 오류: {response.StatusCode}");
+                    
+                    // 자세한 오류 정보 제거 또는 간소화
+                    // Console.WriteLine($"=== 상세 오류 정보 ===");
+                    // Console.WriteLine($"Status Code: {response.StatusCode}");
+                    // ... 나머지 제거
                     
                     throw new Exception($"API 요청 실패: {response.StatusCode} - {responseContent}");
                 }
-
+        
                 return Newtonsoft.Json.JsonConvert.DeserializeObject<PredictionResponse>(responseContent);
             }
             catch (Exception ex)
@@ -209,33 +187,32 @@ namespace YouTubeShortsWebApp
         {
             try
             {
-                await Task.Delay(2000); // 2초 지연
+                await Task.Delay(2000);
                 
                 string requestUrl = $"{_baseUrl}/predictions/{predictionId}";
-                Console.WriteLine($"=== 상태 확인 요청 URL: {requestUrl}");
+                // Console.WriteLine($"=== 상태 확인 요청 URL: {requestUrl}"); // 제거
                 
                 HttpResponseMessage response = await _httpClient.GetAsync(requestUrl);
                 string responseContent = await response.Content.ReadAsStringAsync();
                 
-                Console.WriteLine($"=== 상태 확인 응답 ===");
-                Console.WriteLine($"Status Code: {response.StatusCode}");
-                Console.WriteLine($"Content-Type: {response.Content.Headers.ContentType}");
-                Console.WriteLine($"Raw Response (처음 500자): {responseContent.Substring(0, Math.Min(500, responseContent.Length))}");
+                // 자세한 로그 제거
+                // Console.WriteLine($"=== 상태 확인 응답 ===");
+                // Console.WriteLine($"Status Code: {response.StatusCode}");
+                // Console.WriteLine($"Content-Type: {response.Content.Headers.ContentType}");
+                // Console.WriteLine($"Raw Response (처음 500자): ...");
         
                 if (!response.IsSuccessStatusCode)
                 {
                     throw new Exception($"상태 확인 실패: {response.StatusCode} - {responseContent}");
                 }
         
-                // 간단한 JSON 유효성 검사만 수행
                 var trimmedContent = responseContent.Trim();
                 if (!trimmedContent.StartsWith("{"))
                 {
                     throw new Exception($"유효하지 않은 JSON 응답: {trimmedContent.Substring(0, Math.Min(100, trimmedContent.Length))}");
                 }
         
-                // JSON 파싱
-                return Newtonsoft.Json.JsonConvert.DeserializeObject<PredictionResponse>(trimmedContent);
+                return Newtonsoft.Json.JsonConvert.DeserializeObject<PredictionResponse>(responseContent);
             }
             catch (Exception ex)
             {
