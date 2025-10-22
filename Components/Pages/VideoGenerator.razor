@@ -162,6 +162,33 @@
                                           placeholder="영상에 대한 설명을 입력하세요..."></textarea>
                             }
                         </div>
+                        <!-- 프롬프트 입력 섹션 아래, "영상 개수" 위에 추가 -->
+                        @if (genOptions.IsGenerateVideo)
+                        {
+                            <!-- 🔥 이미지 업로드 (선택사항) -->
+                            <div class="mb-3">
+                                <label class="form-label">
+                                    <strong>📷 소스 이미지 (선택사항):</strong>
+                                </label>
+                                <InputFile OnChange="HandleSourceImageSelection" accept="image/*" class="form-control" disabled="@isGenerating" />
+                                <div class="form-text">
+                                    이미지를 업로드하면 해당 이미지를 기반으로 영상이 생성됩니다. (최대 10MB, 선택사항)
+                                </div>
+                                
+                                @if (genOptions.SourceImageFile != null)
+                                {
+                                    <div class="mt-2 alert alert-success d-flex justify-content-between align-items-center">
+                                        <span>
+                                            <strong>✅ 선택된 이미지:</strong> @genOptions.SourceImageFile.Name 
+                                            (@VideoGenerationService.FormatFileSize(genOptions.SourceImageFile.Size))
+                                        </span>
+                                        <button type="button" class="btn btn-sm btn-danger" @onclick="ClearSourceImage" disabled="@isGenerating">
+                                            삭제
+                                        </button>
+                                    </div>
+                                }
+                            </div>
+                        }
                     }
                     else
                     {
@@ -502,6 +529,46 @@
             genOptions.CsvPrompts.Clear();
         }
     }
+
+
+    // 이미지 파일 선택 핸들러 추가
+    private async Task HandleSourceImageSelection(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file == null) return;
+    
+        try
+        {
+            const long maxSize = 10 * 1024 * 1024; // 10MB
+            if (file.Size > maxSize)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "이미지 파일이 너무 큽니다. 10MB 이하의 파일을 선택해주세요.");
+                return;
+            }
+    
+            string[] supportedTypes = { "image/jpeg", "image/jpg", "image/png", "image/webp" };
+            if (!supportedTypes.Contains(file.ContentType.ToLower()))
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "지원되지 않는 이미지 형식입니다. JPG, PNG, WEBP 파일만 가능합니다.");
+                return;
+            }
+    
+            genOptions.SourceImageFile = file;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"이미지 파일 선택 오류: {ex.Message}");
+            genOptions.SourceImageFile = null;
+        }
+    }
+    
+    private void ClearSourceImage()
+    {
+        genOptions.SourceImageFile = null;
+        StateHasChanged();
+    }
+    
 
     private void ShowCsvPreview()
     {
