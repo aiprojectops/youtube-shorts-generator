@@ -146,9 +146,31 @@ private readonly Random _random = new Random();
         var config = ConfigManager.GetConfig();
         var replicateClient = new ReplicateClient(config.ReplicateApiKey);
 
+        // 🔥 이미지가 있으면 base64로 인코딩
+        string imageBase64 = null;
+        if (genOptions.SourceImageFile != null)
+        {
+            try
+            {
+                updateStatus?.Invoke("이미지 업로드 중...");
+                using var imageStream = genOptions.SourceImageFile.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024); // 최대 10MB
+                using var memoryStream = new MemoryStream();
+                await imageStream.CopyToAsync(memoryStream);
+                byte[] imageBytes = memoryStream.ToArray();
+                imageBase64 = $"data:image/jpeg;base64,{Convert.ToBase64String(imageBytes)}";
+                Console.WriteLine($"=== 이미지 인코딩 완료: {imageBytes.Length} bytes");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"=== 이미지 인코딩 실패: {ex.Message}");
+                // 이미지 실패해도 프롬프트만으로 진행
+            }
+        }
+      
         var request = new ReplicateClient.VideoGenerationRequest
         {
             prompt = combinedPrompt,
+            image = imageBase64,  // 🔥 이미지 추가
             duration = genOptions.SelectedDuration,
             aspect_ratio = genOptions.SelectedAspectRatio,
             resolution = "1080p",
@@ -191,6 +213,19 @@ private readonly Random _random = new Random();
             CombinedPrompt = combinedPrompt,
             VideoUrl = videoUrl
         };
+    }
+
+    // VideoGenerationOptions 클래스에 이미지 옵션 추가
+    public class VideoGenerationOptions
+    {
+        public bool IsGenerateVideo { get; set; } = true;
+        public int VideoCount { get; set; } = 1;
+        public int SelectedDuration { get; set; } = 5;
+        public string SelectedAspectRatio { get; set; } = "9:16";
+        public List<string> CsvPrompts { get; set; } = new();
+        public List<IBrowserFile> LocalVideoFiles { get; set; } = new();
+        // 🔥 이미지 옵션 추가
+        public IBrowserFile SourceImageFile { get; set; } = null;
     }
 
     /// <summary>
