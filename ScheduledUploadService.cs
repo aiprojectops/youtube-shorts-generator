@@ -491,6 +491,7 @@ namespace YouTubeShortsWebApp
                 SaveQueueToFile();
             }
         }
+    }
 
     public class ScheduledUploadItem
     {
@@ -520,5 +521,4 @@ namespace YouTubeShortsWebApp
         public string? MusicFilePath { get; set; }
         public float MusicVolume { get; set; } = 0.3f;
     }
-}
 }
