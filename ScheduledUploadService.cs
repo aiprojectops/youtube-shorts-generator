@@ -130,88 +130,69 @@ namespace YouTubeShortsWebApp
             }
         }
 
+        // ExecuteAsync 부분 로그 정리 (약 100줄)
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("🚀 스케줄 업로드 서비스 시작됨");
-            Console.WriteLine("=== 🚀 스케줄 업로드 서비스 시작됨");
-            Console.WriteLine($"=== 현재 서버 시간: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-            Console.WriteLine($"=== 대기 중인 업로드: {GetQueueCount()}개");
-
+            Console.WriteLine("🚀 스케줄 업로드 서비스 시작");
+            
+            // 자세한 로그들 제거
+            // Console.WriteLine($"=== 현재 서버 시간: ...");
+            // Console.WriteLine($"=== 대기 중인 업로드: ...");
+        
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
                     var now = DateTime.Now;
-                    var itemsToProcess = new List<ScheduledUploadItem>();
-
+                    List<ScheduledUploadItem> itemsToProcess;
+        
                     lock (_queueLock)
                     {
                         itemsToProcess = _uploadQueue
-                            .Where(x => 
-                                (x.Status == "대기 중" || x.Status == "생성 완료") &&
-                                x.ScheduledTime <= now.AddMinutes(5))
+                            .Where(x => x.Status == "대기 중" || x.Status == "생성 완료")
                             .OrderBy(x => x.ScheduledTime)
                             .ToList();
                     }
-
-                    if (itemsToProcess.Any())
+        
+                    if (itemsToProcess.Count > 0)
                     {
-                        Console.WriteLine($"=== ⏰ {now:yyyy-MM-dd HH:mm:ss} - 처리 대상 발견: {itemsToProcess.Count}개");
-                        
                         foreach (var item in itemsToProcess)
                         {
                             try
                             {
-                                // 1단계: 생성이 필요한 경우
-                                if (item.NeedsGeneration && string.IsNullOrEmpty(item.FilePath))
+                                // 영상 생성 5분 전
+                                if (item.NeedsGeneration && 
+                                    item.ScheduledTime.AddMinutes(-5) <= now && 
+                                    string.IsNullOrEmpty(item.FilePath) &&
+                                    item.Status == "대기 중")
                                 {
-                                    var timeUntilUpload = item.ScheduledTime - now;
-                                    
-                                    if (timeUntilUpload.TotalMinutes <= 5 && item.Status == "대기 중")
+                                    try
                                     {
-                                        Console.WriteLine($"    🎬 {item.FileName} 영상 생성 시작");
-                                        Console.WriteLine($"       업로드 예정: {item.ScheduledTime:yyyy-MM-dd HH:mm:ss}");
-                                        
-                                        item.Status = "생성 중";
+                                        await GenerateVideoForUpload(item);
+                                        _logger.LogInformation($"[영상 생성 완료] {item.FileName}");
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Console.WriteLine($"❌ 영상 생성 실패: {item.FileName}");
+                                        item.Status = "생성 실패";
+                                        item.ErrorMessage = ex.Message;
                                         SaveQueueToFile();
                                         
-                                        try
-                                        {
-                                            await GenerateVideoForUpload(item);
-                                            Console.WriteLine($"    ✅ {item.FileName} 생성 완료");
-                                            _logger.LogInformation($"[영상 생성 완료] {item.FileName}");
-                                        }
-                                        catch (Exception ex)
-                                        {
-                                            Console.WriteLine($"    ❌ 영상 생성 실패: {ex.Message}");
-                                            _logger.LogError($"[영상 생성 실패] {item.FileName}: {ex.Message}");
-                                            item.Status = "생성 실패";
-                                            item.ErrorMessage = ex.Message;
-                                            SaveQueueToFile();
-                                            
-                                            _currentBatchCompleted++;
-                                            CheckBatchCompletion();
-                                            continue;
-                                        }
+                                        _currentBatchCompleted++;
+                                        CheckBatchCompletion();
+                                        continue;
                                     }
                                 }
                                 
-                                // 2단계: 업로드 시간이 되면 업로드
+                                // 업로드 시간
                                 if (item.ScheduledTime <= now && 
                                     !string.IsNullOrEmpty(item.FilePath) && 
                                     File.Exists(item.FilePath) &&
                                     item.Status == "생성 완료")
                                 {
-                                    Console.WriteLine($"    📤 {item.FileName} 업로드 시작");
-                                    Console.WriteLine($"       예정: {item.ScheduledTime:yyyy-MM-dd HH:mm:ss}");
-                                    Console.WriteLine($"       실제: {now:yyyy-MM-dd HH:mm:ss}");
-                                    _logger.LogInformation($"[업로드 시작] {item.FileName} - 예정: {item.ScheduledTime:HH:mm:ss}, 실제: {now:HH:mm:ss}");
-                                    
                                     try
                                     {
                                         await ProcessUpload(item);
-                                        Console.WriteLine($"    ✅ {item.FileName} 업로드 완료");
-                                        _logger.LogInformation($"[업로드 완료] {item.FileName} -> {item.UploadedUrl}");
                                         
                                         _currentBatchCompleted++;
                                         _currentBatchSuccess++;
@@ -219,9 +200,7 @@ namespace YouTubeShortsWebApp
                                     }
                                     catch (Exception ex)
                                     {
-                                        _logger.LogError($"[업로드 실패] {item.FileName}: {ex.Message}");
-                                        Console.WriteLine($"=== ❌ 업로드 실패: {item.FileName}");
-                                        Console.WriteLine($"    오류: {ex.Message}");
+                                        Console.WriteLine($"❌ 업로드 실패: {item.FileName}");
                                         item.Status = "실패";
                                         item.ErrorMessage = ex.Message;
                                         item.CompletedTime = DateTime.Now;
@@ -234,9 +213,7 @@ namespace YouTubeShortsWebApp
                             }
                             catch (Exception itemEx)
                             {
-                                Console.WriteLine($"=== ❌ 항목 처리 오류: {item.FileName}");
-                                Console.WriteLine($"    오류: {itemEx.Message}");
-                                _logger.LogError($"[항목 처리 오류] {item.FileName}: {itemEx.Message}");
+                                Console.WriteLine($"❌ 처리 오류: {item.FileName}");
                                 item.Status = "오류";
                                 item.ErrorMessage = itemEx.Message;
                                 SaveQueueToFile();
@@ -245,49 +222,28 @@ namespace YouTubeShortsWebApp
                                 CheckBatchCompletion();
                             }
                         }
-
-                        // 완료된 항목 제거
+        
+                        // 완료 항목 제거
                         lock (_queueLock)
                         {
-                            int beforeCount = _uploadQueue.Count;
                             _uploadQueue.RemoveAll(x => 
                                 x.Status == "완료" || 
                                 x.Status == "실패" || 
                                 x.Status == "오류" ||
                                 x.Status == "생성 실패");
-                            int afterCount = _uploadQueue.Count;
-                            
-                            if (beforeCount != afterCount)
-                            {
-                                Console.WriteLine($"=== 🗑️ 완료/실패 항목 제거: {beforeCount - afterCount}개");
-                            }
                         }
                         SaveQueueToFile();
-                        
-                        int remainingCount = GetQueueCount();
-                        Console.WriteLine($"=== 📊 남은 대기 항목: {remainingCount}개");
-                        
-                        lock (_queueLock)
-                        {
-                            var remaining = _uploadQueue.Where(x => x.Status == "대기 중" || x.Status == "생성 완료").ToList();
-                            foreach (var item in remaining.Take(3))
-                            {
-                                Console.WriteLine($"    - {item.FileName}: {item.Status} (예정: {item.ScheduledTime:MM/dd HH:mm})");
-                            }
-                        }
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError($"스케줄 서비스 오류: {ex.Message}");
-                    Console.WriteLine($"=== ⚠️ 스케줄 서비스 오류: {ex.Message}");
+                    Console.WriteLine($"⚠️ 스케줄 서비스 오류: {ex.Message}");
                 }
-
+        
                 await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
             }
-
-            _logger.LogInformation("🛑 스케줄 업로드 서비스 종료됨");
-            Console.WriteLine("=== 🛑 스케줄 업로드 서비스 종료됨");
+        
+            Console.WriteLine("🛑 스케줄 업로드 서비스 종료");
         }
 
         private void CheckBatchCompletion()
@@ -333,9 +289,7 @@ namespace YouTubeShortsWebApp
 
         private async Task GenerateVideoForUpload(ScheduledUploadItem item)
         {
-            Console.WriteLine($"=== 영상 생성 시작: {item.FileName}");
-            Console.WriteLine($"    프롬프트: {item.Prompt}");
-            Console.WriteLine($"    시간: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            Console.WriteLine($"📹 영상 생성 중: {item.FileName}");
             
             var config = ConfigManager.GetConfig();
             var replicateClient = new ReplicateClient(config.ReplicateApiKey);
@@ -353,11 +307,14 @@ namespace YouTubeShortsWebApp
                 };
                 
                 var prediction = await replicateClient.StartVideoGeneration(request);
-                Console.WriteLine($"=== 영상 생성 요청 완료. Prediction ID: {prediction.id}");
+                
+                // 로그 간소화 - 이 부분 삭제
+                // Console.WriteLine($"=== 영상 생성 요청 완료. Prediction ID: {prediction.id}");
                 
                 var progress = new Progress<ReplicateClient.ProgressInfo>(info =>
                 {
-                    Console.WriteLine($"    생성 진행률: {info.Percentage}% - {info.Status}");
+                    // 진행률 로그 제거 또는 간소화
+                    // Console.WriteLine($"    생성 진행률: {info.Percentage}% - {info.Status}");
                 });
                 
                 var completedPrediction = await replicateClient.WaitForCompletion(
@@ -384,35 +341,23 @@ namespace YouTubeShortsWebApp
                     throw new Exception("영상 URL을 가져올 수 없습니다.");
                 }
                 
-                Console.WriteLine($"=== 영상 생성 완료: {videoUrl}");
+                // 다운로드
+                using var httpClient = new System.Net.Http.HttpClient();
+                byte[] videoBytes = await httpClient.GetByteArrayAsync(videoUrl);
                 
-                string tempDir = Path.Combine(Path.GetTempPath(), "YouTubeScheduledUploads");
-                Directory.CreateDirectory(tempDir);
+                string tempPath = Path.GetTempPath();
+                string videoPath = Path.Combine(tempPath, item.FileName);
+                await File.WriteAllBytesAsync(videoPath, videoBytes);
                 
-                string videoPath = Path.Combine(tempDir, item.FileName);
-                
-                Console.WriteLine($"=== 다운로드 시작: {videoPath}");
-                
-                using (var httpClient = new HttpClient())
+                // 후처리
+                if (item.EnablePostProcessing && !string.IsNullOrEmpty(item.CaptionText))
                 {
-                    httpClient.Timeout = TimeSpan.FromMinutes(10);
-                    var videoBytes = await httpClient.GetByteArrayAsync(videoUrl);
-                    await File.WriteAllBytesAsync(videoPath, videoBytes);
-                }
-                
-                Console.WriteLine($"=== 영상 다운로드 완료: {videoPath}");
-                Console.WriteLine($"=== 파일 크기: {new FileInfo(videoPath).Length / 1024 / 1024} MB");
-                
-                if (item.EnablePostProcessing)
-                {
-                    Console.WriteLine($"=== 후처리 시작: {item.FileName}");
-                    
-                    string processedPath = videoPath.Replace(".mp4", "_processed.mp4");
+                    Console.WriteLine($"🎬 후처리 중: {item.FileName}");
                     
                     var processingOptions = new VideoPostProcessor.ProcessingOptions
                     {
                         InputVideoPath = videoPath,
-                        OutputVideoPath = processedPath,
+                        OutputVideoPath = videoPath.Replace(".mp4", "_processed.mp4"),
                         CaptionText = item.CaptionText ?? "",
                         FontSize = item.CaptionSize ?? "80",
                         FontColor = item.CaptionColor ?? "white",
@@ -430,11 +375,9 @@ namespace YouTubeShortsWebApp
                             File.Delete(videoPath);
                         }
                         videoPath = finalPath;
-                        Console.WriteLine($"=== 후처리 완료: {finalPath}");
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"=== 원본 파일 삭제 실패: {ex.Message}");
                         videoPath = finalPath;
                     }
                 }
@@ -443,10 +386,9 @@ namespace YouTubeShortsWebApp
                 item.Status = "생성 완료";
                 SaveQueueToFile();
                 
-                Console.WriteLine($"=== ✅ 영상 준비 완료: {item.FileName}");
-                Console.WriteLine($"=== 저장된 경로: {videoPath}");
-                Console.WriteLine($"=== 파일 존재 확인: {File.Exists(videoPath)}");
+                Console.WriteLine($"✅ 영상 생성 완료: {item.FileName}");
                 
+                // 히스토리 저장 (로그 제거)
                 try
                 {
                     var historyItem = new VideoHistoryManager.VideoHistoryItem
@@ -464,16 +406,15 @@ namespace YouTubeShortsWebApp
                     };
                     
                     VideoHistoryManager.AddHistoryItem(historyItem);
-                    Console.WriteLine($"=== ✅ 히스토리에 저장됨: {item.FileName}");
                 }
                 catch (Exception historyEx)
                 {
-                    Console.WriteLine($"=== ⚠️ 히스토리 저장 실패: {historyEx.Message}");
+                    // 히스토리 저장 실패 로그 제거
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"=== ❌ 영상 생성 실패: {ex.Message}");
+                Console.WriteLine($"❌ 영상 생성 실패: {item.FileName} - {ex.Message}");
                 item.Status = "생성 실패";
                 item.ErrorMessage = ex.Message;
                 SaveQueueToFile();
@@ -485,103 +426,52 @@ namespace YouTubeShortsWebApp
             }
         }
 
+       // 업로드 처리 부분 (약 450줄)
         private async Task ProcessUpload(ScheduledUploadItem item)
         {
             var startTime = DateTime.Now;
             
-            _logger.LogInformation($"⬆️ 업로드 시작: {item.FileName}");
-            Console.WriteLine($"=== ⬆️ 업로드 시작: {item.FileName}");
-            Console.WriteLine($"    제목: {item.Title}");
-            Console.WriteLine($"    파일 경로: {item.FilePath}");
-            Console.WriteLine($"    시작 시간: {startTime:yyyy-MM-dd HH:mm:ss}");
-
+            Console.WriteLine($"📤 업로드 중: {item.FileName}");
+        
             item.Status = "업로드 중";
             item.StartTime = startTime;
             SaveQueueToFile();
-
+        
             try
             {
                 var youtubeUploader = new YouTubeUploader();
-
                 bool authSuccess = await youtubeUploader.AuthenticateAsync();
+                
                 if (!authSuccess)
                 {
                     throw new Exception("YouTube 인증 실패");
                 }
-
-                var uploadInfo = new YouTubeUploader.VideoUploadInfo
-                {
-                    FilePath = item.FilePath,
-                    Title = item.Title,
-                    Description = item.Description,
-                    Tags = item.Tags,
-                    PrivacyStatus = item.PrivacySetting
-                };
-
-                var progress = new Progress<YouTubeUploader.UploadProgressInfo>(progressInfo =>
-                {
-                    if (progressInfo.Percentage % 25 == 0)
-                    {
-                        Console.WriteLine($"    업로드 진행률: {progressInfo.Percentage}% - {progressInfo.Status}");
-                        _logger.LogInformation($"[업로드 진행] {item.FileName}: {progressInfo.Percentage}%");
-                    }
-                });
-
-                string videoUrl = await youtubeUploader.UploadVideoAsync(uploadInfo, progress);
-
-                var completedTime = DateTime.Now;
-                var duration = completedTime - startTime;
-                
+        
+                string uploadedUrl = await youtubeUploader.UploadVideoAsync(
+                    item.FilePath,
+                    item.Title,
+                    item.Description,
+                    item.Tags.Split(',').Select(t => t.Trim()).ToList(),
+                    item.PrivacySetting
+                );
+        
                 item.Status = "완료";
-                item.UploadedUrl = videoUrl;
-                item.CompletedTime = completedTime;
-
-                _logger.LogInformation($"✅ 업로드 완료: {item.FileName} -> {videoUrl}");
-                Console.WriteLine($"=== ✅ 업로드 완료: {item.FileName}");
-                Console.WriteLine($"    제목: {item.Title}");
-                Console.WriteLine($"    URL: {videoUrl}");
-                Console.WriteLine($"    완료 시간: {completedTime:yyyy-MM-dd HH:mm:ss}");
-                Console.WriteLine($"    소요 시간: {duration.TotalMinutes:F1}분");
-                Console.WriteLine($"    예정 시간: {item.ScheduledTime:yyyy-MM-dd HH:mm:ss}");
-
-                try
-                {
-                    var historyItems = VideoHistoryManager.GetHistory();
-                    var historyItem = historyItems.FirstOrDefault(h => h.FileName == item.FileName);
-                    
-                    if (historyItem != null)
-                    {
-                        VideoHistoryManager.UpdateHistoryItem(historyItem.Id, h =>
-                        {
-                            h.IsUploaded = true;
-                            h.YouTubeUrl = videoUrl;
-                            h.Status = "업로드 완료";
-                        });
-                        Console.WriteLine($"=== ✅ 히스토리 업데이트됨: {item.FileName}");
-                        _logger.LogInformation($"[히스토리 업데이트] {item.FileName}");
-                    }
-                    else
-                    {
-                        Console.WriteLine($"=== ⚠️ 히스토리에서 찾을 수 없음: {item.FileName}");
-                    }
-                }
-                catch (Exception historyEx)
-                {
-                    Console.WriteLine($"=== ⚠️ 히스토리 업데이트 실패: {historyEx.Message}");
-                }
-
-                youtubeUploader.Dispose();
+                item.UploadedUrl = uploadedUrl;
+                item.CompletedTime = DateTime.Now;
+        
+                Console.WriteLine($"✅ 업로드 완료: {item.FileName}");
+                
+                // 자세한 로그 제거
+                // Console.WriteLine($"    URL: {uploadedUrl}");
+                // Console.WriteLine($"    소요 시간: ...");
             }
             catch (Exception ex)
             {
                 item.Status = "실패";
                 item.ErrorMessage = ex.Message;
                 item.CompletedTime = DateTime.Now;
-
-                _logger.LogError($"❌ 업로드 실패: {item.FileName} - {ex.Message}");
-                Console.WriteLine($"=== ❌ 업로드 실패: {item.FileName}");
-                Console.WriteLine($"    오류: {ex.Message}");
-
+        
+                Console.WriteLine($"❌ 업로드 실패: {item.FileName} - {ex.Message}");
                 throw;
             }
             finally
@@ -591,20 +481,16 @@ namespace YouTubeShortsWebApp
                     if (File.Exists(item.FilePath))
                     {
                         File.Delete(item.FilePath);
-                        Console.WriteLine($"    🗑️ 임시 파일 삭제: {Path.GetFileName(item.FilePath)}");
-                        _logger.LogInformation($"[임시 파일 삭제] {item.FilePath}");
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning($"임시 파일 삭제 실패: {item.FilePath} - {ex.Message}");
-                    Console.WriteLine($"    ⚠️ 임시 파일 삭제 실패: {ex.Message}");
+                    // 파일 삭제 실패 로그 제거
                 }
                 
                 SaveQueueToFile();
             }
         }
-    }
 
     public class ScheduledUploadItem
     {
