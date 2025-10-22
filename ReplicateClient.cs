@@ -1,4 +1,4 @@
- using System;
+using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
@@ -97,14 +97,9 @@ namespace YouTubeShortsWebApp
         public async Task<bool> TestConnectionAsync()
         {
             try
-            {
-                // Console.WriteLine($"=== 연결 테스트 시작: {_baseUrl}"); // 제거
-                
+            {              
                 var response = await _httpClient.GetAsync($"{_baseUrl}/models");
-                var content = await response.Content.ReadAsStringAsync();
-                
-                // Console.WriteLine($"=== 연결 테스트 결과: {response.StatusCode}"); // 제거
-                // Console.WriteLine($"=== 응답 내용 (일부): {content.Substring(0, Math.Min(200, content.Length))}"); // 제거
+                var content = await response.Content.ReadAsStringAsync();         
                 
                 return response.IsSuccessStatusCode;
             }
@@ -119,10 +114,8 @@ namespace YouTubeShortsWebApp
         {
             try
             {
-                // Console.WriteLine("=== 영상 생성 API 호출 전 지연 시작 (Cloudflare 우회)"); // 제거
                 await Task.Delay(3000);
-                // Console.WriteLine("=== 지연 완료, API 호출 시작"); // 제거
-                
+               
                 var input = new Dictionary<string, object>
                 {
                     ["prompt"] = request.prompt,
@@ -166,11 +159,6 @@ namespace YouTubeShortsWebApp
                     // 오류 시에만 Console 출력
                     Console.WriteLine($"❌ Replicate API 오류: {response.StatusCode}");
                     
-                    // 자세한 오류 정보 제거 또는 간소화
-                    // Console.WriteLine($"=== 상세 오류 정보 ===");
-                    // Console.WriteLine($"Status Code: {response.StatusCode}");
-                    // ... 나머지 제거
-                    
                     throw new Exception($"API 요청 실패: {response.StatusCode} - {responseContent}");
                 }
         
@@ -194,13 +182,7 @@ namespace YouTubeShortsWebApp
                 
                 HttpResponseMessage response = await _httpClient.GetAsync(requestUrl);
                 string responseContent = await response.Content.ReadAsStringAsync();
-                
-                // 자세한 로그 제거
-                // Console.WriteLine($"=== 상태 확인 응답 ===");
-                // Console.WriteLine($"Status Code: {response.StatusCode}");
-                // Console.WriteLine($"Content-Type: {response.Content.Headers.ContentType}");
-                // Console.WriteLine($"Raw Response (처음 500자): ...");
-        
+                        
                 if (!response.IsSuccessStatusCode)
                 {
                     throw new Exception($"상태 확인 실패: {response.StatusCode} - {responseContent}");
@@ -220,7 +202,8 @@ namespace YouTubeShortsWebApp
             }
         }
 
-        
+
+     
         private ProgressInfo CalculateProgress(PredictionResponse status, DateTime startTime, int attemptNumber, int maxAttempts)
         {
             var elapsed = DateTime.Now - startTime;
