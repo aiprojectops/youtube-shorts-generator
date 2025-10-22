@@ -793,7 +793,7 @@
         public bool IsScheduled { get; set; } = false;
     }
 
-    private string totalCost => (genOptions.VideoCount * (genOptions.SelectedDuration == 5 ? 0.75m : 1.5m)).ToString("F2");
+    private string totalCost => (genOptions.VideoCount * genOptions.SelectedDuration * 0.15m).ToString("F2");
 
 
 
