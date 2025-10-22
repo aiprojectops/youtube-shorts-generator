@@ -69,12 +69,17 @@
                                 <div class="text-primary">총 예상 비용: $@totalCost</div>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label"><strong>영상 길이:</strong></label>
-                                <div>
-                                    <button type="button" class="btn @GetDurationClass(5)" @onclick="@(() => genOptions.SelectedDuration = 5)" disabled="@(isRunning || hasActiveSchedule)">5초</button>
-                                    <button type="button" class="btn @GetDurationClass(10)" @onclick="@(() => genOptions.SelectedDuration = 10)" disabled="@(isRunning || hasActiveSchedule)">10초</button>
-                                </div>
-                            </div>
+                            <label class="form-label"><strong>영상 길이: @genOptions.SelectedDuration 초</strong></label>
+                            <input type="range" 
+                                   class="form-range" 
+                                   min="2" 
+                                   max="12" 
+                                   step="1" 
+                                   value="@genOptions.SelectedDuration" 
+                                   @oninput="OnDurationInput" 
+                                   disabled="@(isRunning || hasActiveSchedule)" />
+                            <small class="text-muted">2초 ~ 12초</small>
+                        </div>
                             <div class="col-md-4">
                                 <label class="form-label"><strong>화면 비율:</strong></label>
                                 <div>
@@ -790,10 +795,7 @@
 
     private string totalCost => (genOptions.VideoCount * (genOptions.SelectedDuration == 5 ? 0.75m : 1.5m)).ToString("F2");
 
-    private string GetDurationClass(int duration)
-    {
-        return genOptions.SelectedDuration == duration ? "btn-primary" : "btn-outline-primary";
-    }
+
 
     private string GetAspectClass(string ratio)
     {
@@ -820,7 +822,17 @@
             OnVideoCountChanged();
         }
     }
-    
+
+    private void OnDurationInput(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int duration))
+        {
+            genOptions.SelectedDuration = duration;
+            StateHasChanged();
+        }
+    }    
+
+
     private void OnScheduleHoursInput(ChangeEventArgs e)
     {
         if (float.TryParse(e.Value?.ToString(), out float value))
