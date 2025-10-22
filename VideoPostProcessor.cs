@@ -381,7 +381,8 @@ namespace YouTubeShortsWebApp
         {
             try
             {
-                Console.WriteLine($"=== FFmpeg 실행 시작");
+                Console.WriteLine($"🎬 FFmpeg 처리 중...");
+                
                 var process = new Process
                 {
                     StartInfo = new ProcessStartInfo
@@ -400,7 +401,6 @@ namespace YouTubeShortsWebApp
                 var startTime = DateTime.Now;
                 var processTask = process.WaitForExitAsync();
                 
-                // 🔥 3분에서 10분으로 타임아웃 늘리기
                 var maxTimeout = TimeSpan.FromMinutes(10);
         
                 while (!processTask.IsCompleted)
@@ -409,43 +409,37 @@ namespace YouTubeShortsWebApp
         
                     if (elapsed >= maxTimeout)
                     {
-                        Console.WriteLine("=== 10분 타임아웃 발생!");
                         try
                         {
                             if (!process.HasExited)
                             {
                                 process.Kill();
-                                Console.WriteLine("=== 프로세스 강제 종료됨");
                             }
                         }
                         catch (Exception killEx)
                         {
-                            Console.WriteLine($"=== 프로세스 종료 실패: {killEx.Message}");
+                            // 종료 실패 로그 제거
                         }
                         throw new TimeoutException("FFmpeg 실행이 10분을 초과했습니다.");
                     }
         
-                    // 30초마다 진행 상황 로그 (더 자주)
-                    if (elapsed.TotalSeconds % 30 == 0 || elapsed.TotalSeconds < 1)
-                    {
-                        Console.WriteLine($"=== FFmpeg 진행 중... ({elapsed.TotalSeconds:F0}초 경과)");
-                    }
+                    // 30초마다 로그 제거
+                    // Console.WriteLine($"=== FFmpeg 진행 중... ({elapsed.TotalSeconds:F0}초 경과)");
         
                     await Task.Delay(1000);
                 }
         
-                // 나머지 로직...
                 if (process.ExitCode != 0)
                 {
                     string error = await process.StandardError.ReadToEndAsync();
                     throw new Exception($"FFmpeg 오류 (종료코드: {process.ExitCode}): {error}");
                 }
         
-                Console.WriteLine("=== FFmpeg 실행 성공");
+                Console.WriteLine("✅ FFmpeg 처리 완료");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"=== RunFFmpegAsync 오류: {ex.Message}");
+                Console.WriteLine($"❌ FFmpeg 오류: {ex.Message}");
                 throw;
             }
         }
