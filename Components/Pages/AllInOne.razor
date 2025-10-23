@@ -6,8 +6,7 @@
 @using System.Text
 @inject IJSRuntime JSRuntime
 @inject ScheduledUploadService ScheduledUploadService
-@inject VideoPostProcessingService ProcessingService
-@inject UploadScheduleService SchedulerService
+@inject VideoGenerationService VideoGenService
 @inject YouTubeUploadService YouTubeService
 @using System.Web
 
@@ -939,9 +938,11 @@
         }
     }
 
-    private async Task SwitchAccount()
+    private async Task SwitchYouTubeAccount()
     {
-        bool confirm = await JSRuntime.InvokeAsync<bool>("confirm", "다른 계정으로 전환하시겠습니까?");
+        bool confirm = await JSRuntime.InvokeAsync<bool>("confirm", 
+            "현재 계정 연동을 해제하고 다른 계정으로 전환하시겠습니까?");
+        
         if (!confirm) return;
         
         await YouTubeService.SwitchAccountAsync();
@@ -956,27 +957,50 @@
 
         try
         {
-            using var stream = file.OpenReadStream();
+            const long maxSize = 5 * 1024 * 1024;
+            if (file.Size > maxSize)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "CSV 파일이 너무 큽니다. 5MB 이하의 파일을 선택해주세요.");
+                return;
+            }
+
+            using var stream = file.OpenReadStream(maxSize);
             using var reader = new StreamReader(stream);
             var content = await reader.ReadToEndAsync();
 
-            genOptions.CsvPrompts = content
-                .Split('\n')
-                .Select(line => line.Split(',').Skip(1).FirstOrDefault()?.Trim())
-                .Where(prompt => !string.IsNullOrEmpty(prompt))
-                .ToList();
+            genOptions.CsvPrompts = VideoGenService.ParseCsvContent(content);
+
+            if (genOptions.CsvPrompts.Count == 0)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "CSV 파일에서 유효한 프롬프트를 찾을 수 없습니다.");
+            }
+            else
+            {
+                OnVideoCountChanged();
+            }
 
             StateHasChanged();
         }
         catch (Exception ex)
         {
             await JSRuntime.InvokeVoidAsync("alert", $"CSV 파일 로드 실패: {ex.Message}");
+            genOptions.CsvPrompts.Clear();
         }
     }
 
     private void ShowCsvPreview()
     {
         showCsvPreview = true;
+    }
+
+    private void ShowCaptionCsvPreview()
+    {
+        showCaptionCsvPreview = true;
+    }
+
+    private void ShowUploadInfoCsvPreview()
+    {
+        showUploadInfoCsvPreview = true;
     }
 
     private async Task HandleSourceImageSelection(InputFileChangeEventArgs e)
@@ -1020,21 +1044,30 @@
 
         try
         {
-            using var stream = file.OpenReadStream();
+            const long maxSize = 5 * 1024 * 1024;
+            if (file.Size > maxSize)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "CSV 파일이 너무 큽니다. 5MB 이하의 파일을 선택해주세요.");
+                return;
+            }
+
+            using var stream = file.OpenReadStream(maxSize);
             using var reader = new StreamReader(stream);
             var content = await reader.ReadToEndAsync();
 
-            postOptions.CaptionCsvList = content
-                .Split('\n')
-                .Select(line => line.Trim())
-                .Where(line => !string.IsNullOrEmpty(line))
-                .ToList();
+            postOptions.CaptionCsvList = VideoGenService.ParseCsvContent(content);
+
+            if (postOptions.CaptionCsvList.Count == 0)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "CSV 파일에서 유효한 캡션을 찾을 수 없습니다.");
+            }
 
             StateHasChanged();
         }
         catch (Exception ex)
         {
             await JSRuntime.InvokeVoidAsync("alert", $"캡션 CSV 파일 로드 실패: {ex.Message}");
+            postOptions.CaptionCsvList.Clear();
         }
     }
 
