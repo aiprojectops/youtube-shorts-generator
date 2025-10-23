@@ -230,7 +230,7 @@ namespace YouTubeShortsWebApp.Services
         /// </summary>
         public int GetActiveScheduleCount()
         {
-            return _scheduledService.GetPendingUploadCount();
+            return _scheduledService.GetQueueCount();
         }
 
         /// <summary>
