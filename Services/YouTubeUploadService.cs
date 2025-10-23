@@ -115,6 +115,16 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
             throw new Exception("YouTube 인증이 필요합니다.");
         }
 
+        // 🔥 YouTube 업로드 시작 로그
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        Console.WriteLine($"📤 [YouTube 업로드 시작]");
+        Console.WriteLine($"📝 제목: {title}");
+        Console.WriteLine($"📄 설명: {options.Description}");
+        Console.WriteLine($"🏷️ 태그: {options.Tags}");
+        Console.WriteLine($"🔒 공개 설정: {options.PrivacySetting}");
+        Console.WriteLine($"📁 파일: {Path.GetFileName(filePath)}");
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
         var uploadInfo = new YouTubeUploader.VideoUploadInfo
         {
             FilePath = filePath,
@@ -124,7 +134,16 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
             PrivacyStatus = options.PrivacySetting
         };
 
-        return await _youtubeUploader.UploadVideoAsync(uploadInfo, progress);
+        string videoUrl = await _youtubeUploader.UploadVideoAsync(uploadInfo, progress);
+
+        // 🔥 YouTube 업로드 완료 로그
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        Console.WriteLine($"✅ [YouTube 업로드 완료]");
+        Console.WriteLine($"📝 제목: {title}");
+        Console.WriteLine($"🔗 URL: {videoUrl}");
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+        return videoUrl;
     }
 
 
@@ -206,6 +225,16 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
               }
   
               progressCallback?.Invoke(i + 1, filePaths.Count, title);
+
+              // 🔥 YouTube 업로드 시작 로그
+              Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+              Console.WriteLine($"📤 [YouTube 업로드 시작] 영상 {i + 1}/{filePaths.Count}");
+              Console.WriteLine($"📝 제목: {title}");
+              Console.WriteLine($"📄 설명: {description}");
+              Console.WriteLine($"🏷️ 태그: {tags}");
+              Console.WriteLine($"🔒 공개 설정: {options.PrivacySetting}");
+              Console.WriteLine($"📁 파일: {Path.GetFileName(filePath)}");
+              Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   
               var uploadInfo = new YouTubeUploader.VideoUploadInfo
               {
@@ -218,8 +247,13 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
   
               string videoUrl = await _youtubeUploader.UploadVideoAsync(uploadInfo);
               uploadedUrls.Add(videoUrl);
-  
-              Console.WriteLine($"✅ 업로드 완료: {title} -> {videoUrl}");
+
+              // 🔥 YouTube 업로드 완료 로그
+              Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+              Console.WriteLine($"✅ [YouTube 업로드 완료] 영상 {i + 1}/{filePaths.Count}");
+              Console.WriteLine($"📝 제목: {title}");
+              Console.WriteLine($"🔗 URL: {videoUrl}");
+              Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
           }
           catch (Exception ex)
           {
@@ -258,7 +292,6 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
         {
             var videoInfo = videosToSchedule[i];
             
-            // 미리 계산된 시간 사용
             DateTime scheduledTime = scheduledTimes.ContainsKey(i) 
                 ? scheduledTimes[i] 
                 : DateTime.Now.AddMinutes(5 + (i * 10));
@@ -267,14 +300,15 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
             
             if (uploadOptions.UseRandomInfo)
             {
-                // 각각 다른 시드로 진짜 랜덤 선택
                 var titleRandom = new Random(Guid.NewGuid().GetHashCode());
                 var descRandom = new Random(Guid.NewGuid().GetHashCode());
                 var tagsRandom = new Random(Guid.NewGuid().GetHashCode());
                 
                 title = uploadOptions.RandomTitles != null && uploadOptions.RandomTitles.Count > 0
                     ? uploadOptions.RandomTitles[titleRandom.Next(uploadOptions.RandomTitles.Count)]
-                    : $"Video #{i + 1}";
+                    : (videosToSchedule.Count > 1 
+                        ? uploadOptions.TitleTemplate.Replace("#NUMBER", $"#{i + 1}")
+                        : uploadOptions.TitleTemplate.Replace(" #NUMBER", ""));
                 
                 description = uploadOptions.RandomDescriptions != null && uploadOptions.RandomDescriptions.Count > 0
                     ? uploadOptions.RandomDescriptions[descRandom.Next(uploadOptions.RandomDescriptions.Count)]
@@ -283,10 +317,6 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
                 tags = uploadOptions.RandomTags != null && uploadOptions.RandomTags.Count > 0
                     ? uploadOptions.RandomTags[tagsRandom.Next(uploadOptions.RandomTags.Count)]
                     : uploadOptions.Tags;
-                
-                Console.WriteLine($"=== 생성 스케줄 {i + 1}: 완전 랜덤 조합");
-                Console.WriteLine($"    제목: {title.Substring(0, Math.Min(30, title.Length))}...");
-                Console.WriteLine($"    예정: {scheduledTime:MM/dd HH:mm}");
             }
             else
             {
@@ -503,4 +533,3 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
     }
  }
 }
-
