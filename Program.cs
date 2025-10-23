@@ -37,13 +37,13 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
-app.UseStaticFiles();
-app.UseAntiforgery();
+app.UseHttpsRedirection();  // HTTP → HTTPS 리다이렉션
+app.UseStaticFiles();  // CSS, JS 등 정적 파일 제공
+app.UseAntiforgery();   // CSRF 공격 방어
 
-app.MapControllers();
+app.MapControllers();   // API 엔드포인트 매핑
 
 app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+    .AddInteractiveServerRenderMode();  // Blazor Server 모드
 
 app.Run();
