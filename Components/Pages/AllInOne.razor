@@ -24,7 +24,7 @@
     2. 160줄부터 1988줄까지의 UI 코드를 복사합니다
        (1. 영상 생성 설정 카드부터 실행 버튼, 진행률 표시, 결과 표시까지 모든 UI)
     3. 아래 주석 부분을 삭제하고 복사한 UI를 붙여넣습니다
-    4. code블록은 이미 완성되어 있으므로 수정하지 마세요
+    4. 코드 블록은 이미 완성되어 있으므로 수정하지 마세요
     
     ⚠️ 중요: inject 부분은 이미 위에 올바르게 설정되어 있습니다!
 -->
@@ -110,13 +110,22 @@
                             <InputFile OnChange="HandleCsvFileSelection" accept=".csv" class="form-control" disabled="@(isRunning || hasActiveSchedule)" />
                             <div class="form-text">CSV 파일 형식: 첫 번째 열은 번호, 두 번째 열은 프롬프트 내용</div>
 
-                            @if (genOptions.CsvPrompts.Count > 0)
+                            @if (genOptions.CsvPrompts.Count > 0 && string.IsNullOrEmpty(promptCsvError))
                             {
                                 <div class="mt-2 alert alert-success">
-                                    <strong>로드된 프롬프트:</strong> @genOptions.CsvPrompts.Count 개
-                                    <button type="button" class="btn btn-sm btn-outline-primary ms-2" @onclick="ShowCsvPreview" disabled="@(isRunning || hasActiveSchedule)">
+                                    <strong>✅ 프롬프트 CSV 로드 완료</strong>
+                                    <p class="mb-0">📊 총 @genOptions.CsvPrompts.Count 개의 프롬프트</p>
+                                    <button type="button" class="btn btn-sm btn-outline-primary ms-2 mt-2" @onclick="ShowCsvPreview" disabled="@(isRunning || hasActiveSchedule)">
                                         미리보기
                                     </button>
+                                </div>
+                            }
+                            
+                            @if (!string.IsNullOrEmpty(promptCsvError))
+                            {
+                                <div class="mt-2 alert alert-danger">
+                                    <strong>❌ CSV 형식 오류</strong>
+                                    <pre class="mb-0 mt-2" style="white-space: pre-wrap; font-family: monospace; font-size: 0.9em;">@promptCsvError</pre>
                                 </div>
                             }
                         </div>
@@ -223,13 +232,21 @@
                                                             <InputFile OnChange="HandleCaptionCsvSelection" accept=".csv" class="form-control form-control-sm" disabled="@(isRunning || hasActiveSchedule)" />
                                                             <div class="form-text">CSV 형식: 첫 번째 열은 번호, 두 번째 열은 캡션 텍스트</div>
                                                             
-                                                            @if (postOptions.CaptionCsvList.Count > 0)
+                                                            @if (postOptions.CaptionCsvList.Count > 0 && string.IsNullOrEmpty(captionCsvError))
                                                             {
                                                                 <div class="mt-1 alert alert-success py-1 px-2 small">
-                                                                    ✓ @postOptions.CaptionCsvList.Count 개 캡션 로드됨
+                                                                    ✅ @postOptions.CaptionCsvList.Count 개 캡션 로드됨
                                                                     <button type="button" class="btn btn-sm btn-outline-primary ms-2" @onclick="ShowCaptionCsvPreview" disabled="@(isRunning || hasActiveSchedule)">
                                                                         미리보기
                                                                     </button>
+                                                                </div>
+                                                            }
+                                                            
+                                                            @if (!string.IsNullOrEmpty(captionCsvError))
+                                                            {
+                                                                <div class="mt-2 alert alert-danger py-1 px-2 small">
+                                                                    <strong>❌ CSV 형식 오류</strong>
+                                                                    <pre class="mb-0 mt-1" style="white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">@captionCsvError</pre>
                                                                 </div>
                                                             }
                                                         </div>
@@ -384,13 +401,22 @@
                                 쉼표 대신 <span class="text-primary">마침표(.), 슬래쉬(/), 세미콜론(;), 또는 줄표(-)</span>를 사용해주세요.
                             </div>
                         
-                            @if (uploadInfoCsvList.Count > 0)
+                            @if (uploadInfoCsvList.Count > 0 && string.IsNullOrEmpty(uploadInfoCsvError))
                             {
                                 <div class="mt-2 alert alert-success">
-                                    <strong>로드된 업로드 정보:</strong> @uploadInfoCsvList.Count 개
-                                    <button type="button" class="btn btn-sm btn-outline-primary ms-2" @onclick="ShowUploadInfoCsvPreview" disabled="@(isRunning || hasActiveSchedule)">
+                                    <strong>✅ 업로드 정보 CSV 로드 완료</strong>
+                                    <p class="mb-0">📊 총 @uploadInfoCsvList.Count 개의 업로드 정보</p>
+                                    <button type="button" class="btn btn-sm btn-outline-primary ms-2 mt-2" @onclick="ShowUploadInfoCsvPreview" disabled="@(isRunning || hasActiveSchedule)">
                                         미리보기
                                     </button>
+                                </div>
+                            }
+                            
+                            @if (!string.IsNullOrEmpty(uploadInfoCsvError))
+                            {
+                                <div class="mt-2 alert alert-danger">
+                                    <strong>❌ CSV 형식 오류</strong>
+                                    <pre class="mb-0 mt-2" style="white-space: pre-wrap; font-family: monospace; font-size: 0.9em;">@uploadInfoCsvError</pre>
                                 </div>
                             }
                         </div>
@@ -780,6 +806,11 @@
     private bool hasActiveSchedule = false;
     private System.Timers.Timer? scheduleStatusTimer;
     private string nextUploadInfo = "";
+    
+    // CSV 검증 에러 메시지
+    private string promptCsvError = "";
+    private string captionCsvError = "";
+    private string uploadInfoCsvError = "";
 
     public class GeneratedVideo
     {
@@ -955,15 +986,19 @@
 
     private async Task HandleCsvFileSelection(InputFileChangeEventArgs e)
     {
+        promptCsvError = "";
+        genOptions.CsvPrompts.Clear();
+        
         var file = e.File;
         if (file == null) return;
 
         try
         {
-            const long maxSize = 5 * 1024 * 1024;
+            const long maxSize = 10 * 1024 * 1024;
             if (file.Size > maxSize)
             {
-                await JSRuntime.InvokeVoidAsync("alert", "CSV 파일이 너무 큽니다. 5MB 이하의 파일을 선택해주세요.");
+                promptCsvError = "❌ 파일 크기가 너무 큽니다 (최대 10MB)";
+                await JSRuntime.InvokeVoidAsync("alert", promptCsvError);
                 return;
             }
 
@@ -971,22 +1006,23 @@
             using var reader = new StreamReader(stream);
             var content = await reader.ReadToEndAsync();
 
-            genOptions.CsvPrompts = VideoGenService.ParseCsvContent(content);
-
-            if (genOptions.CsvPrompts.Count == 0)
+            var (isValid, errorMessage, prompts) = ValidatePromptCsv(content);
+            
+            if (!isValid)
             {
-                await JSRuntime.InvokeVoidAsync("alert", "CSV 파일에서 유효한 프롬프트를 찾을 수 없습니다.");
-            }
-            else
-            {
-                OnVideoCountChanged();
+                promptCsvError = errorMessage;
+                await JSRuntime.InvokeVoidAsync("alert", errorMessage);
+                return;
             }
 
+            genOptions.CsvPrompts = prompts;
+            OnVideoCountChanged();
             StateHasChanged();
         }
         catch (Exception ex)
         {
-            await JSRuntime.InvokeVoidAsync("alert", $"CSV 파일 로드 실패: {ex.Message}");
+            promptCsvError = $"❌ 파일 읽기 실패\n\n{ex.Message}";
+            await JSRuntime.InvokeVoidAsync("alert", promptCsvError);
             genOptions.CsvPrompts.Clear();
         }
     }
@@ -1042,15 +1078,19 @@
 
     private async Task HandleCaptionCsvSelection(InputFileChangeEventArgs e)
     {
+        captionCsvError = "";
+        postOptions.CaptionCsvList.Clear();
+        
         var file = e.File;
         if (file == null) return;
 
         try
         {
-            const long maxSize = 5 * 1024 * 1024;
+            const long maxSize = 10 * 1024 * 1024;
             if (file.Size > maxSize)
             {
-                await JSRuntime.InvokeVoidAsync("alert", "CSV 파일이 너무 큽니다. 5MB 이하의 파일을 선택해주세요.");
+                captionCsvError = "❌ 파일 크기가 너무 큽니다 (최대 10MB)";
+                await JSRuntime.InvokeVoidAsync("alert", captionCsvError);
                 return;
             }
 
@@ -1058,18 +1098,22 @@
             using var reader = new StreamReader(stream);
             var content = await reader.ReadToEndAsync();
 
-            postOptions.CaptionCsvList = VideoGenService.ParseCsvContent(content);
-
-            if (postOptions.CaptionCsvList.Count == 0)
+            var (isValid, errorMessage, captions) = ValidateCaptionCsv(content);
+            
+            if (!isValid)
             {
-                await JSRuntime.InvokeVoidAsync("alert", "CSV 파일에서 유효한 캡션을 찾을 수 없습니다.");
+                captionCsvError = errorMessage;
+                await JSRuntime.InvokeVoidAsync("alert", errorMessage);
+                return;
             }
 
+            postOptions.CaptionCsvList = captions;
             StateHasChanged();
         }
         catch (Exception ex)
         {
-            await JSRuntime.InvokeVoidAsync("alert", $"캡션 CSV 파일 로드 실패: {ex.Message}");
+            captionCsvError = $"❌ 파일 읽기 실패\n\n{ex.Message}";
+            await JSRuntime.InvokeVoidAsync("alert", captionCsvError);
             postOptions.CaptionCsvList.Clear();
         }
     }
@@ -1090,22 +1134,217 @@
 
     private async Task HandleUploadInfoCsvSelection(InputFileChangeEventArgs e)
     {
+        uploadInfoCsvError = "";
+        uploadInfoCsvList.Clear();
+        
         var file = e.File;
         if (file == null) return;
 
         try
         {
-            using var stream = file.OpenReadStream();
+            const long maxSize = 10 * 1024 * 1024;
+            if (file.Size > maxSize)
+            {
+                uploadInfoCsvError = "❌ 파일 크기가 너무 큽니다 (최대 10MB)";
+                await JSRuntime.InvokeVoidAsync("alert", uploadInfoCsvError);
+                return;
+            }
+
+            using var stream = file.OpenReadStream(maxSize);
             using var reader = new StreamReader(stream);
             var content = await reader.ReadToEndAsync();
 
-            uploadInfoCsvList = ParseUploadInfoCsv(content);
+            var (isValid, errorMessage, uploadInfos) = ValidateUploadInfoCsv(content);
+            
+            if (!isValid)
+            {
+                uploadInfoCsvError = errorMessage;
+                await JSRuntime.InvokeVoidAsync("alert", errorMessage);
+                return;
+            }
+
+            foreach (var info in uploadInfos)
+            {
+                uploadInfoCsvList.Add(new UploadInfoItem 
+                { 
+                    Title = info.Title, 
+                    Description = info.Description, 
+                    Tags = info.Tags 
+                });
+            }
             StateHasChanged();
         }
         catch (Exception ex)
         {
-            await JSRuntime.InvokeVoidAsync("alert", $"업로드 정보 CSV 파일 로드 실패: {ex.Message}");
+            uploadInfoCsvError = $"❌ 파일 읽기 실패\n\n{ex.Message}";
+            await JSRuntime.InvokeVoidAsync("alert", uploadInfoCsvError);
+            uploadInfoCsvList.Clear();
         }
+    }
+
+    
+    // CSV 검증 메서드들
+    private (bool isValid, string errorMessage, List<string> prompts) ValidatePromptCsv(string csvContent)
+    {
+        var errors = new List<string>();
+        var prompts = new List<string>();
+        
+        var lines = csvContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        
+        if (lines.Length == 0)
+        {
+            return (false, "❌ CSV 파일이 비어있습니다.", prompts);
+        }
+        
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i].Trim();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            
+            var columns = line.Split(',');
+            
+            if (columns.Length != 2)
+            {
+                errors.Add($"• {i + 1}번째 줄: 컬럼 수 오류 (2개여야 하는데 {columns.Length}개입니다)");
+                continue;
+            }
+            
+            var promptText = columns[1].Trim();
+            if (string.IsNullOrWhiteSpace(promptText))
+            {
+                errors.Add($"• {i + 1}번째 줄: 프롬프트 내용이 비어있습니다");
+                continue;
+            }
+            
+            prompts.Add(promptText);
+        }
+        
+        if (prompts.Count == 0)
+        {
+            errors.Add("• 유효한 프롬프트가 하나도 없습니다");
+        }
+        
+        if (errors.Count > 0)
+        {
+            var errorMsg = "❌ CSV 형식 오류\n\n" +
+                          "문제점:\n" + string.Join("\n", errors) + "\n\n" +
+                          "올바른 형식:\n" +
+                          "1,프롬프트 내용\n" +
+                          "2,프롬프트 내용";
+            return (false, errorMsg, prompts);
+        }
+        
+        return (true, "", prompts);
+    }
+
+    private (bool isValid, string errorMessage, List<string> captions) ValidateCaptionCsv(string csvContent)
+    {
+        var errors = new List<string>();
+        var captions = new List<string>();
+        
+        var lines = csvContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        
+        if (lines.Length == 0)
+        {
+            return (false, "❌ CSV 파일이 비어있습니다.", captions);
+        }
+        
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i].Trim();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            
+            var columns = line.Split(',');
+            
+            if (columns.Length != 2)
+            {
+                errors.Add($"• {i + 1}번째 줄: 컬럼 수 오류 (2개여야 하는데 {columns.Length}개입니다)");
+                continue;
+            }
+            
+            var captionText = columns[1].Trim();
+            if (string.IsNullOrWhiteSpace(captionText))
+            {
+                errors.Add($"• {i + 1}번째 줄: 캡션 텍스트가 비어있습니다");
+                continue;
+            }
+            
+            captions.Add(captionText);
+        }
+        
+        if (captions.Count == 0)
+        {
+            errors.Add("• 유효한 캡션이 하나도 없습니다");
+        }
+        
+        if (errors.Count > 0)
+        {
+            var errorMsg = "❌ CSV 형식 오류\n\n" +
+                          "문제점:\n" + string.Join("\n", errors) + "\n\n" +
+                          "올바른 형식:\n" +
+                          "1,캡션 텍스트\n" +
+                          "2,캡션 텍스트";
+            return (false, errorMsg, captions);
+        }
+        
+        return (true, "", captions);
+    }
+
+    private (bool isValid, string errorMessage, List<(string Title, string Description, string Tags)> uploadInfos) ValidateUploadInfoCsv(string csvContent)
+    {
+        var errors = new List<string>();
+        var uploadInfos = new List<(string Title, string Description, string Tags)>();
+        
+        var lines = csvContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        
+        if (lines.Length == 0)
+        {
+            return (false, "❌ CSV 파일이 비어있습니다.", uploadInfos);
+        }
+        
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i].Trim();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            
+            var columns = line.Split(',');
+            
+            if (columns.Length != 4)
+            {
+                errors.Add($"• {i + 1}번째 줄: 컬럼 수 오류 (4개여야 하는데 {columns.Length}개입니다)");
+                continue;
+            }
+            
+            var title = columns[1].Trim();
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                errors.Add($"• {i + 1}번째 줄: 제목이 비어있습니다 (필수 항목)");
+                continue;
+            }
+            
+            var description = columns[2].Trim();
+            var tags = columns[3].Trim();
+            
+            uploadInfos.Add((title, description, tags));
+        }
+        
+        if (uploadInfos.Count == 0)
+        {
+            errors.Add("• 유효한 업로드 정보가 하나도 없습니다");
+        }
+        
+        if (errors.Count > 0)
+        {
+            var errorMsg = "❌ CSV 형식 오류\n\n" +
+                          "문제점:\n" + string.Join("\n", errors) + "\n\n" +
+                          "올바른 형식:\n" +
+                          "1,제목,설명,태그\n" +
+                          "2,제목,설명,태그\n\n" +
+                          "※ 제목은 필수, 설명과 태그는 선택사항";
+            return (false, errorMsg, uploadInfos);
+        }
+        
+        return (true, "", uploadInfos);
     }
 
     private List<UploadInfoItem> ParseUploadInfoCsv(string content)
@@ -1685,5 +1924,4 @@
         scheduleStatusTimer?.Stop();
         scheduleStatusTimer?.Dispose();
     }
-
 }
