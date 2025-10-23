@@ -743,6 +743,13 @@
 }
 
 
+
+
+
+
+
+
+
 @code {
     // 🔥 통합 서비스 사용 - Options 클래스들
     private VideoGenerationService.VideoGenerationOptions genOptions = new();
@@ -781,6 +788,7 @@
         public DateTime ScheduledTime { get; set; }
     }
 
+
     private float scheduleHours = 2.0f;
     private int minIntervalMinutes = 7;
     private bool randomizeOrder = true;
@@ -794,6 +802,7 @@
         public string Description { get; set; } = "";
         public string Tags { get; set; } = "";
     }
+
 
     private bool isRunning = false;
     private bool isCancelled = false;
@@ -823,6 +832,8 @@
 
     private string GetAspectClass(string ratio) =>
         genOptions.SelectedAspectRatio == ratio ? "btn-success" : "btn-outline-success";
+
+
 
     // 입력 핸들러들
     private void OnVideoCountInput(ChangeEventArgs e)
@@ -1924,4 +1935,5 @@
         scheduleStatusTimer?.Stop();
         scheduleStatusTimer?.Dispose();
     }
+
 }
