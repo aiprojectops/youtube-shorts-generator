@@ -181,7 +181,22 @@ private readonly Random _random = new Random();
             camera_fixed = true
         };
 
+        // 🔥 Replicate API 호출 로그
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        Console.WriteLine($"🎬 [영상 생성 시작] 영상 #{videoIndex}");
+        Console.WriteLine($"📝 프롬프트: {selectedPrompt}");
+        Console.WriteLine($"🔧 설정:");
+        Console.WriteLine($"   - 길이: {genOptions.SelectedDuration}초");
+        Console.WriteLine($"   - 화면비율: {genOptions.SelectedAspectRatio}");
+        Console.WriteLine($"   - 해상도: 1080p");
+        Console.WriteLine($"   - FPS: 24");
+        Console.WriteLine($"   - 이미지: {(imageBase64 != null ? "있음" : "없음")}");
+        Console.WriteLine($"🌐 Replicate API 호출 중...");
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
         var prediction = await replicateClient.StartVideoGeneration(request);
+
+        Console.WriteLine($"⏳ [영상 생성 중] 영상 #{videoIndex} - Replicate에서 처리 중...");
 
         var progress = new Progress<ReplicateClient.ProgressInfo>(progressInfo =>
         {
@@ -196,8 +211,18 @@ private readonly Random _random = new Random();
         }
 
         string videoUrl = result.output.ToString();
+        
+        // 🔥 영상 받아옴 로그
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        Console.WriteLine($"✅ [영상 생성 완료] 영상 #{videoIndex}");
+        Console.WriteLine($"📹 URL: {videoUrl}");
+        Console.WriteLine($"⬇️ 다운로드 시작...");
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
         string fileName = $"ai_{DateTime.Now:yyyyMMdd_HHmmss}_{videoIndex:D2}.mp4";
         string localPath = await DownloadVideoAsync(videoUrl, fileName);
+
+        Console.WriteLine($"✅ [다운로드 완료] 파일: {fileName}");
 
         string finalPath = localPath;
         if (postOptions.EnablePostProcessing && (postOptions.AddCaption || postOptions.AddBackgroundMusic))
@@ -247,6 +272,26 @@ private readonly Random _random = new Random();
         PostProcessingOptions options,
         Action<string> updateStatus)
     {
+        // 🔥 FFmpeg 작업 시작 로그
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        Console.WriteLine($"🎨 [FFmpeg 작업 시작]");
+        Console.WriteLine($"📁 입력: {Path.GetFileName(inputPath)}");
+        Console.WriteLine($"⚙️ 후처리 옵션:");
+        Console.WriteLine($"   - 캡션 추가: {options.AddCaption}");
+        if (options.AddCaption)
+        {
+            Console.WriteLine($"     → 랜덤 캡션: {options.UseRandomCaption}");
+            Console.WriteLine($"     → 위치: {options.CaptionPosition}");
+            Console.WriteLine($"     → 크기: {options.CaptionSize}");
+            Console.WriteLine($"     → 색상: {options.CaptionColor}");
+        }
+        Console.WriteLine($"   - 배경음악 추가: {options.AddBackgroundMusic}");
+        if (options.AddBackgroundMusic)
+        {
+            Console.WriteLine($"     → 볼륨: {options.MusicVolume}");
+        }
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
         string outputPath = inputPath.Replace(".mp4", "_processed.mp4");
 
         // 랜덤 값 결정
@@ -296,6 +341,12 @@ private readonly Random _random = new Random();
 
         var progress = new Progress<string>(status => updateStatus?.Invoke(status));
         string processedPath = await VideoPostProcessor.ProcessVideoAsync(processingOptions, progress);
+
+        // 🔥 FFmpeg 작업 완료 로그
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        Console.WriteLine($"✅ [FFmpeg 작업 완료]");
+        Console.WriteLine($"📁 출력: {Path.GetFileName(processedPath)}");
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
         // 원본 삭제
         try
@@ -431,4 +482,3 @@ private readonly Random _random = new Random();
     }
 }
   }
-
