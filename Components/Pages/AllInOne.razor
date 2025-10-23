@@ -1219,7 +1219,7 @@
         var prompts = new List<string>();
         int totalLines = 0;
         int errorLines = 0;
-        bool hasColumnError = false;
+        bool hasParsingError = false;
         bool hasEmptyError = false;
         
         var lines = csvContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
@@ -1229,30 +1229,64 @@
             return (false, "❌ CSV 파일이 비어있습니다.", prompts);
         }
         
-        foreach (var line in lines)
+        // 첫 번째 줄은 헤더이므로 건너뛰기
+        for (int i = 1; i < lines.Length; i++)
         {
             totalLines++;
-            var trimmedLine = line.Trim();
-            if (string.IsNullOrWhiteSpace(trimmedLine)) continue;
+            var line = lines[i].Trim();
+            if (string.IsNullOrWhiteSpace(line)) continue;
             
-            var columns = trimmedLine.Split(',');
+            string promptText = "";
             
-            if (columns.Length != 2)
+            try
             {
-                hasColumnError = true;
+                // 쉼표가 있는지 확인
+                if (line.Contains(","))
+                {
+                    // 큰따옴표로 묶인 프롬프트 찾기
+                    int firstQuote = line.IndexOf('"');
+                    int lastQuote = line.LastIndexOf('"');
+                    
+                    if (firstQuote >= 0 && lastQuote > firstQuote)
+                    {
+                        // 큰따옴표 사이의 내용 추출
+                        promptText = line.Substring(firstQuote + 1, lastQuote - firstQuote - 1).Trim();
+                    }
+                    else
+                    {
+                        // 큰따옴표가 없으면 첫 번째 쉼표 이후 내용
+                        int commaIndex = line.IndexOf(',');
+                        if (commaIndex >= 0 && commaIndex < line.Length - 1)
+                        {
+                            promptText = line.Substring(commaIndex + 1).Trim();
+                        }
+                    }
+                }
+                else
+                {
+                    // 쉼표가 없으면 마침표로 구분
+                    int dotIndex = line.IndexOf('.');
+                    if (dotIndex >= 0 && dotIndex < line.Length - 1)
+                    {
+                        promptText = line.Substring(dotIndex + 1).Trim();
+                    }
+                }
+                
+                if (string.IsNullOrWhiteSpace(promptText))
+                {
+                    hasEmptyError = true;
+                    errorLines++;
+                    continue;
+                }
+                
+                prompts.Add(promptText);
+            }
+            catch
+            {
+                hasParsingError = true;
                 errorLines++;
                 continue;
             }
-            
-            var promptText = columns[1].Trim();
-            if (string.IsNullOrWhiteSpace(promptText))
-            {
-                hasEmptyError = true;
-                errorLines++;
-                continue;
-            }
-            
-            prompts.Add(promptText);
         }
         
         // 유효한 데이터가 있으면 경고만 표시
@@ -1261,7 +1295,7 @@
             if (errorLines > 0)
             {
                 var warnings = new List<string>();
-                if (hasColumnError) warnings.Add("컬럼 수 오류");
+                if (hasParsingError) warnings.Add("파싱 오류");
                 if (hasEmptyError) warnings.Add("빈 프롬프트");
                 
                 var warningMsg = $"⚠️ 일부 오류 발견 ({errorLines}/{totalLines}줄)\n" +
@@ -1291,13 +1325,14 @@
             return (false, "❌ CSV 파일이 비어있습니다.", captions);
         }
         
-        foreach (var line in lines)
+        // 첫 번째 줄은 헤더이므로 건너뛰기
+        for (int i = 1; i < lines.Length; i++)
         {
             totalLines++;
-            var trimmedLine = line.Trim();
-            if (string.IsNullOrWhiteSpace(trimmedLine)) continue;
+            var line = lines[i].Trim();
+            if (string.IsNullOrWhiteSpace(line)) continue;
             
-            var columns = trimmedLine.Split(',');
+            var columns = line.Split(',');
             
             if (columns.Length != 2)
             {
@@ -1352,13 +1387,14 @@
             return (false, "❌ CSV 파일이 비어있습니다.", uploadInfos);
         }
         
-        foreach (var line in lines)
+        // 첫 번째 줄은 헤더이므로 건너뛰기
+        for (int i = 1; i < lines.Length; i++)
         {
             totalLines++;
-            var trimmedLine = line.Trim();
-            if (string.IsNullOrWhiteSpace(trimmedLine)) continue;
+            var line = lines[i].Trim();
+            if (string.IsNullOrWhiteSpace(line)) continue;
             
-            var columns = trimmedLine.Split(',');
+            var columns = line.Split(',');
             
             if (columns.Length != 4)
             {
