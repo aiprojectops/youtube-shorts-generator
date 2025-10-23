@@ -121,11 +121,20 @@
                                 </div>
                             }
                             
-                            @if (!string.IsNullOrEmpty(promptCsvError))
+                            @if (!string.IsNullOrEmpty(promptCsvError) && genOptions.CsvPrompts.Count > 0)
+                            {
+                                <div class="mt-2 alert alert-warning">
+                                    <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit; font-size: 0.9em;">@promptCsvError</pre>
+                                    <button type="button" class="btn btn-sm btn-outline-primary ms-2 mt-2" @onclick="ShowCsvPreview" disabled="@(isRunning || hasActiveSchedule)">
+                                        미리보기
+                                    </button>
+                                </div>
+                            }
+                            
+                            @if (!string.IsNullOrEmpty(promptCsvError) && genOptions.CsvPrompts.Count == 0)
                             {
                                 <div class="mt-2 alert alert-danger">
-                                    <strong>❌ CSV 형식 오류</strong>
-                                    <pre class="mb-0 mt-2" style="white-space: pre-wrap; font-family: monospace; font-size: 0.9em;">@promptCsvError</pre>
+                                    <strong>@promptCsvError</strong>
                                 </div>
                             }
                         </div>
@@ -242,11 +251,20 @@
                                                                 </div>
                                                             }
                                                             
-                                                            @if (!string.IsNullOrEmpty(captionCsvError))
+                                                            @if (!string.IsNullOrEmpty(captionCsvError) && postOptions.CaptionCsvList.Count > 0)
                                                             {
-                                                                <div class="mt-2 alert alert-danger py-1 px-2 small">
-                                                                    <strong>❌ CSV 형식 오류</strong>
-                                                                    <pre class="mb-0 mt-1" style="white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">@captionCsvError</pre>
+                                                                <div class="mt-1 alert alert-warning py-1 px-2 small">
+                                                                    <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit; font-size: 0.85em;">@captionCsvError</pre>
+                                                                    <button type="button" class="btn btn-sm btn-outline-primary ms-2 mt-1" @onclick="ShowCaptionCsvPreview" disabled="@(isRunning || hasActiveSchedule)">
+                                                                        미리보기
+                                                                    </button>
+                                                                </div>
+                                                            }
+                                                            
+                                                            @if (!string.IsNullOrEmpty(captionCsvError) && postOptions.CaptionCsvList.Count == 0)
+                                                            {
+                                                                <div class="mt-1 alert alert-danger py-1 px-2 small">
+                                                                    <strong>@captionCsvError</strong>
                                                                 </div>
                                                             }
                                                         </div>
@@ -412,11 +430,20 @@
                                 </div>
                             }
                             
-                            @if (!string.IsNullOrEmpty(uploadInfoCsvError))
+                            @if (!string.IsNullOrEmpty(uploadInfoCsvError) && uploadInfoCsvList.Count > 0)
+                            {
+                                <div class="mt-2 alert alert-warning">
+                                    <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit; font-size: 0.9em;">@uploadInfoCsvError</pre>
+                                    <button type="button" class="btn btn-sm btn-outline-primary ms-2 mt-2" @onclick="ShowUploadInfoCsvPreview" disabled="@(isRunning || hasActiveSchedule)">
+                                        미리보기
+                                    </button>
+                                </div>
+                            }
+                            
+                            @if (!string.IsNullOrEmpty(uploadInfoCsvError) && uploadInfoCsvList.Count == 0)
                             {
                                 <div class="mt-2 alert alert-danger">
-                                    <strong>❌ CSV 형식 오류</strong>
-                                    <pre class="mb-0 mt-2" style="white-space: pre-wrap; font-family: monospace; font-size: 0.9em;">@uploadInfoCsvError</pre>
+                                    <strong>@uploadInfoCsvError</strong>
                                 </div>
                             }
                         </div>
@@ -743,13 +770,6 @@
 }
 
 
-
-
-
-
-
-
-
 @code {
     // 🔥 통합 서비스 사용 - Options 클래스들
     private VideoGenerationService.VideoGenerationOptions genOptions = new();
@@ -788,7 +808,6 @@
         public DateTime ScheduledTime { get; set; }
     }
 
-
     private float scheduleHours = 2.0f;
     private int minIntervalMinutes = 7;
     private bool randomizeOrder = true;
@@ -802,7 +821,6 @@
         public string Description { get; set; } = "";
         public string Tags { get; set; } = "";
     }
-
 
     private bool isRunning = false;
     private bool isCancelled = false;
@@ -832,8 +850,6 @@
 
     private string GetAspectClass(string ratio) =>
         genOptions.SelectedAspectRatio == ratio ? "btn-success" : "btn-outline-success";
-
-
 
     // 입력 핸들러들
     private void OnVideoCountInput(ChangeEventArgs e)
@@ -1027,6 +1043,7 @@
             }
 
             genOptions.CsvPrompts = prompts;
+            promptCsvError = errorMessage; // 경고 메시지 저장 (있다면)
             OnVideoCountChanged();
             StateHasChanged();
         }
@@ -1119,6 +1136,7 @@
             }
 
             postOptions.CaptionCsvList = captions;
+            captionCsvError = errorMessage; // 경고 메시지 저장 (있다면)
             StateHasChanged();
         }
         catch (Exception ex)
@@ -1183,6 +1201,7 @@
                     Tags = info.Tags 
                 });
             }
+            uploadInfoCsvError = errorMessage; // 경고 메시지 저장 (있다면)
             StateHasChanged();
         }
         catch (Exception ex)
@@ -1197,8 +1216,11 @@
     // CSV 검증 메서드들
     private (bool isValid, string errorMessage, List<string> prompts) ValidatePromptCsv(string csvContent)
     {
-        var errors = new List<string>();
         var prompts = new List<string>();
+        int totalLines = 0;
+        int errorLines = 0;
+        bool hasColumnError = false;
+        bool hasEmptyError = false;
         
         var lines = csvContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         
@@ -1207,51 +1229,60 @@
             return (false, "❌ CSV 파일이 비어있습니다.", prompts);
         }
         
-        for (int i = 0; i < lines.Length; i++)
+        foreach (var line in lines)
         {
-            var line = lines[i].Trim();
-            if (string.IsNullOrWhiteSpace(line)) continue;
+            totalLines++;
+            var trimmedLine = line.Trim();
+            if (string.IsNullOrWhiteSpace(trimmedLine)) continue;
             
-            var columns = line.Split(',');
+            var columns = trimmedLine.Split(',');
             
             if (columns.Length != 2)
             {
-                errors.Add($"• {i + 1}번째 줄: 컬럼 수 오류 (2개여야 하는데 {columns.Length}개입니다)");
+                hasColumnError = true;
+                errorLines++;
                 continue;
             }
             
             var promptText = columns[1].Trim();
             if (string.IsNullOrWhiteSpace(promptText))
             {
-                errors.Add($"• {i + 1}번째 줄: 프롬프트 내용이 비어있습니다");
+                hasEmptyError = true;
+                errorLines++;
                 continue;
             }
             
             prompts.Add(promptText);
         }
         
-        if (prompts.Count == 0)
+        // 유효한 데이터가 있으면 경고만 표시
+        if (prompts.Count > 0)
         {
-            errors.Add("• 유효한 프롬프트가 하나도 없습니다");
+            if (errorLines > 0)
+            {
+                var warnings = new List<string>();
+                if (hasColumnError) warnings.Add("컬럼 수 오류");
+                if (hasEmptyError) warnings.Add("빈 프롬프트");
+                
+                var warningMsg = $"⚠️ 일부 오류 발견 ({errorLines}/{totalLines}줄)\n" +
+                                $"문제: {string.Join(", ", warnings)}\n" +
+                                $"✅ {prompts.Count}개는 정상 로드됨";
+                return (true, warningMsg, prompts);
+            }
+            return (true, "", prompts);
         }
         
-        if (errors.Count > 0)
-        {
-            var errorMsg = "❌ CSV 형식 오류\n\n" +
-                          "문제점:\n" + string.Join("\n", errors) + "\n\n" +
-                          "올바른 형식:\n" +
-                          "1,프롬프트 내용\n" +
-                          "2,프롬프트 내용";
-            return (false, errorMsg, prompts);
-        }
-        
-        return (true, "", prompts);
+        // 유효한 데이터가 없으면 에러
+        return (false, "❌ 유효한 프롬프트가 없습니다", prompts);
     }
 
     private (bool isValid, string errorMessage, List<string> captions) ValidateCaptionCsv(string csvContent)
     {
-        var errors = new List<string>();
         var captions = new List<string>();
+        int totalLines = 0;
+        int errorLines = 0;
+        bool hasColumnError = false;
+        bool hasEmptyError = false;
         
         var lines = csvContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         
@@ -1260,51 +1291,59 @@
             return (false, "❌ CSV 파일이 비어있습니다.", captions);
         }
         
-        for (int i = 0; i < lines.Length; i++)
+        foreach (var line in lines)
         {
-            var line = lines[i].Trim();
-            if (string.IsNullOrWhiteSpace(line)) continue;
+            totalLines++;
+            var trimmedLine = line.Trim();
+            if (string.IsNullOrWhiteSpace(trimmedLine)) continue;
             
-            var columns = line.Split(',');
+            var columns = trimmedLine.Split(',');
             
             if (columns.Length != 2)
             {
-                errors.Add($"• {i + 1}번째 줄: 컬럼 수 오류 (2개여야 하는데 {columns.Length}개입니다)");
+                hasColumnError = true;
+                errorLines++;
                 continue;
             }
             
             var captionText = columns[1].Trim();
             if (string.IsNullOrWhiteSpace(captionText))
             {
-                errors.Add($"• {i + 1}번째 줄: 캡션 텍스트가 비어있습니다");
+                hasEmptyError = true;
+                errorLines++;
                 continue;
             }
             
             captions.Add(captionText);
         }
         
-        if (captions.Count == 0)
+        // 유효한 데이터가 있으면 경고만 표시
+        if (captions.Count > 0)
         {
-            errors.Add("• 유효한 캡션이 하나도 없습니다");
+            if (errorLines > 0)
+            {
+                var warnings = new List<string>();
+                if (hasColumnError) warnings.Add("컬럼 수 오류");
+                if (hasEmptyError) warnings.Add("빈 캡션");
+                
+                var warningMsg = $"⚠️ 일부 오류 발견 ({errorLines}/{totalLines}줄)\n" +
+                                $"문제: {string.Join(", ", warnings)}\n" +
+                                $"✅ {captions.Count}개는 정상 로드됨";
+                return (true, warningMsg, captions);
+            }
+            return (true, "", captions);
         }
         
-        if (errors.Count > 0)
-        {
-            var errorMsg = "❌ CSV 형식 오류\n\n" +
-                          "문제점:\n" + string.Join("\n", errors) + "\n\n" +
-                          "올바른 형식:\n" +
-                          "1,캡션 텍스트\n" +
-                          "2,캡션 텍스트";
-            return (false, errorMsg, captions);
-        }
-        
-        return (true, "", captions);
+        return (false, "❌ 유효한 캡션이 없습니다", captions);
     }
 
     private (bool isValid, string errorMessage, List<(string Title, string Description, string Tags)> uploadInfos) ValidateUploadInfoCsv(string csvContent)
     {
-        var errors = new List<string>();
         var uploadInfos = new List<(string Title, string Description, string Tags)>();
+        int totalLines = 0;
+        int errorLines = 0;
+        bool hasColumnError = false;
+        bool hasEmptyTitleError = false;
         
         var lines = csvContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         
@@ -1313,23 +1352,26 @@
             return (false, "❌ CSV 파일이 비어있습니다.", uploadInfos);
         }
         
-        for (int i = 0; i < lines.Length; i++)
+        foreach (var line in lines)
         {
-            var line = lines[i].Trim();
-            if (string.IsNullOrWhiteSpace(line)) continue;
+            totalLines++;
+            var trimmedLine = line.Trim();
+            if (string.IsNullOrWhiteSpace(trimmedLine)) continue;
             
-            var columns = line.Split(',');
+            var columns = trimmedLine.Split(',');
             
             if (columns.Length != 4)
             {
-                errors.Add($"• {i + 1}번째 줄: 컬럼 수 오류 (4개여야 하는데 {columns.Length}개입니다)");
+                hasColumnError = true;
+                errorLines++;
                 continue;
             }
             
             var title = columns[1].Trim();
             if (string.IsNullOrWhiteSpace(title))
             {
-                errors.Add($"• {i + 1}번째 줄: 제목이 비어있습니다 (필수 항목)");
+                hasEmptyTitleError = true;
+                errorLines++;
                 continue;
             }
             
@@ -1339,23 +1381,24 @@
             uploadInfos.Add((title, description, tags));
         }
         
-        if (uploadInfos.Count == 0)
+        // 유효한 데이터가 있으면 경고만 표시
+        if (uploadInfos.Count > 0)
         {
-            errors.Add("• 유효한 업로드 정보가 하나도 없습니다");
+            if (errorLines > 0)
+            {
+                var warnings = new List<string>();
+                if (hasColumnError) warnings.Add("컬럼 수 오류");
+                if (hasEmptyTitleError) warnings.Add("빈 제목");
+                
+                var warningMsg = $"⚠️ 일부 오류 발견 ({errorLines}/{totalLines}줄)\n" +
+                                $"문제: {string.Join(", ", warnings)}\n" +
+                                $"✅ {uploadInfos.Count}개는 정상 로드됨";
+                return (true, warningMsg, uploadInfos);
+            }
+            return (true, "", uploadInfos);
         }
         
-        if (errors.Count > 0)
-        {
-            var errorMsg = "❌ CSV 형식 오류\n\n" +
-                          "문제점:\n" + string.Join("\n", errors) + "\n\n" +
-                          "올바른 형식:\n" +
-                          "1,제목,설명,태그\n" +
-                          "2,제목,설명,태그\n\n" +
-                          "※ 제목은 필수, 설명과 태그는 선택사항";
-            return (false, errorMsg, uploadInfos);
-        }
-        
-        return (true, "", uploadInfos);
+        return (false, "❌ 유효한 업로드 정보가 없습니다", uploadInfos);
     }
 
     private List<UploadInfoItem> ParseUploadInfoCsv(string content)
@@ -1935,5 +1978,4 @@
         scheduleStatusTimer?.Stop();
         scheduleStatusTimer?.Dispose();
     }
-
 }
