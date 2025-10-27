@@ -25,12 +25,44 @@ public class YouTubeUploadService
     public YouTubeUploadService(IJSRuntime jsRuntime)
     {
         _jsRuntime = jsRuntime;
-        
-        // 🔥 일단 임시 ID 생성 (나중에 InitializeAsync에서 교체 가능)
-        _userId = Guid.NewGuid().ToString();
-        Console.WriteLine($"=== YouTubeUploadService 생성: UserId={_userId}");
+        _userId = null; // 나중에 초기화
     }
-
+    
+    // 🔥 새로 추가: 초기화 메서드
+    public async Task InitializeAsync()
+    {
+        if (string.IsNullOrEmpty(_userId))
+        {
+            _userId = await GetOrCreateUserIdAsync();
+            Console.WriteLine($"=== YouTubeUploadService 초기화: UserId={_userId}");
+        }
+    }
+    
+    private async Task<string> GetOrCreateUserIdAsync()
+    {
+        try
+        {
+            string userId = await _jsRuntime.InvokeAsync<string>("getCookie", "userId");
+            
+            if (string.IsNullOrEmpty(userId))
+            {
+                userId = Guid.NewGuid().ToString();
+                await _jsRuntime.InvokeVoidAsync("setCookie", "userId", userId, 30);
+                Console.WriteLine($"=== 새 UserId 생성 및 쿠키 저장: {userId}");
+            }
+            else
+            {
+                Console.WriteLine($"=== 쿠키에서 UserId 로드: {userId}");
+            }
+            
+            return userId;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"=== 쿠키 처리 실패: {ex.Message}");
+            return Guid.NewGuid().ToString();
+        }
+    }
     /// <summary>
     /// YouTube 인증 URL 가져오기
     /// </summary>
