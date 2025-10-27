@@ -42,7 +42,8 @@ public class YouTubeUploadService
             throw new Exception("먼저 설정에서 YouTube API 정보를 입력해주세요.");
         }
 
-        // 🔥 userId 전달 _youtubeUploader = new YouTubeUploader(_userId);
+        // 🔥 userId 전달 
+        _youtubeUploader = new YouTubeUploader(_userId);
         string currentUrl = await jsRuntime.InvokeAsync<string>("eval", "window.location.origin");
         return await _youtubeUploader.GetAuthorizationUrlAsync(currentUrl, returnPage);
     }
@@ -60,7 +61,8 @@ public class YouTubeUploadService
                 return false;
             }
 
-            // 🔥 userId 전달 _youtubeUploader = new YouTubeUploader(_userId);
+            // 🔥 userId 전달 
+            _youtubeUploader = new YouTubeUploader(_userId);
             bool authSuccess = await _youtubeUploader.AuthenticateAsync();
 
             if (authSuccess)
@@ -85,7 +87,8 @@ public class YouTubeUploadService
     {
         try
         {
-            // 🔥 userId 전달 _youtubeUploader = new YouTubeUploader(_userId);
+            // 🔥 userId 전달
+            _youtubeUploader = new YouTubeUploader(_userId);
             bool success = await _youtubeUploader.ExchangeCodeForTokenAsync(code, baseUrl);
 
             if (success)
