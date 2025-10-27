@@ -6,14 +6,14 @@ namespace YouTubeShortsWebApp
     public class AuthController : ControllerBase
     {
         [HttpGet("google/callback")]
-        public async Task<IActionResult> GoogleCallback(
-            [FromQuery] string code, 
-            [FromQuery] string? state = null, 
-            [FromQuery] string? error = null)
+        public async Task<IActionResult> GoogleCallback(...)
         {
             string baseUrl = $"{Request.Scheme}://{Request.Host}";
-
-            // 🔥 state에서 returnPage와 userId 분리
+        
+            // 🔥 쿠키에서 UserId 읽기 (최우선)
+            string userIdFromCookie = Request.Cookies["userId"];
+            
+            // state에서 returnPage와 userId 분리
             string returnPage = "youtube-upload";
             string userId = null;
             
@@ -27,12 +27,13 @@ namespace YouTubeShortsWebApp
                 }
             }
             
+            // 🔥 쿠키 우선, 없으면 state 사용
+            userId = userIdFromCookie ?? userId;
+            
             Console.WriteLine($"=== OAuth 콜백 수신 ===");
-            Console.WriteLine($"UserId from state: {userId ?? "없음"}");
-            Console.WriteLine($"Base URL: {baseUrl}");
-            Console.WriteLine($"Return Page: {returnPage}");
-            Console.WriteLine($"Code: {(string.IsNullOrEmpty(code) ? "없음" : "있음")}");
-            Console.WriteLine($"Error: {error ?? "없음"}");
+            Console.WriteLine($"UserId from Cookie: {userIdFromCookie ?? "없음"}");
+            Console.WriteLine($"UserId from State: {userId ?? "없음"}");
+            Console.WriteLine($"최종 UserId: {userId ?? "없음"}");
             
             // 에러 체크
             if (!string.IsNullOrEmpty(error))
