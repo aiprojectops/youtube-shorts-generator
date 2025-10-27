@@ -517,6 +517,86 @@ namespace YouTubeShortsWebApp
             }
         }
 
+        /// <summary>
+        /// 현재 Credential 반환
+        /// </summary>
+        public UserCredential GetCredential()
+        {
+            return credential;
+        }
+
+        /// <summary>
+        /// Refresh Token으로 직접 인증 (스케줄 업로드용)
+        /// </summary>
+        public async Task<bool> AuthenticateWithRefreshTokenAsync(string refreshToken)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(refreshToken))
+                {
+                    Console.WriteLine("=== Refresh Token이 없습니다");
+                    return false;
+                }
+        
+                var config = ConfigManager.GetConfig();
+                
+                if (string.IsNullOrEmpty(config.YouTubeClientId) || 
+                    string.IsNullOrEmpty(config.YouTubeClientSecret))
+                {
+                    throw new Exception("YouTube API 설정이 없습니다");
+                }
+        
+                Console.WriteLine($"=== Refresh Token으로 인증 시작: UserId={_userId}");
+        
+                var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
+                {
+                    ClientSecrets = new ClientSecrets
+                    {
+                        ClientId = config.YouTubeClientId,
+                        ClientSecret = config.YouTubeClientSecret
+                    },
+                    Scopes = Scopes,
+                    DataStore = null
+                });
+        
+                var token = new TokenResponse
+                {
+                    RefreshToken = refreshToken
+                };
+        
+                credential = new UserCredential(flow, "user", token);
+        
+                // Access Token 갱신
+                bool tokenRefreshed = await credential.RefreshTokenAsync(CancellationToken.None);
+                
+                if (!tokenRefreshed)
+                {
+                    throw new Exception("Access Token 갱신 실패");
+                }
+        
+                youtubeService = new YouTubeService(new BaseClientService.Initializer()
+                {
+                    HttpClientInitializer = credential,
+                    ApplicationName = ApplicationName,
+                });
+        
+                // 유효성 검사
+                var channelsRequest = youtubeService.Channels.List("snippet");
+                channelsRequest.Mine = true;
+                channelsRequest.MaxResults = 1;
+                await channelsRequest.ExecuteAsync();
+                
+                Console.WriteLine("=== Refresh Token 인증 성공!");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"=== Refresh Token 인증 실패: {ex.Message}");
+                return false;
+            }
+        }
+
+        
         // 리소스 정리
         public void Dispose()
         {
