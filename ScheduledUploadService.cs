@@ -439,8 +439,9 @@ namespace YouTubeShortsWebApp
         
             try
             {
-                var youtubeUploader = new YouTubeUploader();
-                bool authSuccess = await youtubeUploader.AuthenticateAsync();
+                // 🔥 저장된 userId와 refreshToken으로 인증
+                var youtubeUploader = new YouTubeUploader(item.UserId);
+                bool authSuccess = await youtubeUploader.AuthenticateWithRefreshTokenAsync(item.RefreshToken);
                 
                 if (!authSuccess)
                 {
