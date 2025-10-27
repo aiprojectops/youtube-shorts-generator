@@ -503,6 +503,11 @@ namespace YouTubeShortsWebApp
         public string FileName { get; set; } = "";
         public string FilePath { get; set; } = "";
         public DateTime ScheduledTime { get; set; }
+
+        // 🔥 이 2줄 추가
+        public string UserId { get; set; } = "";
+        public string RefreshToken { get; set; } = "";
+        
         public string Title { get; set; } = "";
         public string Description { get; set; } = "";
         public string Tags { get; set; } = "";
