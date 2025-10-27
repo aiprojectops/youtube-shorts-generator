@@ -22,12 +22,19 @@ namespace YouTubeShortsWebApp
             YouTubeService.Scope.YoutubeReadonly
         };
         private static readonly string ApplicationName = "YouTube Shorts Generator";
-
-        // Render에서는 메모리 저장소 사용 (임시적)
-        private static readonly ConcurrentDictionary<string, TokenResponse> _memoryTokenStore = new();
+    
+        // 🔥 사용자 ID 추가
+        private readonly string _userId;
         
         private YouTubeService youtubeService;
         private UserCredential credential;
+    
+        // 🔥 생성자에서 userId 받기
+        public YouTubeUploader(string userId = null)
+        {
+            _userId = userId ?? Guid.NewGuid().ToString(); // userId 없으면 랜덤 생성
+            Console.WriteLine($"=== YouTubeUploader 생성: UserId={_userId}");
+        }
 
         // 현재 연동된 계정 정보
         public class YouTubeAccountInfo
@@ -74,8 +81,8 @@ namespace YouTubeShortsWebApp
                     throw new Exception("YouTube API 클라이언트 ID와 시크릿이 설정되지 않았습니다.");
                 }
         
-                // 🔥 메모리 대신 파일 저장소 사용
-                var dataStore = new FileDataStore("/tmp/youtube_tokens", true);
+                // 🔥 메모리 저장소 사용
+                var dataStore = new MemoryDataStore(_userId);
         
                 var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
                 {
@@ -123,8 +130,8 @@ namespace YouTubeShortsWebApp
             {
                 var config = ConfigManager.GetConfig();
                 
-                // 🔥 파일 저장소 사용
-                var dataStore = new FileDataStore("/tmp/youtube_tokens", true);
+                // 🔥 메모리 저장소 사용
+                var dataStore = new MemoryDataStore(_userId);
                 
                 var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
                 {
@@ -188,8 +195,8 @@ namespace YouTubeShortsWebApp
                     throw new Exception("YouTube API 클라이언트 ID와 시크릿이 설정되지 않았습니다.");
                 }
         
-                // 🔥 파일 저장소 사용
-                var dataStore = new FileDataStore("/tmp/youtube_tokens", true);
+                // 🔥 메모리 저장소 사용
+                var dataStore = new MemoryDataStore(_userId);
         
                 var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
                 {
