@@ -350,8 +350,9 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // YouTube 인증 상태 확인
-        await YouTubeService.CheckExistingAuthAsync();
+       
+        // 🔥 UserId 초기화 (쿠키에서 로드 또는 생성) - 맨 먼저 실행!
+        await YouTubeService.InitializeAsync();
         
         // OAuth 콜백 처리
         var uri = new Uri(await JSRuntime.InvokeAsync<string>("eval", "window.location.href"));
