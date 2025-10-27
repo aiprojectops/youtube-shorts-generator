@@ -57,12 +57,8 @@ namespace YouTubeShortsWebApp
                 
                 if (success)
                 {
-                    if (success)
-                    {
-                        Console.WriteLine("토큰 교환 성공!");
-                        // 🔥 userId를 URL 파라미터로 포함
-                        return Redirect($"/{returnPage}?auth=success&userId={Uri.EscapeDataString(userId ?? "")}");
-                    }
+                    Console.WriteLine("토큰 교환 성공!");
+                    return Redirect($"/{returnPage}?auth=success&userId={Uri.EscapeDataString(userId ?? "")}");
                 }
                 else
                 {
