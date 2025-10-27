@@ -12,11 +12,23 @@ namespace YouTubeShortsWebApp
             [FromQuery] string? error = null)
         {
             string baseUrl = $"{Request.Scheme}://{Request.Host}";
+
+            // 🔥 state에서 returnPage와 userId 분리
+            string returnPage = "youtube-upload";
+            string userId = null;
             
-            // state에서 돌아갈 페이지 확인 (기본값: youtube-upload)
-            string returnPage = state ?? "youtube-upload";
+            if (!string.IsNullOrEmpty(state))
+            {
+                var parts = state.Split('|');
+                returnPage = parts[0];
+                if (parts.Length > 1)
+                {
+                    userId = parts[1];
+                }
+            }
             
             Console.WriteLine($"=== OAuth 콜백 수신 ===");
+            Console.WriteLine($"UserId from state: {userId ?? "없음"}");
             Console.WriteLine($"Base URL: {baseUrl}");
             Console.WriteLine($"Return Page: {returnPage}");
             Console.WriteLine($"Code: {(string.IsNullOrEmpty(code) ? "없음" : "있음")}");
@@ -38,8 +50,9 @@ namespace YouTubeShortsWebApp
             try
             {
                 Console.WriteLine("토큰 교환 시작...");
-                
-                var uploader = new YouTubeUploader();
+
+                // 🔥 state로부터 받은 userId 사용
+                var uploader = new YouTubeUploader(userId);
                 bool success = await uploader.ExchangeCodeForTokenAsync(code, baseUrl);
                 
                 if (success)
