@@ -367,14 +367,14 @@ public class YouTubeUploadService
         bool randomizeOrder,
         ScheduledUploadService scheduledUploadService)
     {
+        // 🔥 현재 UserId와 RefreshToken 가져오기
+        string currentUserId = _userId;
+        string refreshToken = GetCurrentRefreshToken();
+        Console.WriteLine($"=== [생성+스케줄] UserId: {currentUserId}, RefreshToken 있음: {!string.IsNullOrEmpty(refreshToken)}");
+        
         var videosToSchedule = randomizeOrder
             ? videoInfoList.OrderBy(x => Guid.NewGuid()).ToList()
             : videoInfoList.ToList();
-
-        // 🔥 이 3줄 추가 (메서드 시작 부분에)
-        string currentUserId = _userId;
-        string refreshToken = GetCurrentRefreshToken();
-        Console.WriteLine($"=== UserId: {currentUserId}, RefreshToken 있음: {!string.IsNullOrEmpty(refreshToken)}");    
         
         Console.WriteLine($"=== 생성 정보 스케줄 등록: {videosToSchedule.Count}개");
         
@@ -429,8 +429,8 @@ public class YouTubeUploadService
             {
                 FileName = $"video_{i + 1:D3}.mp4",
                 ScheduledTime = scheduledTime,
-
-                // 🔥 이 2줄 추가
+    
+                // 🔥 UserId와 RefreshToken 추가
                 UserId = currentUserId,
                 RefreshToken = refreshToken,
                 
