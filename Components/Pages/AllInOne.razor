@@ -943,6 +943,9 @@
     {
         if (firstRender)
         {
+            // 🔥 UserId 초기화 (쿠키에서 로드 또는 생성) - 맨 먼저 실행!
+            await YouTubeService.InitializeAsync();
+            
             var uri = new Uri(await JSRuntime.InvokeAsync<string>("eval", "window.location.href"));
             var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
             
