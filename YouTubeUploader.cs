@@ -314,7 +314,6 @@ namespace YouTubeShortsWebApp
                     await credential.RevokeTokenAsync(CancellationToken.None);
                 }
 
-                _memoryTokenStore.Clear();
                 youtubeService?.Dispose();
                 youtubeService = null;
                 credential = null;
