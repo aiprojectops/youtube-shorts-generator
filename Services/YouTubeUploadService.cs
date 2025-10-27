@@ -44,8 +44,10 @@ public class YouTubeUploadService
 
         // 🔥 userId 전달 
         _youtubeUploader = new YouTubeUploader(_userId);
-        string currentUrl = await jsRuntime.InvokeAsync<string>("eval", "window.location.origin");
-        return await _youtubeUploader.GetAuthorizationUrlAsync(currentUrl, returnPage);
+        string currentUrl = await jsRuntime.InvokeAsync<string>("eval", "window.location.origin");        
+        // 🔥 returnPage에 userId 포함
+        string stateWithUserId = $"{returnPage}|{_userId}";
+        return await _youtubeUploader.GetAuthorizationUrlAsync(currentUrl, stateWithUserId);
     }
 
     /// <summary>
