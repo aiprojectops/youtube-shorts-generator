@@ -16,18 +16,40 @@
     <Routes @rendermode="InteractiveServer" />
 
     <div id="blazor-error-ui">
-        <environment include="Staging,Production">
-            An error has occurred. This application may no longer respond until reloaded.
-        </environment>
-        <environment include="Development">
-            An unhandled exception has occurred. See browser dev tools for details.
-        </environment>
-        <a href="" class="reload">Reload</a>
-        <a class="dismiss">🗙</a>
+        <!-- 생략 -->
     </div>
 
     <script src="_framework/blazor.web.js"></script>
     <script src="js/download.js"></script>
+    
+    <!-- 🔥 여기에 추가! -->
+    <script>
+        // 쿠키 설정 함수
+        window.setCookie = function(name, value, days) {
+            const date = new Date();
+            date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+            const expires = "expires=" + date.toUTCString();
+            document.cookie = name + "=" + value + ";" + expires + ";path=/;SameSite=Lax";
+            console.log(`쿠키 저장: ${name}=${value}`);
+        };
+
+        // 쿠키 읽기 함수
+        window.getCookie = function(name) {
+            const nameEQ = name + "=";
+            const ca = document.cookie.split(';');
+            for(let i = 0; i < ca.length; i++) {
+                let c = ca[i];
+                while (c.charAt(0) == ' ') c = c.substring(1, c.length);
+                if (c.indexOf(nameEQ) == 0) {
+                    const value = c.substring(nameEQ.length, c.length);
+                    console.log(`쿠키 읽기: ${name}=${value}`);
+                    return value;
+                }
+            }
+            console.log(`쿠키 없음: ${name}`);
+            return null;
+        };
+    </script>
 </body>
 
 </html>
