@@ -1727,8 +1727,20 @@
         statusMessage = "중지 중...";
     }
 
-    private async Task RegisterToSchedule()
+   private async Task RegisterToSchedule()
     {
+        Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        Console.WriteLine($"📋 [AllInOne.RegisterToSchedule] 시작");
+        Console.WriteLine($"=== YouTubeService.IsAuthenticated: {YouTubeService.IsAuthenticated}");
+        Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        
+        if (!YouTubeService.IsAuthenticated)
+        {
+            Console.WriteLine($"❌ YouTube 인증이 안 되어 있습니다!");
+            await JSRuntime.InvokeVoidAsync("alert", "YouTube 계정 연동이 필요합니다.");
+            return;
+        }
+        
         if (isScheduleUpload)
         {
             DateTime startTime = DateTime.Now.AddMinutes(5);
@@ -1736,6 +1748,8 @@
             // 🔥 AI 생성 모드: 생성 정보만 전달
             if (genOptions.IsGenerateVideo)
             {
+                Console.WriteLine($"=== AI 생성 모드");
+                
                 var videoInfoList = new List<YouTubeUploadService.VideoGenerationInfo>();
                 var random = new Random();
                 
@@ -1785,15 +1799,18 @@
                         MusicVolume = postOptions.MusicVolume
                     });
                 }
-
+    
+                Console.WriteLine($"=== 생성 정보 준비 완료: {videoInfoList.Count}개");
+    
                 if (useRandomUploadInfo && uploadInfoCsvList.Count > 0)
                 {
                     uploadOptions.UseRandomInfo = true;
                     uploadOptions.RandomTitles = uploadInfoCsvList.Select(item => item.Title).ToList();
                     uploadOptions.RandomDescriptions = uploadInfoCsvList.Select(item => item.Description).ToList();
                     uploadOptions.RandomTags = uploadInfoCsvList.Select(item => item.Tags).ToList();
+                    Console.WriteLine($"=== 랜덤 업로드 정보 활성화");
                 }
-
+    
                 // 🔥 통합 서비스 사용
                 var scheduleSettings = new UploadScheduleService.ScheduleSettings
                 {
@@ -1802,18 +1819,35 @@
                     RandomizeOrder = randomizeOrder,
                     ScheduledTimes = savedScheduleTimes
                 };
-
-                SchedulerService.RegisterScheduledUploadWithGeneration(
-                    videoInfoList,
-                    uploadOptions,
-                    scheduleSettings
-                );
+    
+                Console.WriteLine($"=== 스케줄 설정 완료");
+                Console.WriteLine($"=== SchedulerService.RegisterScheduledUploadWithGeneration 호출 시작");
+                
+                try
+                {
+                    SchedulerService.RegisterScheduledUploadWithGeneration(
+                        videoInfoList,
+                        uploadOptions,
+                        scheduleSettings
+                    );
+                    
+                    Console.WriteLine($"=== SchedulerService.RegisterScheduledUploadWithGeneration 호출 완료");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"❌ 스케줄 등록 실패: {ex.Message}");
+                    Console.WriteLine($"❌ 스택 트레이스: {ex.StackTrace}");
+                    await JSRuntime.InvokeVoidAsync("alert", $"스케줄 등록 실패: {ex.Message}");
+                    throw;
+                }
             }
             // 로컬 파일 또는 이미 생성된 파일
             else
             {
+                Console.WriteLine($"=== 로컬 파일 모드");
+                
                 var filePaths = generatedVideos.Select(v => v.FilePath).ToList();
-
+    
                 if (useRandomUploadInfo && uploadInfoCsvList.Count > 0)
                 {
                     uploadOptions.UseRandomInfo = true;
@@ -1821,7 +1855,7 @@
                     uploadOptions.RandomDescriptions = uploadInfoCsvList.Select(item => item.Description).ToList();
                     uploadOptions.RandomTags = uploadInfoCsvList.Select(item => item.Tags).ToList();
                 }
-
+    
                 // 🔥 통합 서비스 사용
                 var scheduleSettings = new UploadScheduleService.ScheduleSettings
                 {
@@ -1830,7 +1864,7 @@
                     RandomizeOrder = randomizeOrder,
                     ScheduledTimes = savedScheduleTimes
                 };
-
+    
                 var request = new UploadScheduleService.UploadRequest
                 {
                     FilePaths = filePaths,
@@ -1838,15 +1872,19 @@
                     IsScheduledUpload = true,
                     Schedule = scheduleSettings
                 };
-
+    
                 SchedulerService.RegisterScheduledUpload(request);
-
+    
                 foreach (var video in generatedVideos)
                 {
                     video.IsScheduled = true;
                 }
             }
         }
+        
+        Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        Console.WriteLine($"✅ [AllInOne.RegisterToSchedule] 완료");
+        Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     }
 
     private async Task ImmediateUpload()
