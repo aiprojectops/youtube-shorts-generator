@@ -17,10 +17,10 @@ public class YouTubeUploadService
     private readonly string _userId;
     
     private YouTubeUploader _youtubeUploader;
-    private YouTubeAccountInfo _currentAccount;
-
+    private YouTubeUploader.YouTubeAccountInfo _currentAccount;  // 🔥 수정
+    
     public bool IsAuthenticated => _youtubeUploader != null && _currentAccount != null;
-    public YouTubeAccountInfo CurrentAccount => _currentAccount;
+    public YouTubeUploader.YouTubeAccountInfo CurrentAccount => _currentAccount;  // 🔥 수정
 
     public YouTubeUploadService(IJSRuntime jsRuntime)
     {
