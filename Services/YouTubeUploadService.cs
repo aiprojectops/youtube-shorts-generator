@@ -13,8 +13,8 @@ public class YouTubeUploadService
 {
     private readonly IJSRuntime _jsRuntime;
     
-    // 🔥 사용자별 고유 ID (세션당 하나)
-    private readonly string _userId;
+    // 🔥 사용자별 고유 ID (쿠키로 관리)
+    private string _userId;
     
     private YouTubeUploader _youtubeUploader;
     private YouTubeUploader.YouTubeAccountInfo _currentAccount;  // 🔥 수정
@@ -25,44 +25,54 @@ public class YouTubeUploadService
     public YouTubeUploadService(IJSRuntime jsRuntime)
     {
         _jsRuntime = jsRuntime;
-        _userId = null; // 나중에 초기화
+        _userId = null; // 나중에 InitializeAsync에서 설정
+        Console.WriteLine($"=== YouTubeUploadService 생성 (UserId는 아직 미설정)");
     }
     
-    // 🔥 새로 추가: 초기화 메서드
+    /// <summary>
+    /// UserId 초기화 (쿠키에서 로드 또는 생성)
+    /// </summary>
     public async Task InitializeAsync()
     {
         if (string.IsNullOrEmpty(_userId))
         {
             _userId = await GetOrCreateUserIdAsync();
-            Console.WriteLine($"=== YouTubeUploadService 초기화: UserId={_userId}");
+            Console.WriteLine($"=== YouTubeUploadService 초기화 완료: UserId={_userId}");
         }
     }
-    
+
+    /// <summary>
+    /// 쿠키에서 UserId 가져오기 또는 새로 생성
+    /// </summary>
     private async Task<string> GetOrCreateUserIdAsync()
     {
         try
         {
+            // 쿠키에서 UserId 읽기
             string userId = await _jsRuntime.InvokeAsync<string>("getCookie", "userId");
             
             if (string.IsNullOrEmpty(userId))
             {
+                // 없으면 새로 생성
                 userId = Guid.NewGuid().ToString();
+                // 쿠키에 저장 (30일 유효)
                 await _jsRuntime.InvokeVoidAsync("setCookie", "userId", userId, 30);
-                Console.WriteLine($"=== 새 UserId 생성 및 쿠키 저장: {userId}");
+                Console.WriteLine($"=== 🆕 새 UserId 생성 및 쿠키 저장: {userId}");
             }
             else
             {
-                Console.WriteLine($"=== 쿠키에서 UserId 로드: {userId}");
+                Console.WriteLine($"=== ♻️ 쿠키에서 UserId 로드: {userId}");
             }
             
             return userId;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"=== 쿠키 처리 실패: {ex.Message}");
+            Console.WriteLine($"=== ⚠️ 쿠키 처리 실패: {ex.Message}, 임시 ID 사용");
             return Guid.NewGuid().ToString();
         }
     }
+    
     /// <summary>
     /// YouTube 인증 URL 가져오기
     /// </summary>
