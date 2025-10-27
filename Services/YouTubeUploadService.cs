@@ -11,10 +11,25 @@ namespace YouTubeShortsWebApp.Services
 /// </summary>
 public class YouTubeUploadService
 {
-private YouTubeUploader _youtubeUploader;
-private YouTubeUploader.YouTubeAccountInfo _currentAccount;
-  public YouTubeUploader.YouTubeAccountInfo CurrentAccount => _currentAccount;
-    public bool IsAuthenticated => _currentAccount != null;
+    private readonly IJSRuntime _jsRuntime;
+    
+    // 🔥 사용자별 고유 ID (세션당 하나)
+    private readonly string _userId;
+    
+    private YouTubeUploader _youtubeUploader;
+    private YouTubeAccountInfo _currentAccount;
+
+    public bool IsAuthenticated => _youtubeUploader != null && _currentAccount != null;
+    public YouTubeAccountInfo CurrentAccount => _currentAccount;
+
+    public YouTubeUploadService(IJSRuntime jsRuntime)
+    {
+        _jsRuntime = jsRuntime;
+        
+        // 🔥 세션당 고유 ID 생성
+        _userId = Guid.NewGuid().ToString();
+        Console.WriteLine($"=== YouTubeUploadService 생성: UserId={_userId}");
+    }
 
     /// <summary>
     /// YouTube 인증 URL 가져오기
@@ -27,7 +42,7 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
             throw new Exception("먼저 설정에서 YouTube API 정보를 입력해주세요.");
         }
 
-        _youtubeUploader = new YouTubeUploader();
+        // 🔥 userId 전달 _youtubeUploader = new YouTubeUploader(_userId);
         string currentUrl = await jsRuntime.InvokeAsync<string>("eval", "window.location.origin");
         return await _youtubeUploader.GetAuthorizationUrlAsync(currentUrl, returnPage);
     }
@@ -45,7 +60,7 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
                 return false;
             }
 
-            _youtubeUploader = new YouTubeUploader();
+            // 🔥 userId 전달 _youtubeUploader = new YouTubeUploader(_userId);
             bool authSuccess = await _youtubeUploader.AuthenticateAsync();
 
             if (authSuccess)
@@ -70,7 +85,7 @@ private YouTubeUploader.YouTubeAccountInfo _currentAccount;
     {
         try
         {
-            _youtubeUploader = new YouTubeUploader();
+            // 🔥 userId 전달 _youtubeUploader = new YouTubeUploader(_userId);
             bool success = await _youtubeUploader.ExchangeCodeForTokenAsync(code, baseUrl);
 
             if (success)
