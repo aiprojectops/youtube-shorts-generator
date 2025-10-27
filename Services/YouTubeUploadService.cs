@@ -292,6 +292,11 @@ public class YouTubeUploadService
         var videosToSchedule = randomizeOrder
             ? videoInfoList.OrderBy(x => Guid.NewGuid()).ToList()
             : videoInfoList.ToList();
+
+        // 🔥 이 3줄 추가 (메서드 시작 부분에)
+        string currentUserId = _userId;
+        string refreshToken = GetCurrentRefreshToken();
+        Console.WriteLine($"=== UserId: {currentUserId}, RefreshToken 있음: {!string.IsNullOrEmpty(refreshToken)}");    
         
         Console.WriteLine($"=== 생성 정보 스케줄 등록: {videosToSchedule.Count}개");
         
@@ -346,6 +351,11 @@ public class YouTubeUploadService
             {
                 FileName = $"video_{i + 1:D3}.mp4",
                 ScheduledTime = scheduledTime,
+
+                // 🔥 이 2줄 추가
+                UserId = currentUserId,
+                RefreshToken = refreshToken,
+                
                 Title = title,
                 Description = description,
                 Tags = tags,
@@ -402,6 +412,11 @@ public class YouTubeUploadService
             : filePaths.ToList();
         
         Console.WriteLine($"=== 스케줄 등록 시작: {filesToSchedule.Count}개 파일");
+
+        // 🔥 이 3줄 추가
+        string currentUserId = _userId;
+        string refreshToken = GetCurrentRefreshToken();
+        Console.WriteLine($"=== UserId: {currentUserId}, RefreshToken 있음: {!string.IsNullOrEmpty(refreshToken)}");
         
         if (options.UseRandomInfo)
         {
@@ -471,6 +486,11 @@ public class YouTubeUploadService
                 FileName = Path.GetFileName(filesToSchedule[i]),
                 FilePath = filesToSchedule[i],
                 ScheduledTime = scheduledTime,
+
+                // 🔥 이 2줄 추가
+                UserId = currentUserId,
+                RefreshToken = refreshToken,
+                
                 Title = title,
                 Description = description,
                 Tags = tags,
@@ -483,7 +503,35 @@ public class YouTubeUploadService
         Console.WriteLine($"=== 스케줄 등록 완료: {filesToSchedule.Count}개");
     }
   
-
+    /// <summary>
+    /// 현재 Refresh Token 가져오기 (스케줄 업로드용)
+    /// </summary>
+    private string GetCurrentRefreshToken()
+    {
+        try
+        {
+            if (_youtubeUploader == null)
+            {
+                Console.WriteLine("=== YouTubeUploader가 null입니다");
+                return "";
+            }
+                
+            var credential = _youtubeUploader.GetCredential();
+            if (credential?.Token?.RefreshToken == null)
+            {
+                Console.WriteLine("=== Refresh Token이 null입니다");
+                return "";
+            }
+            
+            Console.WriteLine("=== Refresh Token 추출 성공");
+            return credential.Token.RefreshToken;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"=== Refresh Token 추출 실패: {ex.Message}");
+            return "";
+        }
+    }
     
     /// <summary>
     /// 랜덤 업로드 시간 계산
