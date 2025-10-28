@@ -25,14 +25,16 @@ namespace YouTubeShortsWebApp
     
         // 🔥 사용자 ID 추가
         private readonly string _userId;
+        private readonly SharedMemoryDataStore _dataStore;  // 🆕 이 줄 추가
         
         private YouTubeService youtubeService;
         private UserCredential credential;
     
-        // 🔥 생성자에서 userId 받기
-        public YouTubeUploader(string userId = null)
+        // 🔥 생성자에서 userId와 dataStore 받기
+        public YouTubeUploader(string userId, SharedMemoryDataStore dataStore)  // 🆕 매개변수 변경
         {
-            _userId = userId ?? Guid.NewGuid().ToString(); // userId 없으면 랜덤 생성
+            _userId = userId ?? Guid.NewGuid().ToString();
+            _dataStore = dataStore;  // 🆕 이 줄 추가
             Console.WriteLine($"=== YouTubeUploader 생성: UserId={_userId}");
         }
 
@@ -81,9 +83,7 @@ namespace YouTubeShortsWebApp
                     throw new Exception("YouTube API 클라이언트 ID와 시크릿이 설정되지 않았습니다.");
                 }
         
-                // 🔥 메모리 저장소 사용
-                var dataStore = new MemoryDataStore(_userId);
-        
+                // 🔥 주입받은 DataStore 사용
                 var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
                 {
                     ClientSecrets = new ClientSecrets
@@ -92,7 +92,7 @@ namespace YouTubeShortsWebApp
                         ClientSecret = config.YouTubeClientSecret
                     },
                     Scopes = Scopes,
-                    DataStore = dataStore  // 🔥 변경됨
+                    DataStore = _dataStore  // 🆕 변경
                 });
         
                 string redirectUri;
@@ -130,9 +130,7 @@ namespace YouTubeShortsWebApp
             {
                 var config = ConfigManager.GetConfig();
                 
-                // 🔥 메모리 저장소 사용
-                var dataStore = new MemoryDataStore(_userId);
-                
+                // 🔥 주입받은 DataStore 사용
                 var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
                 {
                     ClientSecrets = new ClientSecrets
@@ -141,7 +139,7 @@ namespace YouTubeShortsWebApp
                         ClientSecret = config.YouTubeClientSecret
                     },
                     Scopes = Scopes,
-                    DataStore = dataStore  // 🔥 변경됨
+                    DataStore = _dataStore  // 🆕 변경
                 });
         
                 string redirectUri;
@@ -156,9 +154,9 @@ namespace YouTubeShortsWebApp
                 
                 Console.WriteLine($"=== ExchangeCodeForTokenAsync 최종 리디렉션 URI: {redirectUri}");
                 
-                var token = await flow.ExchangeCodeForTokenAsync("user", code, redirectUri, CancellationToken.None);
-        
-                credential = new UserCredential(flow, "user", token);
+                var token = await flow.ExchangeCodeForTokenAsync($"{_userId}::user", code, redirectUri, CancellationToken.None);  // 🆕 변경
+
+                credential = new UserCredential(flow, $"{_userId}::user", token);  // 🆕 변경
         
                 youtubeService = new YouTubeService(new BaseClientService.Initializer()
                 {
@@ -198,6 +196,7 @@ namespace YouTubeShortsWebApp
                 // 🔥 메모리 저장소 사용
                 var dataStore = new MemoryDataStore(_userId);
         
+                // 🔥 주입받은 DataStore 사용
                 var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
                 {
                     ClientSecrets = new ClientSecrets
@@ -206,10 +205,10 @@ namespace YouTubeShortsWebApp
                         ClientSecret = config.YouTubeClientSecret
                     },
                     Scopes = Scopes,
-                    DataStore = dataStore  // 🔥 변경됨
+                    DataStore = _dataStore  // 🆕 변경
                 });
-        
-                var token = await dataStore.GetAsync<TokenResponse>("user");
+                
+                var token = await _dataStore.GetAsync<TokenResponse>($"{_userId}::user");  // 🆕 변경
                 
                 if (token != null && !string.IsNullOrEmpty(token.AccessToken))
                 {
