@@ -7,6 +7,7 @@ namespace YouTubeShortsWebApp
     public class ScheduledUploadService : BackgroundService
     {
         private readonly ILogger<ScheduledUploadService> _logger;
+        private readonly SharedMemoryDataStore _dataStore;  // 🆕 이 줄 추가
         private static readonly string QueueFilePath = Path.Combine(
             Path.GetTempPath(), 
             "YouTubeScheduledQueue.json"
@@ -24,9 +25,12 @@ namespace YouTubeShortsWebApp
         private int _currentBatchSuccess = 0;
         private DateTime _batchStartTime = DateTime.MinValue;
 
-        public ScheduledUploadService(ILogger<ScheduledUploadService> logger)
+        public ScheduledUploadService(
+            ILogger<ScheduledUploadService> logger,
+            SharedMemoryDataStore dataStore)  // 🆕 매개변수 추가
         {
             _logger = logger;
+            _dataStore = dataStore;  // 🆕 이 줄 추가
             LoadQueueFromFile();
         }
 
@@ -440,7 +444,7 @@ namespace YouTubeShortsWebApp
             try
             {
                 // 🔥 저장된 userId와 refreshToken으로 인증
-                var youtubeUploader = new YouTubeUploader(item.UserId);
+                var youtubeUploader = new YouTubeUploader(item.UserId, _dataStore);  // 🆕 _dataStore 추가
                 bool authSuccess = await youtubeUploader.AuthenticateWithRefreshTokenAsync(item.RefreshToken);
                 
                 if (!authSuccess)
