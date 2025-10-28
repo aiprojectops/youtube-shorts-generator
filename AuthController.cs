@@ -5,6 +5,15 @@ namespace YouTubeShortsWebApp
     [Route("oauth")]
     public class AuthController : ControllerBase
     {
+        // 🆕 1. 필드 추가
+        private readonly SharedMemoryDataStore _dataStore;
+
+        // 🆕 2. 생성자 추가 (DI로 주입)
+        public AuthController(SharedMemoryDataStore dataStore)
+        {
+            _dataStore = dataStore;
+        }
+
         [HttpGet("google/callback")]
         public async Task<IActionResult> GoogleCallback(
             [FromQuery] string code, 
@@ -59,7 +68,8 @@ namespace YouTubeShortsWebApp
             {
                 Console.WriteLine("토큰 교환 시작...");
         
-                var uploader = new YouTubeUploader(userId);
+                // 🆕 3. dataStore 매개변수 추가
+                var uploader = new YouTubeUploader(userId, _dataStore);
                 bool success = await uploader.ExchangeCodeForTokenAsync(code, baseUrl);
                 
                 if (success)
