@@ -193,9 +193,6 @@ namespace YouTubeShortsWebApp
                     throw new Exception("YouTube API 클라이언트 ID와 시크릿이 설정되지 않았습니다.");
                 }
         
-                // 🔥 메모리 저장소 사용
-                var dataStore = new MemoryDataStore(_userId);
-        
                 // 🔥 주입받은 DataStore 사용
                 var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
                 {
@@ -210,43 +207,34 @@ namespace YouTubeShortsWebApp
                 
                 var token = await _dataStore.GetAsync<TokenResponse>($"{_userId}::user");  // 🆕 변경
                 
-                if (token != null && !string.IsNullOrEmpty(token.AccessToken))
+                if (token == null)
                 {
-                    credential = new UserCredential(flow, "user", token);
-        
-                    youtubeService = new YouTubeService(new BaseClientService.Initializer()
-                    {
-                        HttpClientInitializer = credential,
-                        ApplicationName = ApplicationName,
-                    });
-        
-                    // 토큰 유효성 검사
-                    try
-                    {
-                        var channelsRequest = youtubeService.Channels.List("snippet");
-                        channelsRequest.Mine = true;
-                        channelsRequest.MaxResults = 1;
-                        await channelsRequest.ExecuteAsync();
-                        
-                        System.Diagnostics.Debug.WriteLine("기존 토큰으로 인증 성공!");
-                        return true;
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"기존 토큰 유효하지 않음: {ex.Message}");
-                    }
+                    Console.WriteLine("저장된 토큰이 없습니다.");
+                    return false;
                 }
         
-                System.Diagnostics.Debug.WriteLine("새로운 인증이 필요합니다.");
-                return false;
+                credential = new UserCredential(flow, $"{_userId}::user", token);  // 🆕 변경
+        
+                youtubeService = new YouTubeService(new BaseClientService.Initializer()
+                {
+                    HttpClientInitializer = credential,
+                    ApplicationName = ApplicationName,
+                });
+        
+                // 유효성 검사
+                var channelsRequest = youtubeService.Channels.List("snippet");
+                channelsRequest.Mine = true;
+                channelsRequest.MaxResults = 1;
+                await channelsRequest.ExecuteAsync();
+        
+                return true;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"인증 확인 실패: {ex.Message}");
+                Console.WriteLine($"인증 실패: {ex.Message}");
                 return false;
             }
         }
-
         
         // 현재 연동된 계정 정보 가져오기
         public async Task<YouTubeAccountInfo> GetCurrentAccountInfoAsync()
