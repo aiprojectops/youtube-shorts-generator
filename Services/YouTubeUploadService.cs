@@ -12,7 +12,8 @@ namespace YouTubeShortsWebApp.Services
 public class YouTubeUploadService
 {
     private readonly IJSRuntime _jsRuntime;
-    
+    private readonly SharedMemoryDataStore _dataStore;  // 🆕 이 줄 추가
+
     // 🔥 사용자별 고유 ID (쿠키로 관리)
     private string _userId;
     
@@ -22,9 +23,10 @@ public class YouTubeUploadService
     public bool IsAuthenticated => _youtubeUploader != null && _currentAccount != null;
     public YouTubeUploader.YouTubeAccountInfo CurrentAccount => _currentAccount;  // 🔥 수정
 
-    public YouTubeUploadService(IJSRuntime jsRuntime)
+    public YouTubeUploadService(IJSRuntime jsRuntime, SharedMemoryDataStore dataStore)  // 🆕 매개변수 추가
     {
         _jsRuntime = jsRuntime;
+        _dataStore = dataStore;  // 🆕 이 줄 추가
         _userId = null; // 나중에 InitializeAsync에서 설정
         Console.WriteLine($"=== YouTubeUploadService 생성 (UserId는 아직 미설정)");
     }
@@ -84,8 +86,8 @@ public class YouTubeUploadService
             throw new Exception("먼저 설정에서 YouTube API 정보를 입력해주세요.");
         }
 
-        // 🔥 userId 전달 
-        _youtubeUploader = new YouTubeUploader(_userId);
+        // 🔥 userId와 dataStore 전달 
+        _youtubeUploader = new YouTubeUploader(_userId, _dataStore);  // 🆕 _dataStore 추가
         string currentUrl = await jsRuntime.InvokeAsync<string>("eval", "window.location.origin");        
         // 🔥 returnPage에 userId 포함
         string stateWithUserId = $"{returnPage}|{_userId}";
@@ -105,8 +107,8 @@ public class YouTubeUploadService
                 return false;
             }
 
-            // 🔥 userId 전달 
-            _youtubeUploader = new YouTubeUploader(_userId);
+            // 🔥 userId와 dataStore 전달 
+            _youtubeUploader = new YouTubeUploader(_userId, _dataStore);  // 🆕 _dataStore 추가
             bool authSuccess = await _youtubeUploader.AuthenticateAsync();
 
             if (authSuccess)
@@ -131,8 +133,8 @@ public class YouTubeUploadService
     {
         try
         {
-            // 🔥 userId 전달
-            _youtubeUploader = new YouTubeUploader(_userId);
+            // 🔥 userId와 dataStore 전달
+            _youtubeUploader = new YouTubeUploader(_userId, _dataStore);  // 🆕 _dataStore 추가
             bool success = await _youtubeUploader.ExchangeCodeForTokenAsync(code, baseUrl);
 
             if (success)
