@@ -69,41 +69,94 @@ namespace YouTubeShortsWebApp.Services
             ProgressCallback progressCallback = null)
         {
             var results = new List<UploadResult>();
-
+        
+            Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
             Console.WriteLine($"📤 즉시 업로드 시작: 총 {request.FilePaths.Count}개");
-
+            Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        
             for (int i = 0; i < request.FilePaths.Count; i++)
             {
                 string filePath = request.FilePaths[i];
                 string fileName = System.IO.Path.GetFileName(filePath);
                 int currentIndex = i + 1;
-
+        
                 try
                 {
                     progressCallback?.Invoke(currentIndex, request.FilePaths.Count, fileName);
-
-                    Console.WriteLine($"📤 업로드 중 [{currentIndex}/{request.FilePaths.Count}]: {fileName}");
-
+        
+                    // 🆕 제목/설명/태그 선택 로직 추가
+                    string title, description, tags;
+        
+                    if (request.UploadOptions.UseRandomInfo)
+                    {
+                        // 랜덤 정보 사용
+                        var titleRandom = new Random(Guid.NewGuid().GetHashCode());
+                        var descRandom = new Random(Guid.NewGuid().GetHashCode());
+                        var tagsRandom = new Random(Guid.NewGuid().GetHashCode());
+        
+                        title = request.UploadOptions.RandomTitles != null && request.UploadOptions.RandomTitles.Count > 0
+                            ? request.UploadOptions.RandomTitles[titleRandom.Next(request.UploadOptions.RandomTitles.Count)]
+                            : (request.FilePaths.Count > 1
+                                ? request.UploadOptions.TitleTemplate.Replace("#NUMBER", $"#{i + 1}")
+                                : request.UploadOptions.TitleTemplate.Replace(" #NUMBER", ""));
+        
+                        description = request.UploadOptions.RandomDescriptions != null && request.UploadOptions.RandomDescriptions.Count > 0
+                            ? request.UploadOptions.RandomDescriptions[descRandom.Next(request.UploadOptions.RandomDescriptions.Count)]
+                            : request.UploadOptions.Description;
+        
+                        tags = request.UploadOptions.RandomTags != null && request.UploadOptions.RandomTags.Count > 0
+                            ? request.UploadOptions.RandomTags[tagsRandom.Next(request.UploadOptions.RandomTags.Count)]
+                            : request.UploadOptions.Tags;
+                    }
+                    else
+                    {
+                        // 일반 모드
+                        title = request.FilePaths.Count > 1
+                            ? request.UploadOptions.TitleTemplate.Replace("#NUMBER", $"#{i + 1}")
+                            : request.UploadOptions.TitleTemplate.Replace(" #NUMBER", "");
+                        description = request.UploadOptions.Description;
+                        tags = request.UploadOptions.Tags;
+                    }
+        
+                    // 🆕 상세 로그 출력
+                    Console.WriteLine($"");
+                    Console.WriteLine($"📤 업로드 중 [{currentIndex}/{request.FilePaths.Count}]");
+                    Console.WriteLine($"📁 파일: {fileName}");
+                    Console.WriteLine($"📝 제목: {title}");
+                    Console.WriteLine($"📄 설명: {description.Substring(0, Math.Min(50, description.Length))}...");
+                    Console.WriteLine($"🏷️ 태그: {tags.Substring(0, Math.Min(30, tags.Length))}...");
+                    Console.WriteLine($"🔒 공개: {request.UploadOptions.PrivacySetting}");
+        
+                    // 🆕 UploadOptions 복사본 생성 (개별 업로드용)
+                    var individualOptions = new YouTubeUploadService.UploadOptions
+                    {
+                        TitleTemplate = title,
+                        Description = description,
+                        Tags = tags,
+                        PrivacySetting = request.UploadOptions.PrivacySetting,
+                        UseRandomInfo = false  // 이미 선택했으므로 false
+                    };
+        
                     string videoUrl = await _uploadService.UploadSingleVideoAsync(
                         filePath,
-                        fileName,
-                        request.UploadOptions,
+                        title,  // 🆕 제목 사용
+                        individualOptions,
                         null // 진행률 콜백은 선택사항
                     );
-
+        
                     results.Add(new UploadResult
                     {
                         Success = true,
                         VideoUrl = videoUrl,
                         FileName = fileName
                     });
-
+        
                     Console.WriteLine($"✅ 업로드 완료 [{currentIndex}]: {videoUrl}");
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"❌ 업로드 실패 [{currentIndex}]: {ex.Message}");
-
+        
                     results.Add(new UploadResult
                     {
                         Success = false,
@@ -112,13 +165,15 @@ namespace YouTubeShortsWebApp.Services
                     });
                 }
             }
-
+        
             int successCount = results.Count(r => r.Success);
+            Console.WriteLine($"");
+            Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
             Console.WriteLine($"📤 즉시 업로드 완료: {successCount}/{request.FilePaths.Count} 성공");
-
+            Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        
             return results;
         }
-
         /// <summary>
         /// 스케줄 업로드 등록
         /// </summary>
