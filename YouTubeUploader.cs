@@ -71,8 +71,8 @@ namespace YouTubeShortsWebApp
             public string PrivacyStatus { get; set; }
         }
 
-        // 웹 기반 인증을 위한 새로운 메서드
-       public async Task<string> GetAuthorizationUrlAsync(string baseUrl, string returnPage = "youtube-upload")
+       // 웹 기반 인증을 위한 새로운 메서드
+        public async Task<string> GetAuthorizationUrlAsync(string baseUrl, string returnPage = "youtube-upload")
         {
             try
             {
@@ -111,8 +111,14 @@ namespace YouTubeShortsWebApp
                 var request = flow.CreateAuthorizationCodeRequest(redirectUri);
                 request.State = returnPage;
                 
+                // 🆕 항상 Refresh Token을 받기 위해 prompt=consent 추가
                 var authUrl = request.Build().ToString();
-                Console.WriteLine($"=== 생성된 인증 URL: {authUrl}");
+                if (!authUrl.Contains("prompt="))
+                {
+                    authUrl += "&prompt=consent";
+                }
+                
+                Console.WriteLine($"=== 생성된 인증 URL (consent 포함): {authUrl}");
         
                 return authUrl;
             }
@@ -156,6 +162,13 @@ namespace YouTubeShortsWebApp
                 
                 var token = await flow.ExchangeCodeForTokenAsync($"{_userId}::user", code, redirectUri, CancellationToken.None);  // 🆕 변경
 
+                // 🆕 Refresh Token 확인 로그 추가
+                Console.WriteLine($"=== 토큰 교환 결과:");
+                Console.WriteLine($"    Access Token: {(string.IsNullOrEmpty(token.AccessToken) ? "없음" : "있음")}");
+                Console.WriteLine($"    Refresh Token: {(string.IsNullOrEmpty(token.RefreshToken) ? "❌ 없음!" : "✅ 있음")}");
+                Console.WriteLine($"    Token Type: {token.TokenType}");
+                Console.WriteLine($"    Expires In: {token.ExpiresInSeconds}초");
+                
                 credential = new UserCredential(flow, $"{_userId}::user", token);  // 🆕 변경
         
                 youtubeService = new YouTubeService(new BaseClientService.Initializer()
