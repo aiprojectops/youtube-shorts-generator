@@ -118,7 +118,7 @@ namespace YouTubeShortsWebApp.Services
                         tags = request.UploadOptions.Tags;
                     }
         
-                    // 🆕 상세 로그 출력
+                    /*// 🆕 상세 로그 출력
                     Console.WriteLine($"");
                     Console.WriteLine($"📤 업로드 중 [{currentIndex}/{request.FilePaths.Count}]");
                     Console.WriteLine($"📁 파일: {fileName}");
@@ -126,7 +126,8 @@ namespace YouTubeShortsWebApp.Services
                     Console.WriteLine($"📄 설명: {description.Substring(0, Math.Min(50, description.Length))}...");
                     Console.WriteLine($"🏷️ 태그: {tags.Substring(0, Math.Min(30, tags.Length))}...");
                     Console.WriteLine($"🔒 공개: {request.UploadOptions.PrivacySetting}");
-        
+                    */
+                    
                     // 🆕 UploadOptions 복사본 생성 (개별 업로드용)
                     var individualOptions = new YouTubeUploadService.UploadOptions
                     {
