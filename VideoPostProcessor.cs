@@ -153,16 +153,33 @@ namespace YouTubeShortsWebApp
 
                 Console.WriteLine($"=== 처리된 텍스트: {simpleText}");
 
+                Random random = new Random();
                 string actualPosition = options.CaptionPosition;
                 string actualFontSize = options.FontSize;
                 string actualFontColor = options.FontColor;
 
+                // 🔥 랜덤 위치 처리
                 if (options.CaptionPosition == "random")
                 {
                     var positions = new[] { "top", "center", "bottom" };
-                    Random random = new Random();
                     actualPosition = positions[random.Next(positions.Length)];
                     Console.WriteLine($"=== 랜덤 선택된 위치: {actualPosition}");
+                }
+
+                // 🔥 랜덤 크기 처리
+                if (options.FontSize == "random")
+                {
+                    var sizes = new[] { "60", "80", "120" };
+                    actualFontSize = sizes[random.Next(sizes.Length)];
+                    Console.WriteLine($"=== 랜덤 선택된 크기: {actualFontSize}");
+                }
+
+                // 🔥 랜덤 색상 처리
+                if (options.FontColor == "random")
+                {
+                    var colors = new[] { "white", "yellow", "red", "black" };
+                    actualFontColor = colors[random.Next(colors.Length)];
+                    Console.WriteLine($"=== 랜덤 선택된 색상: {actualFontColor}");
                 }
 
                 string yPosition;
