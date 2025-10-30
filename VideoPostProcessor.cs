@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -7,6 +7,10 @@ using System.Text;
 
 namespace YouTubeShortsWebApp
 {
+    /// <summary>
+    /// 🚀 512MB RAM 최적화 버전
+    /// FFmpeg 메모리 사용량 최소화
+    /// </summary>
     public class VideoPostProcessor
     {
         private static readonly string FFmpegPath = GetFFmpegPath();
@@ -25,7 +29,6 @@ namespace YouTubeShortsWebApp
 
         private static string GetFFmpegPath()
         {
-            // 클라우드 환경에서는 시스템에 설치된 ffmpeg 사용
             if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("RENDER")))
             {
                 Console.WriteLine("=== 클라우드 환경에서 시스템 FFmpeg 사용");
@@ -33,8 +36,6 @@ namespace YouTubeShortsWebApp
             }
 
             Console.WriteLine($"=== BaseDirectory: {AppDomain.CurrentDomain.BaseDirectory}");
-
-            // 1. 애플리케이션 폴더에서 찾기 (로컬 환경)
             string appPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
             Console.WriteLine($"=== 찾는 경로: {appPath}");
             Console.WriteLine($"=== 파일 존재: {File.Exists(appPath)}");
@@ -75,119 +76,86 @@ namespace YouTubeShortsWebApp
             }
         }
 
-        
         public static async Task<string> ProcessVideoAsync(ProcessingOptions options, IProgress<string> progress = null)
         {
             var tempFiles = new List<string>();
             string currentInput = options.InputVideoPath;
-        
+
             try
             {
                 // 1. 캡션 추가
                 if (!string.IsNullOrEmpty(options.CaptionText))
                 {
-                    string captionOutput = Path.GetTempFileName() + ".mp4";
+                    progress?.Report("캡션 추가 중...");
+                    string captionOutput = Path.Combine(Path.GetTempPath(), $"caption_{Guid.NewGuid()}.mp4");
                     tempFiles.Add(captionOutput);
-                    
                     await AddCaptionAsync(currentInput, captionOutput, options);
+                    currentInput = captionOutput;
                     
-                    if (File.Exists(captionOutput))
-                    {
-                        currentInput = captionOutput;
-                        
-                        // 원본 파일 즉시 삭제 (메모리 절약)
-                        if (currentInput != options.InputVideoPath && File.Exists(options.InputVideoPath))
-                        {
-                            try { File.Delete(options.InputVideoPath); } catch { }
-                        }
-                    }
+                    // 🧹 메모리 정리
+                    GC.Collect();
+                    GC.WaitForPendingFinalizers();
                 }
-        
+
                 // 2. 배경음악 추가
                 if (!string.IsNullOrEmpty(options.BackgroundMusicPath) && File.Exists(options.BackgroundMusicPath))
                 {
-                    string musicOutput = Path.GetTempFileName() + ".mp4";
-                    tempFiles.Add(musicOutput);
-        
-                    await AddBackgroundMusicAsync(currentInput, musicOutput, options.BackgroundMusicPath, options.MusicVolume);
-        
-                    if (File.Exists(musicOutput))
-                    {
-                        // 이전 단계 파일 즉시 삭제
-                        if (File.Exists(currentInput) && currentInput != options.InputVideoPath)
-                        {
-                            try { File.Delete(currentInput); } catch { }
-                            tempFiles.Remove(currentInput);
-                        }
-                        
-                        currentInput = musicOutput;
-                    }
+                    progress?.Report("배경음악 추가 중...");
+                    await AddBackgroundMusicAsync(currentInput, options.OutputVideoPath, options.BackgroundMusicPath, options.MusicVolume);
                     
-                    // 업로드된 음악 파일도 삭제
-                    try { File.Delete(options.BackgroundMusicPath); } catch { }
+                    // 🧹 메모리 정리
+                    GC.Collect();
+                    GC.WaitForPendingFinalizers();
                 }
-        
-                // 3. 최종 출력
-                File.Copy(currentInput, options.OutputVideoPath, true);
-                
+                else
+                {
+                    if (currentInput != options.OutputVideoPath)
+                    {
+                        File.Copy(currentInput, options.OutputVideoPath, true);
+                    }
+                }
+
+                progress?.Report("완료!");
                 return options.OutputVideoPath;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"=== 영상 처리 실패: {ex.Message}");
+                throw;
             }
             finally
             {
-                // 임시 파일 정리는 지연 없이 즉시
-                foreach (string tempFile in tempFiles)
+                foreach (var tempFile in tempFiles)
                 {
                     try
                     {
-                        if (File.Exists(tempFile))
+                        if (File.Exists(tempFile) && tempFile != options.OutputVideoPath)
                         {
                             File.Delete(tempFile);
                         }
                     }
-                    catch { } // 에러 무시하고 계속
+                    catch { }
                 }
             }
         }
-        
 
-        // 캡션 추가 (개선된 버전)
         private static async Task AddCaptionAsync(string inputPath, string outputPath, ProcessingOptions options)
         {
             try
             {
                 Console.WriteLine("=== 캡션 추가 시작");
-
-                // 텍스트 간단히 처리 (특수문자 제거)
+                
                 string simpleText = options.CaptionText
-                    .Replace("'", "")
+                    .Replace("'", "\\'")
                     .Replace("\"", "")
-                    .Replace(":", "")
-                    .Replace("\\", "");
+                    .Replace("\n", " ")
+                    .Replace("\r", "");
 
                 Console.WriteLine($"=== 처리된 텍스트: {simpleText}");
-                Console.WriteLine($"=== 캡션 위치: {options.CaptionPosition}");
-                Console.WriteLine($"=== 폰트 크기: {options.FontSize}");
 
-                // 실제 값 결정 (랜덤 처리)
+                string actualPosition = options.CaptionPosition;
                 string actualFontSize = options.FontSize;
                 string actualFontColor = options.FontColor;
-                string actualPosition = options.CaptionPosition;
-
-                if (options.FontSize == "random")
-                {
-                    var sizes = new[] { "60", "80", "120" };
-                    Random random = new Random();
-                    actualFontSize = sizes[random.Next(sizes.Length)];
-                    Console.WriteLine($"=== 랜덤 선택된 크기: {actualFontSize}");
-                }
-
-                if (options.FontColor == "random")
-                {
-                    var colors = new[] { "white", "yellow", "red", "black" };
-                    Random random = new Random();
-                    actualFontColor = colors[random.Next(colors.Length)];
-                    Console.WriteLine($"=== 랜덤 선택된 색상: {actualFontColor}");
-                }
 
                 if (options.CaptionPosition == "random")
                 {
@@ -197,7 +165,6 @@ namespace YouTubeShortsWebApp
                     Console.WriteLine($"=== 랜덤 선택된 위치: {actualPosition}");
                 }
 
-                // 위치별 Y 좌표 계산
                 string yPosition;
                 switch (actualPosition.ToLower())
                 {
@@ -213,17 +180,21 @@ namespace YouTubeShortsWebApp
                         break;
                 }
 
-                Console.WriteLine($"=== Y 위치 계산: {yPosition}");
                 Console.WriteLine($"=== 최종 설정 - 위치: {actualPosition}, 크기: {actualFontSize}, 색상: {actualFontColor}");
 
-                // 개선된 FFmpeg 명령어 (실제 값 사용)
+                // 🚀 512MB 최적화 FFmpeg 명령어
                 string arguments = $"-i \"{inputPath}\" " +
                                   $"-vf \"drawtext=text='{simpleText}':fontsize={actualFontSize}:fontcolor={actualFontColor}:" +
                                   $"x=(w-text_w)/2:y={yPosition}:" +
                                   $"borderw=3:bordercolor=black:shadowx=2:shadowy=2:shadowcolor=black@0.5\" " +
-                                  $"-c:a copy -preset ultrafast -crf 23 -y \"{outputPath}\"";
+                                  $"-c:a copy " +
+                                  $"-threads 1 " +              // 🔥 단일 스레드 (메모리 ↓)
+                                  $"-preset ultrafast " +       // 빠른 처리
+                                  $"-crf 28 " +                 // 🔥 높은 압축률 (메모리 ↓)
+                                  $"-max_muxing_queue_size 512 " + // 🔥 버퍼 제한 (메모리 ↓)
+                                  $"-y \"{outputPath}\"";
 
-                Console.WriteLine($"=== FFmpeg 명령어: {arguments}");
+                Console.WriteLine($"=== FFmpeg 명령어 (512MB 최적화): {arguments}");
 
                 await RunFFmpegAsync(arguments);
 
@@ -246,7 +217,6 @@ namespace YouTubeShortsWebApp
                 Console.WriteLine($"=== 출력: {outputPath}");
                 Console.WriteLine($"=== 음량: {volume}");
 
-                // 파일 존재 확인
                 if (!File.Exists(inputPath))
                 {
                     throw new Exception($"입력 비디오 파일이 없습니다: {inputPath}");
@@ -259,25 +229,27 @@ namespace YouTubeShortsWebApp
 
                 Console.WriteLine($"=== 입력 파일 확인 완료");
 
-                // 음악 파일의 길이 확인
                 int musicDuration = await GetAudioDurationAsync(musicPath);
                 Console.WriteLine($"=== 음악 파일 길이: {musicDuration}초");
 
-                // 랜덤 시작점 계산 (음악 길이의 70% 범위 내에서)
                 Random random = new Random();
-                int maxStartTime = Math.Max(0, musicDuration - 15); // 최소 15초는 남겨두기
+                int maxStartTime = Math.Max(0, musicDuration - 15);
                 int randomStartTime = random.Next(0, Math.Max(1, maxStartTime));
 
                 Console.WriteLine($"=== 랜덤 시작점: {randomStartTime}초");
 
-                // 랜덤 시작점을 적용한 FFmpeg 명령어
+                // 🚀 512MB 최적화 FFmpeg 명령어
                 string arguments = $"-i \"{inputPath}\" -ss {randomStartTime} -i \"{musicPath}\" " +
                                   $"-c:v copy -c:a aac " +
                                   $"-filter:a \"volume={volume:F1}\" " +
                                   $"-map 0:v:0 -map 1:a:0 " +
-                                  $"-shortest -preset ultrafast -y \"{outputPath}\"";
+                                  $"-shortest " +
+                                  $"-threads 1 " +              // 🔥 단일 스레드 (메모리 ↓)
+                                  $"-preset ultrafast " +       // 빠른 처리
+                                  $"-max_muxing_queue_size 512 " + // 🔥 버퍼 제한 (메모리 ↓)
+                                  $"-y \"{outputPath}\"";
 
-                Console.WriteLine($"=== FFmpeg 명령어 (랜덤 시작): {arguments}");
+                Console.WriteLine($"=== FFmpeg 명령어 (512MB 최적화): {arguments}");
 
                 await RunFFmpegAsync(arguments);
 
@@ -321,15 +293,80 @@ namespace YouTubeShortsWebApp
                     }
                 }
 
-                return 60; // 기본값
+                return 60;
             }
             catch
             {
-                return 60; // 기본값
+                return 60;
             }
         }
 
-        // FFmpeg 간단 테스트 (설정 페이지에서 사용)
+        private static async Task RunFFmpegAsync(string arguments)
+        {
+            try
+            {
+                Console.WriteLine($"🎬 FFmpeg 처리 중 (512MB 최적화 모드)...");
+
+                var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = FFmpegPath,
+                        Arguments = arguments,
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true,
+                        WorkingDirectory = Path.GetTempPath()
+                    }
+                };
+
+                process.Start();
+                var startTime = DateTime.Now;
+                var processTask = process.WaitForExitAsync();
+
+                var maxTimeout = TimeSpan.FromMinutes(10);
+
+                while (!processTask.IsCompleted)
+                {
+                    var elapsed = DateTime.Now - startTime;
+
+                    if (elapsed >= maxTimeout)
+                    {
+                        try
+                        {
+                            if (!process.HasExited)
+                            {
+                                process.Kill();
+                            }
+                        }
+                        catch { }
+                        throw new TimeoutException("FFmpeg 실행이 10분을 초과했습니다.");
+                    }
+
+                    await Task.Delay(1000);
+                }
+
+                if (!process.HasExited)
+                {
+                    process.WaitForExit();
+                }
+
+                if (process.ExitCode != 0)
+                {
+                    string errorOutput = await process.StandardError.ReadToEndAsync();
+                    throw new Exception($"FFmpeg 실패 (종료코드 {process.ExitCode}): {errorOutput}");
+                }
+
+                Console.WriteLine("=== FFmpeg 처리 완료 ✅");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"=== FFmpeg 실행 오류: {ex.Message}");
+                throw;
+            }
+        }
+
         public static async Task<bool> TestSimpleFFmpegAsync()
         {
             try
@@ -376,137 +413,46 @@ namespace YouTubeShortsWebApp
             }
         }
 
-        // VideoPostProcessor.cs에서 FFmpeg 타임아웃 늘리기
-        private static async Task RunFFmpegAsync(string arguments)
-        {
-            try
-            {
-                Console.WriteLine($"🎬 FFmpeg 처리 중...");
-                
-                var process = new Process
-                {
-                    StartInfo = new ProcessStartInfo
-                    {
-                        FileName = FFmpegPath,
-                        Arguments = arguments,
-                        UseShellExecute = false,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        CreateNoWindow = true,
-                        WorkingDirectory = Path.GetTempPath()
-                    }
-                };
-        
-                process.Start();
-                var startTime = DateTime.Now;
-                var processTask = process.WaitForExitAsync();
-                
-                var maxTimeout = TimeSpan.FromMinutes(10);
-        
-                while (!processTask.IsCompleted)
-                {
-                    var elapsed = DateTime.Now - startTime;
-        
-                    if (elapsed >= maxTimeout)
-                    {
-                        try
-                        {
-                            if (!process.HasExited)
-                            {
-                                process.Kill();
-                            }
-                        }
-                        catch (Exception killEx)
-                        {
-                            // 종료 실패 로그 제거
-                        }
-                        throw new TimeoutException("FFmpeg 실행이 10분을 초과했습니다.");
-                    }
-        
-                    // 30초마다 로그 제거
-                    // Console.WriteLine($"=== FFmpeg 진행 중... ({elapsed.TotalSeconds:F0}초 경과)");
-        
-                    await Task.Delay(1000);
-                }
-        
-                if (process.ExitCode != 0)
-                {
-                    string error = await process.StandardError.ReadToEndAsync();
-                    throw new Exception($"FFmpeg 오류 (종료코드: {process.ExitCode}): {error}");
-                }
-        
-                Console.WriteLine("✅ FFmpeg 처리 완료");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"❌ FFmpeg 오류: {ex.Message}");
-                throw;
-            }
-        }
-
         public static async Task<string> DownloadSampleMusicAsync()
         {
             try
             {
-                Console.WriteLine("=== 배경음악 파일 선택 시작");
-        
-                // 사용자 바탕화면의 music 폴더 사용
-                string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-                string musicDir = Path.Combine(desktopPath, "music");
-                
-                Console.WriteLine($"=== 바탕화면 경로: {desktopPath}");
-                Console.WriteLine($"=== 음악 폴더 경로: {musicDir}");
-                Console.WriteLine($"=== 음악 폴더 존재: {Directory.Exists(musicDir)}");
-        
-                if (!Directory.Exists(musicDir))
+                string musicDir = Path.Combine(Path.GetTempPath(), "SampleMusic");
+                Directory.CreateDirectory(musicDir);
+
+                string musicPath = Path.Combine(musicDir, "sample_music.mp3");
+
+                if (File.Exists(musicPath))
                 {
-                    throw new Exception($"바탕화면에 music 폴더가 없습니다: {musicDir}");
+                    return musicPath;
                 }
-        
-                string[] supportedExtensions = { "*.mp3", "*.wav", "*.m4a", "*.aac" };
-                var musicFiles = new List<string>();
-        
-                foreach (string extension in supportedExtensions)
+
+                using var httpClient = new System.Net.Http.HttpClient();
+                httpClient.Timeout = TimeSpan.FromMinutes(5);
+
+                string musicUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
+
+                Console.WriteLine($"=== 샘플 음악 다운로드 중: {musicUrl}");
+
+                // 🚀 스트리밍 다운로드 (메모리 최적화)
+                using (var response = await httpClient.GetAsync(musicUrl, System.Net.Http.HttpCompletionOption.ResponseHeadersRead))
                 {
-                    var files = Directory.GetFiles(musicDir, extension);
-                    Console.WriteLine($"=== {extension} 파일 {files.Length}개 발견");
-                    musicFiles.AddRange(files);
-                }
-        
-                Console.WriteLine($"=== 총 음악 파일 개수: {musicFiles.Count}");
-        
-                if (musicFiles.Count == 0)
-                {
-                    // 실제 파일들 확인
-                    var allFiles = Directory.GetFiles(musicDir);
-                    Console.WriteLine($"=== 음악 폴더의 모든 파일 ({allFiles.Length}개):");
-                    foreach (var file in allFiles.Take(10))
+                    response.EnsureSuccessStatusCode();
+
+                    using (var contentStream = await response.Content.ReadAsStreamAsync())
+                    using (var fileStream = new FileStream(musicPath, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 81920, useAsync: true))
                     {
-                        Console.WriteLine($"    - {Path.GetFileName(file)}");
+                        await contentStream.CopyToAsync(fileStream, 81920);
                     }
-        
-                    throw new Exception($"music 폴더에 음악 파일이 없습니다. 지원 형식: mp3, wav, m4a, aac");
                 }
-        
-                Random random = new Random();
-                string selectedMusic = musicFiles[random.Next(musicFiles.Count)];
-        
-                Console.WriteLine($"=== 선택된 배경음악: {Path.GetFileName(selectedMusic)}");
-                Console.WriteLine($"=== 선택된 파일 존재: {File.Exists(selectedMusic)}");
-        
-                // 파일 크기 확인
-                if (File.Exists(selectedMusic))
-                {
-                    var fileInfo = new FileInfo(selectedMusic);
-                    Console.WriteLine($"=== 음악 파일 크기: {fileInfo.Length / 1024} KB");
-                }
-        
-                return selectedMusic;
+
+                Console.WriteLine($"=== 샘플 음악 다운로드 완료: {musicPath}");
+                return musicPath;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"=== 배경음악 선택 실패: {ex.Message}");
-                throw new Exception($"배경음악 파일을 찾을 수 없습니다: {ex.Message}");
+                Console.WriteLine($"=== 샘플 음악 다운로드 실패: {ex.Message}");
+                return null;
             }
         }
     }
