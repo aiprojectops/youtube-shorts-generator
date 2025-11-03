@@ -113,7 +113,7 @@ namespace YouTubeShortsWebApp
             // 🔥 간단한 로그로 변경
             Console.WriteLine($"{item.FileName} {item.ScheduledTime:yyyy-MM-dd HH:mm:ss}");
             
-            _logger.LogInformation($"스케줄 추가: {item.FileName} at {item.ScheduledTime:yyyy-MM-dd HH:mm:ss}");
+            // _logger.LogInformation($"스케줄 추가: {item.FileName} at {item.ScheduledTime:yyyy-MM-dd HH:mm:ss}");
         }
 
         public List<ScheduledUploadItem> GetAllScheduledItems()
