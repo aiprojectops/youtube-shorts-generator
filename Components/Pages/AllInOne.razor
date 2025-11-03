@@ -1539,7 +1539,8 @@
         return startTime.AddMinutes(randomMinutes);
     }
 
-    // 🔥 메인 실행 로직 수정
+
+        // 🔥 메인 실행 로직 수정
     private async Task StartAllInOne()
     {
         if (!CanStart) return;
@@ -1691,7 +1692,6 @@
         }
     }
 
-
     // 🆕 AI 영상 생성 + 즉시 업로드 파이프라인
     private async Task ProcessAIVideosWithImmediateUpload(int totalVideos)
     {
@@ -1721,39 +1721,45 @@
                 Console.WriteLine($"");
                 Console.WriteLine($"📹 [영상 #{i}/{totalVideos}] 생성 시작");
 
-                // 2️⃣ 영상 생성
-                var result = await VideoGenService.GenerateSingleVideoAsync(
-                    i,
-                    genOptions,
-                    postOptions,
-                    (status) => {
+                // 2️⃣ 단일 영상 생성 (기존 로직 활용)
+                genOptions.VideoCount = 1; // 임시로 1개만
+                var processingOptions = new VideoPostProcessingService.ProcessingOptions
+                {
+                    GenerationOptions = genOptions,
+                    PostProcessingOptions = postOptions
+                };
+
+                var videoResults = await ProcessingService.ProcessVideosAsync(
+                    processingOptions,
+                    (current, total, status) => {
                         statusMessage = $"영상 {i}/{totalVideos}: {status}";
                         currentPromptUsed = status;
                         StateHasChanged();
-                    }
+                    },
+                    CancellationToken.None
                 );
 
-                if (!result.Success)
+                var result = videoResults.FirstOrDefault();
+                if (result == null || !result.Success)
                 {
-                    throw new Exception(result.ErrorMessage ?? "영상 생성 실패");
+                    throw new Exception(result?.ErrorMessage ?? "영상 생성 실패");
                 }
 
-                videoFilePath = result.VideoPath;
+                videoFilePath = result.FilePath;
                 fileName = result.FileName;
 
                 Console.WriteLine($"✅ [영상 #{i}] 생성 완료: {fileName}");
 
-                // 3️⃣ 히스토리 저장 (업로드 실패해도 다운로드 가능하도록)
+                // 3️⃣ 히스토리 저장
                 try
                 {
-                    var historyItem = new VideoHistoryItem
+                    var historyItem = new VideoHistoryManager.VideoHistoryItem
                     {
-                        GeneratedAt = DateTime.Now,
                         Prompt = result.Prompt ?? "",
-                        FinalPrompt = result.CombinedPrompt ?? "",
+                        FinalPrompt = result.Prompt ?? "",
                         Duration = genOptions.SelectedDuration,
                         AspectRatio = genOptions.SelectedAspectRatio,
-                        VideoUrl = result.VideoUrl ?? "",
+                        VideoUrl = "",
                         IsRandomPrompt = true,
                         FileName = fileName,
                         IsDownloaded = true,
@@ -1781,6 +1787,9 @@
                 Console.WriteLine($"📤 [영상 #{i}] 업로드 시작: {title}");
 
                 // 6️⃣ YouTube 업로드
+                uploadOptions.Description = description;
+                uploadOptions.Tags = tags;
+                
                 string videoUrl = await YouTubeService.UploadSingleVideoAsync(
                     videoFilePath,
                     title,
@@ -1810,7 +1819,7 @@
             {
                 Console.WriteLine($"❌ [영상 #{i}] 실패: {ex.Message}");
 
-                // 8️⃣ 실패 기록 (계속 진행)
+                // 8️⃣ 실패 기록
                 failureList.Add(new ProcessResult
                 {
                     Success = false,
@@ -1847,8 +1856,6 @@
         Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     }
 
-
-    
     // 🆕 로컬 영상 처리 + 즉시 업로드 파이프라인
     private async Task ProcessLocalVideosWithImmediateUpload(int totalVideos)
     {
@@ -1878,23 +1885,35 @@
                 Console.WriteLine($"");
                 Console.WriteLine($"📹 [영상 #{i}/{totalVideos}] 처리 시작");
 
-                // 2️⃣ 로컬 파일 처리
-                var result = await VideoGenService.GenerateSingleVideoAsync(
-                    i,
-                    genOptions,
-                    postOptions,
-                    (status) => {
+                // 2️⃣ 로컬 파일 하나만 처리
+                var tempGenOptions = new VideoGenerationService.VideoGenerationOptions
+                {
+                    IsGenerateVideo = false,
+                    LocalVideoFiles = new List<IBrowserFile> { genOptions.LocalVideoFiles[i - 1] }
+                };
+
+                var processingOptions = new VideoPostProcessingService.ProcessingOptions
+                {
+                    GenerationOptions = tempGenOptions,
+                    PostProcessingOptions = postOptions
+                };
+
+                var videoResults = await ProcessingService.ProcessVideosAsync(
+                    processingOptions,
+                    (current, total, status) => {
                         statusMessage = $"영상 {i}/{totalVideos}: {status}";
                         StateHasChanged();
-                    }
+                    },
+                    CancellationToken.None
                 );
 
-                if (!result.Success)
+                var result = videoResults.FirstOrDefault();
+                if (result == null || !result.Success)
                 {
-                    throw new Exception(result.ErrorMessage ?? "파일 처리 실패");
+                    throw new Exception(result?.ErrorMessage ?? "파일 처리 실패");
                 }
 
-                videoFilePath = result.VideoPath;
+                videoFilePath = result.FilePath;
                 fileName = result.FileName;
 
                 Console.WriteLine($"✅ [영상 #{i}] 처리 완료: {fileName}");
@@ -1902,10 +1921,9 @@
                 // 3️⃣ 히스토리 저장
                 try
                 {
-                    var historyItem = new VideoHistoryItem
+                    var historyItem = new VideoHistoryManager.VideoHistoryItem
                     {
-                        GeneratedAt = DateTime.Now,
-                        Prompt = result.Prompt ?? "로컬 파일",
+                        Prompt = "로컬 파일",
                         FinalPrompt = $"로컬 파일: {fileName}",
                         Duration = 0,
                         AspectRatio = "알 수 없음",
@@ -1937,6 +1955,9 @@
                 Console.WriteLine($"📤 [영상 #{i}] 업로드 시작: {title}");
 
                 // 6️⃣ YouTube 업로드
+                uploadOptions.Description = description;
+                uploadOptions.Tags = tags;
+                
                 string videoUrl = await YouTubeService.UploadSingleVideoAsync(
                     videoFilePath,
                     title,
@@ -2002,7 +2023,6 @@
         Console.WriteLine($"   실패: {failureList.Count}개");
         Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     }
-    
 
     // 🆕 업로드 정보 준비 헬퍼 메서드
     private void PrepareUploadInfo(int index, out string title, out string description, out string tags)
