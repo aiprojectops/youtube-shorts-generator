@@ -846,6 +846,22 @@
         public bool IsScheduled { get; set; } = false;
     }
 
+
+    // 🆕 처리 결과 클래스 추가
+    private class ProcessResult
+    {
+        public bool Success { get; set; }
+        public string FileName { get; set; } = "";
+        public string ErrorMessage { get; set; } = "";
+        public string VideoUrl { get; set; } = "";
+        public int Index { get; set; }
+    }
+
+    private List<ProcessResult> successList = new List<ProcessResult>();
+    private List<ProcessResult> failureList = new List<ProcessResult>();
+
+
+
     private string totalCost => (genOptions.VideoCount * genOptions.SelectedDuration * 0.15m).ToString("F2");
 
     private string GetAspectClass(string ratio) =>
@@ -1523,7 +1539,7 @@
         return startTime.AddMinutes(randomMinutes);
     }
 
-    // 🔥 메인 실행 로직 - 통합 서비스 사용
+    // 🔥 메인 실행 로직 수정
     private async Task StartAllInOne()
     {
         if (!CanStart) return;
@@ -1572,6 +1588,8 @@
         isCancelled = false;
         currentProgress = 0;
         generatedVideos.Clear();
+        successList.Clear();
+        failureList.Clear();
         resultMessage = "";
         isResultError = false;
 
@@ -1579,7 +1597,7 @@
         {
             int totalVideos = genOptions.IsGenerateVideo ? genOptions.VideoCount : genOptions.LocalVideoFiles.Count;
             
-            // 🔥 AI 생성 + 스케줄 업로드: 생성 정보만 등록
+            // 🔥 AI 생성 + 스케줄 업로드: 기존 방식 유지
             if (genOptions.IsGenerateVideo && isScheduleUpload)
             {
                 statusMessage = "스케줄 준비 중...";
@@ -1593,50 +1611,17 @@
                 hasActiveSchedule = true;
                 StartScheduleStatusTracking();
             }
-            // 🔥 AI 생성 + 즉시 업로드: 미리 생성
+            // 🔥🔥🔥 AI 생성 + 즉시 업로드: 새로운 파이프라인 방식
             else if (genOptions.IsGenerateVideo && !isScheduleUpload)
             {
-                statusMessage = "영상 생성을 시작합니다...";
-                StateHasChanged();
-
-                // 🔥 ProcessingService 사용
-                var processingOptions = new VideoPostProcessingService.ProcessingOptions
-                {
-                    GenerationOptions = genOptions,
-                    PostProcessingOptions = postOptions
-                };
-
-                var videoResults = await ProcessingService.ProcessVideosAsync(
-                    processingOptions,
-                    (current, total, status) => {
-                        currentProgress = (current * 80 / total);
-                        statusMessage = status;
-                        currentPromptUsed = status;
-                        StateHasChanged();
-                    },
-                    CancellationToken.None
-                );
-
-                foreach (var result in videoResults.Where(r => r.Success))
-                {
-                    generatedVideos.Add(new GeneratedVideo
-                    {
-                        FileName = result.FileName,
-                        FilePath = result.FilePath,
-                        IsScheduled = false
-                    });
-                }
-
-                if (!isCancelled && generatedVideos.Count > 0)
-                {
-                    currentProgress = 80;
-                    statusMessage = "즉시 업로드 시작...";
-                    StateHasChanged();
-
-                    await ImmediateUpload();
-                }
+                await ProcessAIVideosWithImmediateUpload(totalVideos);
             }
-            // 🔥 로컬 파일 처리
+            // 🔥🔥🔥 로컬 파일 + 즉시 업로드: 새로운 파이프라인 방식
+            else if (!genOptions.IsGenerateVideo && !isScheduleUpload)
+            {
+                await ProcessLocalVideosWithImmediateUpload(totalVideos);
+            }
+            // 🔥 로컬 파일 + 스케줄 업로드: 기존 방식 유지
             else
             {
                 var processingOptions = new VideoPostProcessingService.ProcessingOptions
@@ -1667,41 +1652,29 @@
 
                 if (!isCancelled && generatedVideos.Count > 0)
                 {
-                    if (isScheduleUpload)
-                    {
-                        currentProgress = 70;
-                        statusMessage = "YouTube 스케줄에 등록 중...";
-                        StateHasChanged();
+                    currentProgress = 70;
+                    statusMessage = "YouTube 스케줄에 등록 중...";
+                    StateHasChanged();
 
-                        await RegisterToSchedule();
+                    await RegisterToSchedule();
 
-                        currentProgress = 100;
-                        statusMessage = "스케줄 등록 완료";
+                    currentProgress = 100;
+                    statusMessage = "스케줄 등록 완료";
 
-                        hasActiveSchedule = true;
-                        StartScheduleStatusTracking();
-                    }
-                    else
-                    {
-                        currentProgress = 70;
-                        statusMessage = "즉시 업로드 시작...";
-                        StateHasChanged();
-
-                        await ImmediateUpload();
-                    }
+                    hasActiveSchedule = true;
+                    StartScheduleStatusTracking();
                 }
             }
 
+            // 🔥 최종 결과 표시
             if (isCancelled)
             {
                 statusMessage = "작업이 취소되었습니다.";
                 resultMessage = "사용자에 의해 취소되었습니다.";
             }
-            else if (!genOptions.IsGenerateVideo && generatedVideos.Count == 0)
+            else if (!isScheduleUpload) // 즉시 업로드인 경우만 결과 표시
             {
-                statusMessage = "처리된 영상이 없습니다.";
-                resultMessage = "처리할 수 있는 영상이 없었습니다.";
-                isResultError = true;
+                ShowFinalResults();
             }
         }
         catch (Exception ex)
@@ -1717,6 +1690,380 @@
             StateHasChanged();
         }
     }
+
+
+    // 🆕 AI 영상 생성 + 즉시 업로드 파이프라인
+    private async Task ProcessAIVideosWithImmediateUpload(int totalVideos)
+    {
+        Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        Console.WriteLine($"🚀 [AI 영상 파이프라인] 시작 - 총 {totalVideos}개");
+        Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+        for (int i = 1; i <= totalVideos; i++)
+        {
+            if (isCancelled)
+            {
+                Console.WriteLine($"⚠️ 사용자 취소 - 영상 #{i}에서 중단");
+                break;
+            }
+
+            string videoFilePath = "";
+            string fileName = "";
+
+            try
+            {
+                // 1️⃣ 진행률 업데이트
+                int baseProgress = (i - 1) * 100 / totalVideos;
+                currentProgress = baseProgress;
+                statusMessage = $"영상 {i}/{totalVideos} 생성 중...";
+                StateHasChanged();
+
+                Console.WriteLine($"");
+                Console.WriteLine($"📹 [영상 #{i}/{totalVideos}] 생성 시작");
+
+                // 2️⃣ 영상 생성
+                var result = await VideoGenService.GenerateSingleVideoAsync(
+                    i,
+                    genOptions,
+                    postOptions,
+                    (status) => {
+                        statusMessage = $"영상 {i}/{totalVideos}: {status}";
+                        currentPromptUsed = status;
+                        StateHasChanged();
+                    }
+                );
+
+                if (!result.Success)
+                {
+                    throw new Exception(result.ErrorMessage ?? "영상 생성 실패");
+                }
+
+                videoFilePath = result.VideoPath;
+                fileName = result.FileName;
+
+                Console.WriteLine($"✅ [영상 #{i}] 생성 완료: {fileName}");
+
+                // 3️⃣ 히스토리 저장 (업로드 실패해도 다운로드 가능하도록)
+                try
+                {
+                    var historyItem = new VideoHistoryItem
+                    {
+                        GeneratedAt = DateTime.Now,
+                        Prompt = result.Prompt ?? "",
+                        FinalPrompt = result.CombinedPrompt ?? "",
+                        Duration = genOptions.SelectedDuration,
+                        AspectRatio = genOptions.SelectedAspectRatio,
+                        VideoUrl = result.VideoUrl ?? "",
+                        IsRandomPrompt = true,
+                        FileName = fileName,
+                        IsDownloaded = true,
+                        IsUploaded = false,
+                        Status = "생성 완료"
+                    };
+                    
+                    VideoHistoryManager.AddHistoryItem(historyItem);
+                    Console.WriteLine($"📝 [영상 #{i}] 히스토리 저장 완료");
+                }
+                catch (Exception historyEx)
+                {
+                    Console.WriteLine($"⚠️ [영상 #{i}] 히스토리 저장 실패: {historyEx.Message}");
+                }
+
+                // 4️⃣ 진행률 업데이트 - 업로드 단계
+                currentProgress = baseProgress + (50 / totalVideos);
+                statusMessage = $"영상 {i}/{totalVideos} 업로드 중... (성공: {successList.Count}, 실패: {failureList.Count})";
+                StateHasChanged();
+
+                // 5️⃣ 업로드 정보 준비
+                string title, description, tags;
+                PrepareUploadInfo(i, out title, out description, out tags);
+
+                Console.WriteLine($"📤 [영상 #{i}] 업로드 시작: {title}");
+
+                // 6️⃣ YouTube 업로드
+                string videoUrl = await YouTubeService.UploadSingleVideoAsync(
+                    videoFilePath,
+                    title,
+                    uploadOptions,
+                    null
+                );
+
+                Console.WriteLine($"✅ [영상 #{i}] 업로드 완료: {videoUrl}");
+
+                // 7️⃣ 성공 기록
+                successList.Add(new ProcessResult
+                {
+                    Success = true,
+                    FileName = fileName,
+                    VideoUrl = videoUrl,
+                    Index = i
+                });
+
+                generatedVideos.Add(new GeneratedVideo
+                {
+                    FileName = fileName,
+                    FilePath = videoFilePath,
+                    IsScheduled = true
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ [영상 #{i}] 실패: {ex.Message}");
+
+                // 8️⃣ 실패 기록 (계속 진행)
+                failureList.Add(new ProcessResult
+                {
+                    Success = false,
+                    FileName = fileName ?? $"영상 #{i}",
+                    ErrorMessage = ex.Message,
+                    Index = i
+                });
+            }
+            finally
+            {
+                // 9️⃣ 파일 삭제 + 메모리 정리
+                try
+                {
+                    if (!string.IsNullOrEmpty(videoFilePath) && File.Exists(videoFilePath))
+                    {
+                        File.Delete(videoFilePath);
+                        Console.WriteLine($"🗑️ [영상 #{i}] 파일 삭제 완료");
+                    }
+                }
+                catch (Exception deleteEx)
+                {
+                    Console.WriteLine($"⚠️ [영상 #{i}] 파일 삭제 실패: {deleteEx.Message}");
+                }
+
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+            }
+        }
+
+        Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        Console.WriteLine($"✅ [AI 영상 파이프라인] 완료");
+        Console.WriteLine($"   성공: {successList.Count}개");
+        Console.WriteLine($"   실패: {failureList.Count}개");
+        Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    }
+
+
+    
+    // 🆕 로컬 영상 처리 + 즉시 업로드 파이프라인
+    private async Task ProcessLocalVideosWithImmediateUpload(int totalVideos)
+    {
+        Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        Console.WriteLine($"🚀 [로컬 파일 파이프라인] 시작 - 총 {totalVideos}개");
+        Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+        for (int i = 1; i <= totalVideos; i++)
+        {
+            if (isCancelled)
+            {
+                Console.WriteLine($"⚠️ 사용자 취소 - 영상 #{i}에서 중단");
+                break;
+            }
+
+            string videoFilePath = "";
+            string fileName = "";
+
+            try
+            {
+                // 1️⃣ 진행률 업데이트
+                int baseProgress = (i - 1) * 100 / totalVideos;
+                currentProgress = baseProgress;
+                statusMessage = $"영상 {i}/{totalVideos} 처리 중...";
+                StateHasChanged();
+
+                Console.WriteLine($"");
+                Console.WriteLine($"📹 [영상 #{i}/{totalVideos}] 처리 시작");
+
+                // 2️⃣ 로컬 파일 처리
+                var result = await VideoGenService.GenerateSingleVideoAsync(
+                    i,
+                    genOptions,
+                    postOptions,
+                    (status) => {
+                        statusMessage = $"영상 {i}/{totalVideos}: {status}";
+                        StateHasChanged();
+                    }
+                );
+
+                if (!result.Success)
+                {
+                    throw new Exception(result.ErrorMessage ?? "파일 처리 실패");
+                }
+
+                videoFilePath = result.VideoPath;
+                fileName = result.FileName;
+
+                Console.WriteLine($"✅ [영상 #{i}] 처리 완료: {fileName}");
+
+                // 3️⃣ 히스토리 저장
+                try
+                {
+                    var historyItem = new VideoHistoryItem
+                    {
+                        GeneratedAt = DateTime.Now,
+                        Prompt = result.Prompt ?? "로컬 파일",
+                        FinalPrompt = $"로컬 파일: {fileName}",
+                        Duration = 0,
+                        AspectRatio = "알 수 없음",
+                        VideoUrl = "",
+                        IsRandomPrompt = false,
+                        FileName = fileName,
+                        IsDownloaded = true,
+                        IsUploaded = false,
+                        Status = "처리 완료"
+                    };
+                    
+                    VideoHistoryManager.AddHistoryItem(historyItem);
+                    Console.WriteLine($"📝 [영상 #{i}] 히스토리 저장 완료");
+                }
+                catch (Exception historyEx)
+                {
+                    Console.WriteLine($"⚠️ [영상 #{i}] 히스토리 저장 실패: {historyEx.Message}");
+                }
+
+                // 4️⃣ 진행률 업데이트 - 업로드 단계
+                currentProgress = baseProgress + (50 / totalVideos);
+                statusMessage = $"영상 {i}/{totalVideos} 업로드 중... (성공: {successList.Count}, 실패: {failureList.Count})";
+                StateHasChanged();
+
+                // 5️⃣ 업로드 정보 준비
+                string title, description, tags;
+                PrepareUploadInfo(i, out title, out description, out tags);
+
+                Console.WriteLine($"📤 [영상 #{i}] 업로드 시작: {title}");
+
+                // 6️⃣ YouTube 업로드
+                string videoUrl = await YouTubeService.UploadSingleVideoAsync(
+                    videoFilePath,
+                    title,
+                    uploadOptions,
+                    null
+                );
+
+                Console.WriteLine($"✅ [영상 #{i}] 업로드 완료: {videoUrl}");
+
+                // 7️⃣ 성공 기록
+                successList.Add(new ProcessResult
+                {
+                    Success = true,
+                    FileName = fileName,
+                    VideoUrl = videoUrl,
+                    Index = i
+                });
+
+                generatedVideos.Add(new GeneratedVideo
+                {
+                    FileName = fileName,
+                    FilePath = videoFilePath,
+                    IsScheduled = true
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ [영상 #{i}] 실패: {ex.Message}");
+
+                // 8️⃣ 실패 기록
+                failureList.Add(new ProcessResult
+                {
+                    Success = false,
+                    FileName = fileName ?? $"영상 #{i}",
+                    ErrorMessage = ex.Message,
+                    Index = i
+                });
+            }
+            finally
+            {
+                // 9️⃣ 파일 삭제 + 메모리 정리
+                try
+                {
+                    if (!string.IsNullOrEmpty(videoFilePath) && File.Exists(videoFilePath))
+                    {
+                        File.Delete(videoFilePath);
+                        Console.WriteLine($"🗑️ [영상 #{i}] 파일 삭제 완료");
+                    }
+                }
+                catch (Exception deleteEx)
+                {
+                    Console.WriteLine($"⚠️ [영상 #{i}] 파일 삭제 실패: {deleteEx.Message}");
+                }
+
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+            }
+        }
+
+        Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        Console.WriteLine($"✅ [로컬 파일 파이프라인] 완료");
+        Console.WriteLine($"   성공: {successList.Count}개");
+        Console.WriteLine($"   실패: {failureList.Count}개");
+        Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    }
+    
+
+    // 🆕 업로드 정보 준비 헬퍼 메서드
+    private void PrepareUploadInfo(int index, out string title, out string description, out string tags)
+    {
+        if (useRandomUploadInfo && uploadInfoCsvList.Count > 0)
+        {
+            var random = new Random();
+            var randomInfo = uploadInfoCsvList[random.Next(uploadInfoCsvList.Count)];
+            title = randomInfo.Title;
+            description = randomInfo.Description;
+            tags = randomInfo.Tags;
+        }
+        else
+        {
+            title = uploadOptions.TitleTemplate.Contains("#NUMBER")
+                ? uploadOptions.TitleTemplate.Replace("#NUMBER", $"#{index}")
+                : $"{uploadOptions.TitleTemplate} #{index}";
+            description = uploadOptions.Description;
+            tags = uploadOptions.Tags;
+        }
+    }
+
+    // 🆕 최종 결과 표시
+    private void ShowFinalResults()
+    {
+        int totalCount = successList.Count + failureList.Count;
+        
+        if (totalCount == 0)
+        {
+            statusMessage = "처리된 영상이 없습니다.";
+            resultMessage = "처리할 수 있는 영상이 없었습니다.";
+            isResultError = true;
+            return;
+        }
+
+        currentProgress = 100;
+        isResultError = (failureList.Count > 0);
+
+        var resultBuilder = new StringBuilder();
+        resultBuilder.AppendLine($"모든 작업이 완료되었습니다!");
+        resultBuilder.AppendLine();
+        resultBuilder.AppendLine($"✅ 성공: {successList.Count}개");
+        resultBuilder.AppendLine($"❌ 실패: {failureList.Count}개");
+        resultBuilder.AppendLine($"📊 전체: {totalCount}개");
+
+        if (failureList.Count > 0)
+        {
+            resultBuilder.AppendLine();
+            resultBuilder.AppendLine("실패 목록:");
+            foreach (var failure in failureList)
+            {
+                resultBuilder.AppendLine($"• 영상 #{failure.Index} ({failure.FileName}): {failure.ErrorMessage}");
+            }
+        }
+
+        resultMessage = resultBuilder.ToString();
+        statusMessage = "작업 완료!";
+
+        StateHasChanged();
+    }
+
 
     private string GetResultAlertClass() => isResultError ? "alert-danger" : "alert-success";
     private string GetResultTitle() => isResultError ? "오류 발생" : "All-in-One 완료!";
@@ -1887,6 +2234,8 @@
         Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     }
 
+
+    /*
     private async Task ImmediateUpload()
     {
         try
@@ -1934,6 +2283,7 @@
             await JSRuntime.InvokeVoidAsync("alert", $"업로드 실패: {ex.Message}");
         }
     }
+    */
 
     private void StartScheduleStatusTracking()
     {
