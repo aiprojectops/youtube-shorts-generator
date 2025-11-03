@@ -630,12 +630,15 @@
                 </div>
             }
 
-            <!-- 스케줄 진행률 표시 -->
+           <!-- 스케줄 진행률 표시 -->
             @if (hasActiveSchedule && !isRunning)
             {
                 <div class="card mb-4">
-                    <div class="card-header">
+                    <div class="card-header d-flex justify-content-between align-items-center">
                         <h5>스케줄 업로드 진행 중</h5>
+                        <button type="button" class="btn btn-danger btn-sm" @onclick="ShowCancelConfirmModal">
+                            🛑 강제 종료
+                        </button>
                     </div>
                     <div class="card-body">
                         <div class="progress mb-3">
@@ -643,7 +646,7 @@
                         </div>
                         <div class="text-info">@statusMessage</div>
                         <div class="text-muted small">웹 애플리케이션을 종료하지 마세요. 백그라운드에서 자동 업로드가 진행됩니다.</div>
-
+            
                         @if (!string.IsNullOrEmpty(nextUploadInfo))
                         {
                             <div class="mt-2 alert alert-info">
@@ -2417,6 +2420,100 @@
             
             StateHasChanged();
         });
+    }
+
+
+
+    <!-- 강제 종료 확인 모달 -->
+    @if (showCancelConfirmModal)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header bg-danger text-white">
+                        <h5 class="modal-title">⚠️ 스케줄 강제 종료</h5>
+                        <button type="button" class="btn-close btn-close-white" @onclick="HideCancelConfirmModal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-warning">
+                            <h6 class="alert-heading">정말로 모든 스케줄을 취소하시겠습니까?</h6>
+                            <hr>
+                            <p class="mb-0">
+                                ⚠️ <strong>경고:</strong><br>
+                                • 대기 중인 모든 영상의 업로드가 취소됩니다.<br>
+                                • 이미 업로드 중인 영상은 완료될 수 있습니다.<br>
+                                • 이 작업은 되돌릴 수 없습니다.
+                            </p>
+                        </div>
+                        
+                        @if (scheduleCancelCount > 0)
+                        {
+                            <div class="alert alert-info">
+                                <strong>취소될 예약:</strong> @scheduleCancelCount 개
+                            </div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="HideCancelConfirmModal">
+                            취소
+                        </button>
+                        <button type="button" class="btn btn-danger" @onclick="ExecuteCancelAllSchedules">
+                            네, 강제종료합니다
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    // 🆕 강제 종료 모달 관련
+    private bool showCancelConfirmModal = false;
+    private int scheduleCancelCount = 0;
+
+       // 🆕 강제 종료 확인 모달 표시
+    private void ShowCancelConfirmModal()
+    {
+        scheduleCancelCount = ScheduledUploadService.GetQueueCount();
+        showCancelConfirmModal = true;
+        StateHasChanged();
+    }
+
+    // 🆕 강제 종료 확인 모달 닫기
+    private void HideCancelConfirmModal()
+    {
+        showCancelConfirmModal = false;
+        StateHasChanged();
+    }
+
+    // 🆕 강제 종료 실행
+    private async Task ExecuteCancelAllSchedules()
+    {
+        try
+        {
+            showCancelConfirmModal = false;
+            
+            int clearedCount = ScheduledUploadService.ClearAllSchedules();
+            
+            hasActiveSchedule = false;
+            scheduleStatusTimer?.Stop();
+            scheduleStatusTimer?.Dispose();
+            scheduleStatusTimer = null;
+            
+            statusMessage = "모든 스케줄이 취소되었습니다.";
+            resultMessage = $"🛑 강제 종료 완료\n\n총 {clearedCount}개의 예약된 업로드가 취소되었습니다.";
+            isResultError = true;
+            
+            await JSRuntime.InvokeVoidAsync("alert", 
+                $"✅ 강제 종료 완료!\n\n" +
+                $"취소된 영상: {clearedCount}개\n\n" +
+                $"모든 예약된 업로드가 취소되었습니다.");
+            
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"강제 종료 실패: {ex.Message}");
+        }
     }
 
     public void Dispose()
