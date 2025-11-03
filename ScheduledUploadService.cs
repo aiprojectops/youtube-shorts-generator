@@ -110,12 +110,10 @@ namespace YouTubeShortsWebApp
             
             SaveQueueToFile();
             
+            // 🔥 간단한 로그로 변경
+            Console.WriteLine($"{item.FileName} {item.ScheduledTime:yyyy-MM-dd HH:mm:ss}");
+            
             _logger.LogInformation($"스케줄 추가: {item.FileName} at {item.ScheduledTime:yyyy-MM-dd HH:mm:ss}");
-            Console.WriteLine($"=== ✅ 스케줄 추가: {item.FileName}");
-            Console.WriteLine($"    예정 시간: {item.ScheduledTime:yyyy-MM-dd HH:mm:ss}");
-            Console.WriteLine($"    현재 시간: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-            Console.WriteLine($"    남은 시간: {(item.ScheduledTime - DateTime.Now).TotalMinutes:F1}분");
-            Console.WriteLine($"    배치 총 개수: {_currentBatchTotal}개");
         }
 
         public List<ScheduledUploadItem> GetAllScheduledItems()
@@ -501,6 +499,36 @@ namespace YouTubeShortsWebApp
                 SaveQueueToFile();
             }
         }
+    }
+
+    /// <summary>
+    /// 모든 스케줄 강제 취소
+    /// </summary>
+    public int ClearAllSchedules()
+    {
+        int clearedCount = 0;
+        
+        lock (_queueLock)
+        {
+            clearedCount = _uploadQueue.Count;
+            _uploadQueue.Clear();
+            
+            // 배치 카운터 리셋
+            _batchStartTime = DateTime.MinValue;
+            _currentBatchTotal = 0;
+            _currentBatchCompleted = 0;
+            _currentBatchSuccess = 0;
+        }
+        
+        SaveQueueToFile();
+        
+        Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        Console.WriteLine($"🛑 [강제 종료] 모든 스케줄 취소됨: {clearedCount}개");
+        Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        
+        _logger.LogInformation($"모든 스케줄 강제 취소: {clearedCount}개");
+        
+        return clearedCount;
     }
 
     public class ScheduledUploadItem
