@@ -499,37 +499,39 @@ namespace YouTubeShortsWebApp
                 SaveQueueToFile();
             }
         }
+
+        /// <summary>
+        /// 모든 스케줄 강제 취소
+        /// </summary>
+        public int ClearAllSchedules()
+        {
+            int clearedCount = 0;
+            
+            lock (_queueLock)
+            {
+                clearedCount = _uploadQueue.Count;
+                _uploadQueue.Clear();
+                
+                // 배치 카운터 리셋
+                _batchStartTime = DateTime.MinValue;
+                _currentBatchTotal = 0;
+                _currentBatchCompleted = 0;
+                _currentBatchSuccess = 0;
+            }
+            
+            SaveQueueToFile();
+            
+            Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            Console.WriteLine($"🛑 [강제 종료] 모든 스케줄 취소됨: {clearedCount}개");
+            Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            
+            _logger.LogInformation($"모든 스케줄 강제 취소: {clearedCount}개");
+            
+            return clearedCount;
+        }
+
     }
 
-    /// <summary>
-    /// 모든 스케줄 강제 취소
-    /// </summary>
-    public int ClearAllSchedules()
-    {
-        int clearedCount = 0;
-        
-        lock (_queueLock)
-        {
-            clearedCount = _uploadQueue.Count;
-            _uploadQueue.Clear();
-            
-            // 배치 카운터 리셋
-            _batchStartTime = DateTime.MinValue;
-            _currentBatchTotal = 0;
-            _currentBatchCompleted = 0;
-            _currentBatchSuccess = 0;
-        }
-        
-        SaveQueueToFile();
-        
-        Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        Console.WriteLine($"🛑 [강제 종료] 모든 스케줄 취소됨: {clearedCount}개");
-        Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        
-        _logger.LogInformation($"모든 스케줄 강제 취소: {clearedCount}개");
-        
-        return clearedCount;
-    }
 
     public class ScheduledUploadItem
     {
