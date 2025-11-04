@@ -15,10 +15,12 @@ namespace YouTubeShortsWebApp.Services
     public class VideoPostProcessingService
     {
         private readonly VideoGenerationService _videoGenService;
+        private readonly UserSettingsService _userSettings;
 
-        public VideoPostProcessingService(VideoGenerationService videoGenService)
+        public VideoPostProcessingService(VideoGenerationService videoGenService, UserSettingsService userSettings)
         {
             _videoGenService = videoGenService;
+            _userSettings = userSettings;
         }
 
         /// <summary>
@@ -171,14 +173,15 @@ namespace YouTubeShortsWebApp.Services
         {
             if (options == null)
                 return (false, "옵션이 null입니다.");
-
+        
             if (options.GenerationOptions == null)
                 return (false, "생성 옵션이 null입니다.");
 
             // AI 생성 모드 검증
             if (options.GenerationOptions.IsGenerateVideo)
             {
-                if (string.IsNullOrEmpty(ConfigManager.GetConfig().ReplicateApiKey))
+                // 🆕 사용자별 API 키 확인
+                if (string.IsNullOrEmpty(_userSettings.GetReplicateApiKey()))
                     return (false, "Replicate API 키가 설정되지 않았습니다.");
 
                 if (options.GenerationOptions.CsvPrompts == null || options.GenerationOptions.CsvPrompts.Count == 0)
