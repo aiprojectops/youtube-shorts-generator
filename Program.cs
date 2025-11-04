@@ -20,6 +20,8 @@ builder.Services.AddScoped<YouTubeUploadService>();
 builder.Services.AddScoped<VideoPostProcessingService>();
 builder.Services.AddScoped<UploadScheduleService>();
 
+builder.Services.AddScoped<UserSettingsService>();
+
 builder.Services.AddSingleton<SharedMemoryDataStore>();
 
 // ScheduledUploadService 등록
