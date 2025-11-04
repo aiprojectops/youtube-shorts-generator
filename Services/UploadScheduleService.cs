@@ -118,16 +118,6 @@ namespace YouTubeShortsWebApp.Services
                         tags = request.UploadOptions.Tags;
                     }
         
-                    /*// 🆕 상세 로그 출력
-                    Console.WriteLine($"");
-                    Console.WriteLine($"📤 업로드 중 [{currentIndex}/{request.FilePaths.Count}]");
-                    Console.WriteLine($"📁 파일: {fileName}");
-                    Console.WriteLine($"📝 제목: {title}");
-                    Console.WriteLine($"📄 설명: {description.Substring(0, Math.Min(50, description.Length))}...");
-                    Console.WriteLine($"🏷️ 태그: {tags.Substring(0, Math.Min(30, tags.Length))}...");
-                    Console.WriteLine($"🔒 공개: {request.UploadOptions.PrivacySetting}");
-                    */
-                    
                     // 🆕 UploadOptions 복사본 생성 (개별 업로드용)
                     var individualOptions = new YouTubeUploadService.UploadOptions
                     {
@@ -175,6 +165,7 @@ namespace YouTubeShortsWebApp.Services
         
             return results;
         }
+        
         /// <summary>
         /// 스케줄 업로드 등록
         /// </summary>
@@ -292,9 +283,9 @@ namespace YouTubeShortsWebApp.Services
         /// <summary>
         /// 다음 예정 업로드 정보
         /// </summary>
-        public string GetNextUploadInfo()
+        public string GetNextUploadInfo(string userId)  // 🔥 userId 파라미터 추가
         {
-            int count = GetActiveScheduleCount();
+            int count = GetActiveScheduleCount(userId);  // 🔥 userId 전달
             if (count == 0)
                 return "";
 
