@@ -131,11 +131,6 @@ namespace YouTubeShortsWebApp
             SaveConfig();
         }
 
-        public static bool IsReplicateApiKeySet()
-        {
-            return !string.IsNullOrEmpty(GetConfig().ReplicateApiKey);
-        }
-
          
         // YouTube API 관련
         public static void SetYouTubeCredentials(string clientId, string clientSecret)
@@ -146,22 +141,6 @@ namespace YouTubeShortsWebApp
             SaveConfig();
         }
 
-        public static bool IsYouTubeCredentialsSet()
-        {
-            var config = GetConfig();
-            return !string.IsNullOrEmpty(config.YouTubeClientId) && !string.IsNullOrEmpty(config.YouTubeClientSecret);
-        }
-
-        // 기본 업로드 설정 관련
-        public static void SetDefaultUploadSettings(string title, string description, string tags, string privacy)
-        {
-            var config = GetConfig();
-            config.DefaultVideoTitle = title ?? "";
-            config.DefaultVideoDescription = description ?? "";
-            config.DefaultVideoTags = tags ?? "";
-            config.DefaultPrivacySetting = privacy ?? "";
-            SaveConfig();
-        }
 
         // 기본 프롬프트 관련 메서드
         public static void SetBasePrompt(string basePrompt)
@@ -217,20 +196,5 @@ namespace YouTubeShortsWebApp
             return combinedPrompt;
         }
 
-        // 설정이 유효한지 확인하는 메서드 추가
-        public static bool ValidateConfig()
-        {
-            try
-            {
-                var config = GetConfig();
-                System.Diagnostics.Debug.WriteLine($"설정 검증 - 기본 프롬프트: '{config.BasePrompt}'");
-                return true;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"설정 검증 실패: {ex.Message}");
-                return false;
-            }
-        }
     }
 }
