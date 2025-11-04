@@ -1200,10 +1200,12 @@
             // 성공
             Console.WriteLine($"[이미지 체크] ✅ 통과!");
             genOptions.SourceImageFile = file;
-            await JSRuntime.InvokeVoidAsync("alert", 
+            /*
+                await JSRuntime.InvokeVoidAsync("alert", 
                 $"✅ 이미지 선택 완료!\n\n" +
                 $"📐 비율: {aspectRatio:F2}\n" +
                 $"   (가로 {result.Width}px × 세로 {result.Height}px)");
+            */
             StateHasChanged();
         }
         catch (Exception ex)
