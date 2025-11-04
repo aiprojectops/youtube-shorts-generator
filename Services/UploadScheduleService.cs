@@ -286,7 +286,7 @@ namespace YouTubeShortsWebApp.Services
         /// </summary>
         public int GetActiveScheduleCount()
         {
-            return _scheduledService.GetQueueCount();
+            return _scheduledService.GetQueueCount(_userId);
         }
 
         /// <summary>
