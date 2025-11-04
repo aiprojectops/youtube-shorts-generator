@@ -1,6 +1,8 @@
-﻿@page "/settings"
+@page "/settings"
 @rendermode InteractiveServer
 @using YouTubeShortsWebApp
+@using YouTubeShortsWebApp.Services
+@inject UserSettingsService UserSettings
 
 <PageTitle>설정</PageTitle>
 
@@ -150,8 +152,10 @@
     private string ffmpegStatusMessage = "테스트하지 않음";
     private string ffmpegStatusClass = "text-muted";
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
+        // 🆕 UserSettingsService 초기화
+        await UserSettings.InitializeAsync();
         LoadCurrentSettings();
     }
 
@@ -159,11 +163,14 @@
     {
         try
         {
+            // 🆕 사용자별 설정 로드
+            replicateApiKey = UserSettings.GetReplicateApiKey();
+            basePrompt = UserSettings.GetBasePrompt();
+            
+            // YouTube 설정은 전역 (ConfigManager 그대로)
             var config = ConfigManager.GetConfig();
-            replicateApiKey = config.ReplicateApiKey ?? "";
             youtubeClientId = config.YouTubeClientId ?? "";
             youtubeClientSecret = config.YouTubeClientSecret ?? "";
-            basePrompt = config.BasePrompt ?? "";
         }
         catch (Exception ex)
         {
@@ -184,13 +191,13 @@
 
         try
         {
-            // Replicate API 키 저장
-            ConfigManager.SetReplicateApiKey(replicateApiKey.Trim());
+            // 🆕 사용자별 Replicate API 키 저장
+            UserSettings.SetReplicateApiKey(replicateApiKey.Trim());
 
-            // 기본 프롬프트 저장
-            ConfigManager.SetBasePrompt(basePrompt.Trim());
+            // 🆕 사용자별 기본 프롬프트 저장
+            UserSettings.SetBasePrompt(basePrompt.Trim());
 
-            // YouTube API 설정 저장
+            // YouTube API 설정은 전역 저장 (ConfigManager 그대로)
             if (!string.IsNullOrWhiteSpace(youtubeClientId) && !string.IsNullOrWhiteSpace(youtubeClientSecret))
             {
                 ConfigManager.SetYouTubeCredentials(youtubeClientId.Trim(), youtubeClientSecret.Trim());
@@ -209,6 +216,7 @@
             isSaving = false;
         }
     }
+
 
     private async Task TestFFmpeg()
     {
