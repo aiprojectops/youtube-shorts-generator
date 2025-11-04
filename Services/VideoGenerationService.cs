@@ -14,7 +14,14 @@ namespace YouTubeShortsWebApp.Services
     public class VideoGenerationService
     {
         private readonly Random _random = new Random();
+        private readonly UserSettingsService _userSettings;
 
+        // 🆕 생성자 새로 추가
+        public VideoGenerationService(UserSettingsService userSettings)
+        {
+            _userSettings = userSettings;
+        }
+        
         // VideoGenerationOptions 클래스에 이미지 옵션 추가
         public class VideoGenerationOptions
         {
@@ -156,10 +163,19 @@ namespace YouTubeShortsWebApp.Services
             string selectedPrompt = genOptions.CsvPrompts[_random.Next(genOptions.CsvPrompts.Count)];
             updateStatus?.Invoke(selectedPrompt.Length > 50 ? selectedPrompt.Substring(0, 50) + "..." : selectedPrompt);
 
-            string combinedPrompt = ConfigManager.CombinePrompts(selectedPrompt);
-
-            var config = ConfigManager.GetConfig();
-            var replicateClient = new ReplicateClient(config.ReplicateApiKey);
+            // 🆕 사용자별 프롬프트 합성
+            string combinedPrompt = _userSettings.CombinePrompts(selectedPrompt);
+            
+            // 🆕 사용자별 API 키 사용
+            string apiKey = _userSettings.GetReplicateApiKey();
+            
+            if (string.IsNullOrEmpty(apiKey))
+            {
+                throw new Exception("Replicate API 키가 설정되지 않았습니다. 설정 페이지에서 API 키를 입력해주세요.");
+            }
+            
+            var replicateClient = new ReplicateClient(apiKey);
+            
 
             // 🔥 이미지가 있으면 base64로 인코딩
             string imageBase64 = null;
