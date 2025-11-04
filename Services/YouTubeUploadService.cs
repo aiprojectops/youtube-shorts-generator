@@ -151,37 +151,7 @@ public class YouTubeUploadService
         }
     }
 
-    /// <summary>
-    /// URL에서 userId 복원 (OAuth 콜백 후)
-    /// </summary>
-    public async Task InitializeFromUrlAsync()
-    {
-        try
-        {
-            // URL에서 userId 파라미터 가져오기
-            string currentUrl = await _jsRuntime.InvokeAsync<string>("eval", "window.location.href");
-            
-            if (currentUrl.Contains("userId="))
-            {
-                var uri = new Uri(currentUrl);
-                var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
-                string urlUserId = query["userId"];
-                
-                if (!string.IsNullOrEmpty(urlUserId))
-                {
-                    // 🔥 필드는 readonly라서 변경 불가
-                    // 대신 _userId를 사용하는 방식으로 우회
-                    Console.WriteLine($"=== URL에서 UserId 복원: {urlUserId}");
-                    // userId를 private field로 저장할 수 없으므로 다른 방법 필요
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"URL userId 복원 실패: {ex.Message}");
-        }
-    }
-    
+     
     /// <summary>
     /// 계정 전환
     /// </summary>
