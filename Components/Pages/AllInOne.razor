@@ -5,6 +5,7 @@
 @using YouTubeShortsWebApp.Services
 @using System.Text
 @using System.IO
+
 @inject IJSRuntime JSRuntime
 @inject ScheduledUploadService ScheduledUploadService
 @inject VideoGenerationService VideoGenService
@@ -12,6 +13,8 @@
 @inject UploadScheduleService SchedulerService
 @inject YouTubeUploadService YouTubeService
 @inject UserSettingsService UserSettings
+@inject IHttpContextAccessor HttpContextAccessor
+
 @using System.Web
 
 <PageTitle>All-in-One 자동화</PageTitle>
@@ -809,6 +812,9 @@
 
 
 @code {
+    // 🆕 유저 ID 변수 추가
+    private string userId = "";
+
     // 옵션 클래스들
     private VideoGenerationService.VideoGenerationOptions genOptions = new();
     private VideoGenerationService.PostProcessingOptions postOptions = new();
@@ -1781,11 +1787,25 @@
     // 생명주기 메서드들
     protected override async Task OnInitializedAsync()
     {
+        // 🆕 유저 ID 가져오기 (세션 ID 사용)
+        userId = HttpContextAccessor.HttpContext?.Session.Id 
+            ?? Guid.NewGuid().ToString();
+        
+        Console.WriteLine($"[AllInOne] 현재 사용자 ID: {userId}");
+        
         // 🆕 UserSettings 초기화
         await UserSettings.InitializeAsync();
         
         base.OnInitialized();
         ScheduledUploadService.OnAllUploadsCompleted += HandleAllUploadsCompleted;
+        
+        // 🆕 유저별 스케줄 확인 (userId 추가)
+        int queueCount = ScheduledUploadService.GetQueueCount(userId);
+        if (queueCount > 0)
+        {
+            hasActiveSchedule = true;
+            StartScheduleStatusTracking();
+        }
     }
 
 
@@ -2315,13 +2335,15 @@
         scheduleStatusTimer.Start();
     }
 
+    // 🆕 스케줄 상태 확인 수정
     private void CheckScheduleStatus(object sender, System.Timers.ElapsedEventArgs e)
     {
         try
         {
-            int queueCount = ScheduledUploadService.GetQueueCount();
-            var allItems = ScheduledUploadService.GetAllScheduledItems();
-    
+            // 🆕 userId 추가
+            int queueCount = ScheduledUploadService.GetQueueCount(userId);
+            var allItems = ScheduledUploadService.GetAllScheduledItems(userId);
+
             InvokeAsync(() =>
             {
                 if (queueCount == 0 && hasActiveSchedule)
@@ -2330,19 +2352,19 @@
                     scheduleStatusTimer?.Stop();
                     scheduleStatusTimer?.Dispose();
                     scheduleStatusTimer = null;
-    
+
                     statusMessage = "스케줄 업로드 대기 중...";
                     nextUploadInfo = "";
                 }
                 else if (hasActiveSchedule)
                 {
                     statusMessage = $"스케줄 업로드 진행 중... (대기: {queueCount}개)";
-    
+
                     var nextUpload = allItems
                         .Where(x => x.Status == "대기 중" || x.Status == "생성 완료")
                         .OrderBy(x => x.ScheduledTime)
                         .FirstOrDefault();
-    
+
                     if (nextUpload != null)
                     {
                         var timeUntil = nextUpload.ScheduledTime - DateTime.Now;
@@ -2351,7 +2373,7 @@
                             string fileName = nextUpload.FileName.Length > 30 
                                 ? nextUpload.FileName.Substring(0, 27) + "..."
                                 : nextUpload.FileName;
-    
+
                             if (timeUntil.TotalHours >= 1)
                             {
                                 nextUploadInfo = $"{fileName} - {nextUpload.ScheduledTime:MM/dd HH:mm} ({timeUntil.Hours}시간 {timeUntil.Minutes}분 후)";
@@ -2371,21 +2393,30 @@
                         nextUploadInfo = "";
                     }
                 }
-    
+
                 StateHasChanged();
             });
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"스케줄 상태 확인 오류: {ex.Message}");
+            Console.WriteLine($"[{userId}] 스케줄 상태 확인 오류: {ex.Message}");
         }
     }
 
-    private async void HandleAllUploadsCompleted(int successCount, int totalCount, List<ScheduledUploadItem> completedItems)
-    {
-        await InvokeAsync(async () =>
+     // 🆕 이벤트 핸들러 수정 (userId 파라미터 추가)
+        private async void HandleAllUploadsCompleted(
+            string completedUserId,  // 🆕 추가
+            int successCount, 
+            int totalCount, 
+            List<ScheduledUploadItem> completedItems)
         {
-            Console.WriteLine($"[All-in-One] 전체 업로드 완료 이벤트 수신 - {successCount}/{totalCount} 성공");
+            // 🆕 자기 자신의 작업만 처리
+            if (completedUserId != userId)
+                return;
+            
+            await InvokeAsync(async () =>
+            {
+                Console.WriteLine($"[{userId}] 전체 업로드 완료 - {successCount}/{totalCount} 성공");
             
             isResultError = (successCount < totalCount);
             
@@ -2415,10 +2446,11 @@
         });
     }
 
-    // 🆕 강제 종료 관련 메서드들
+    // 🆕 강제 종료 수정
     private void ShowCancelConfirmModal()
     {
-        scheduleCancelCount = ScheduledUploadService.GetQueueCount();
+        // 🆕 userId 추가
+        scheduleCancelCount = ScheduledUploadService.GetQueueCount(userId);
         showCancelConfirmModal = true;
         StateHasChanged();
     }
@@ -2435,7 +2467,8 @@
         {
             showCancelConfirmModal = false;
             
-            int clearedCount = ScheduledUploadService.ClearAllSchedules();
+            // 🆕 userId 추가
+            int clearedCount = ScheduledUploadService.ClearAllSchedules(userId);
             
             hasActiveSchedule = false;
             scheduleStatusTimer?.Stop();
