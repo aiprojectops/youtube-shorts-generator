@@ -284,10 +284,9 @@ namespace YouTubeShortsWebApp.Services
         /// <summary>
         /// 현재 활성 스케줄 개수 조회
         /// </summary>
-        public int GetActiveScheduleCount()
+        public int GetActiveScheduleCount(string userId)
         {
-            int queueCount = _scheduledUploadService.GetQueueCount(_userId);
-            return queueCount;
+            return _scheduledService.GetQueueCount(userId);
         }
 
         /// <summary>
