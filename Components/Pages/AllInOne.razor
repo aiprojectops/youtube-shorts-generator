@@ -11,6 +11,7 @@
 @inject VideoPostProcessingService ProcessingService
 @inject UploadScheduleService SchedulerService
 @inject YouTubeUploadService YouTubeService
+@inject UserSettingsService UserSettings
 @using System.Web
 
 <PageTitle>All-in-One 자동화</PageTitle>
@@ -28,7 +29,8 @@
                     <h4>1. 영상 생성 설정</h4>
                 </div>
                 <div class="card-body">
-                    @if (genOptions.IsGenerateVideo && string.IsNullOrEmpty(ConfigManager.GetConfig().ReplicateApiKey))
+                    <!-- 🔥 수정: ConfigManager 대신 UserSettings 사용 -->
+                    @if (genOptions.IsGenerateVideo && string.IsNullOrEmpty(UserSettings.GetReplicateApiKey()))
                     {
                         <div class="alert alert-warning alert-dismissible fade show" role="alert">
                             <strong>⚠️ API 키가 설정되지 않았습니다</strong>
@@ -1629,11 +1631,11 @@
     private async Task StartAllInOne()
     {
         if (!CanStart) return;
-
+    
         if (genOptions.IsGenerateVideo)
         {
-            var config = ConfigManager.GetConfig();
-            if (string.IsNullOrEmpty(config.ReplicateApiKey))
+            // 🔥 수정: ConfigManager 대신 UserSettings 사용
+            if (string.IsNullOrEmpty(UserSettings.GetReplicateApiKey()))
             {
                 bool useLocal = await JSRuntime.InvokeAsync<bool>("confirm",
                     "⚠️ Replicate API 키가 설정되지 않았습니다.\n\n" +
@@ -1771,6 +1773,18 @@
             StateHasChanged();
         }
     }
+
+
+    // 생명주기 메서드들
+    protected override async Task OnInitializedAsync()
+    {
+        // 🆕 UserSettings 초기화
+        await UserSettings.InitializeAsync();
+        
+        base.OnInitialized();
+        ScheduledUploadService.OnAllUploadsCompleted += HandleAllUploadsCompleted;
+    }
+
 
     // 파이프라인 메서드들
     private async Task ProcessAIVideosWithImmediateUpload(int totalVideos)
