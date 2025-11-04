@@ -43,6 +43,11 @@ public class YouTubeUploadService
         }
     }
 
+    public string GetUserId()
+    {
+        return _userId;
+    }
+
     /// <summary>
     /// 쿠키에서 UserId 가져오기 또는 새로 생성
     /// </summary>
