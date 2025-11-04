@@ -948,7 +948,7 @@
             }
 
             await CheckInitialAuthenticationAsync();
-            int queueCount = ScheduledUploadService.GetQueueCount();
+            int queueCount = ScheduledUploadService.GetQueueCount(userId);
             if (queueCount > 0)
             {
                 hasActiveSchedule = true;
