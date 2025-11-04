@@ -4,7 +4,6 @@
 @using YouTubeShortsWebApp
 @using YouTubeShortsWebApp.Services
 @using System.Text
-@using SkiaSharp
 @using System.IO
 @inject IJSRuntime JSRuntime
 @inject ScheduledUploadService ScheduledUploadService
@@ -1134,27 +1133,30 @@
     
         try
         {
-            // 1. 파일 크기 체크
+            // 파일 크기 체크
             if (file.Size > 10 * 1024 * 1024)
             {
                 await JSRuntime.InvokeVoidAsync("alert", "이미지 파일은 최대 10MB까지만 가능합니다.");
                 return;
             }
     
-            // 2. 이미지 aspect ratio 체크
+            // 이미지를 Base64로 변환
             using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
             using var memoryStream = new MemoryStream();
             await stream.CopyToAsync(memoryStream);
-            memoryStream.Position = 0;
+            var base64 = Convert.ToBase64String(memoryStream.ToArray());
+            var dataUrl = $"data:{file.ContentType};base64,{base64}";
     
-            using var skBitmap = SKBitmap.Decode(memoryStream);
-            if (skBitmap == null)
+            // JavaScript로 이미지 크기 확인
+            var result = await JSRuntime.InvokeAsync<ImageCheckResult>("checkImageAspectRatio", dataUrl);
+    
+            if (!result.IsValid)
             {
                 await JSRuntime.InvokeVoidAsync("alert", "❌ 유효하지 않은 이미지 파일입니다.");
                 return;
             }
     
-            float aspectRatio = (float)skBitmap.Width / skBitmap.Height;
+            float aspectRatio = (float)result.Width / result.Height;
             
             // Replicate 제한: 0.40 ~ 2.50
             if (aspectRatio < 0.40f || aspectRatio > 2.50f)
@@ -1162,7 +1164,7 @@
                 await JSRuntime.InvokeVoidAsync("alert", 
                     $"⚠️ 이미지 비율이 Replicate 제한을 벗어났습니다.\n\n" +
                     $"📐 현재 비율: {aspectRatio:F2}\n" +
-                    $"   (가로 {skBitmap.Width}px × 세로 {skBitmap.Height}px)\n\n" +
+                    $"   (가로 {result.Width}px × 세로 {result.Height}px)\n\n" +
                     $"✅ 허용 범위: 0.40 ~ 2.50\n\n" +
                     $"예시:\n" +
                     $"• 0.40 = 세로가 긴 이미지 (예: 400×1000)\n" +
@@ -1172,9 +1174,15 @@
                 return;
             }
     
-            // 3. 모든 체크 통과
+            // 성공
             genOptions.SourceImageFile = file;
             StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"❌ 이미지 처리 중 오류 발생:\n\n{ex.Message}");
+            genOptions.SourceImageFile = null;
+        }
     }
 
     private void ClearSourceImage()
@@ -1824,6 +1832,13 @@
                 );
 
                 Console.WriteLine($"✅ [영상 #{i}] 업로드 완료: {videoUrl}");
+
+                private class ImageCheckResult
+                {
+                    public bool IsValid { get; set; }
+                    public int Width { get; set; }
+                    public int Height { get; set; }
+                }
 
                 successList.Add(new ProcessResult
                 {
