@@ -426,7 +426,7 @@ public class YouTubeUploadService
                 MusicVolume = videoInfo.MusicVolume
             };
     
-            scheduledUploadService.AddScheduledUpload(uploadItem);
+            scheduledUploadService.AddScheduledUpload(_userId, uploadItem);
         }
         
         Console.WriteLine($"=== 스케줄 등록 완료: {videosToSchedule.Count}개");
@@ -547,7 +547,7 @@ public class YouTubeUploadService
                 PrivacySetting = options.PrivacySetting
             };
     
-            scheduledUploadService.AddScheduledUpload(uploadItem);
+            scheduledUploadService.AddScheduledUpload(_userId, uploadItem);
         }
         
         Console.WriteLine($"=== 스케줄 등록 완료: {filesToSchedule.Count}개");
