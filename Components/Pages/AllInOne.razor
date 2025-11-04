@@ -1155,15 +1155,31 @@
             var dataUrl = $"data:{file.ContentType};base64,{base64}";
     
             // JavaScript로 이미지 크기 확인
-            var result = await JSRuntime.InvokeAsync<ImageCheckResult>("checkImageAspectRatio", dataUrl);
+            ImageCheckResult result;
+            try
+            {
+                result = await JSRuntime.InvokeAsync<ImageCheckResult>("checkImageAspectRatio", dataUrl);
+                Console.WriteLine($"[이미지 체크] IsValid: {result.IsValid}, Width: {result.Width}, Height: {result.Height}");
+            }
+            catch (Exception jsEx)
+            {
+                Console.WriteLine($"[이미지 체크] JavaScript 호출 실패: {jsEx.Message}");
+                await JSRuntime.InvokeVoidAsync("alert", 
+                    $"⚠️ 이미지 분석 중 오류가 발생했습니다.\n\n" +
+                    $"JavaScript 함수를 찾을 수 없습니다.\n" +
+                    $"페이지를 새로고침 후 다시 시도해주세요.\n\n" +
+                    $"오류: {jsEx.Message}");
+                return;
+            }
     
-            if (!result.IsValid)
+            if (!result.IsValid || result.Width == 0 || result.Height == 0)
             {
                 await JSRuntime.InvokeVoidAsync("alert", "❌ 유효하지 않은 이미지 파일입니다.");
                 return;
             }
     
             float aspectRatio = (float)result.Width / result.Height;
+            Console.WriteLine($"[이미지 체크] Aspect Ratio: {aspectRatio:F2}");
             
             // Replicate 제한: 0.40 ~ 2.50
             if (aspectRatio < 0.40f || aspectRatio > 2.50f)
@@ -1182,11 +1198,17 @@
             }
     
             // 성공
+            Console.WriteLine($"[이미지 체크] ✅ 통과!");
             genOptions.SourceImageFile = file;
+            await JSRuntime.InvokeVoidAsync("alert", 
+                $"✅ 이미지 선택 완료!\n\n" +
+                $"📐 비율: {aspectRatio:F2}\n" +
+                $"   (가로 {result.Width}px × 세로 {result.Height}px)");
             StateHasChanged();
         }
         catch (Exception ex)
         {
+            Console.WriteLine($"[이미지 체크] 예외 발생: {ex.Message}");
             await JSRuntime.InvokeVoidAsync("alert", $"❌ 이미지 처리 중 오류 발생:\n\n{ex.Message}");
             genOptions.SourceImageFile = null;
         }
