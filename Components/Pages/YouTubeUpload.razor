@@ -530,7 +530,7 @@
                 uploadProgress = 100;
                 uploadStatus = "스케줄 등록 완료";
                 uploadResult = $"✅ {selectedFiles.Count}개 파일이 스케줄에 등록되었습니다!";
-                scheduleStatus = SchedulerService.GetNextUploadInfo();
+                scheduleStatus = SchedulerService.GetNextUploadInfo(userId);
             }
             else
             {
