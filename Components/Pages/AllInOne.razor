@@ -802,6 +802,7 @@
     </div>
 }
 
+<!------------------------------------------------------- 코드 -----------------------------------------------------------!>
 @code {
     // 옵션 클래스들
     private VideoGenerationService.VideoGenerationOptions genOptions = new();
@@ -952,6 +953,8 @@
         scheduleStatusTimer?.Dispose();
     }
 
+
+
     // YouTube 인증 관련 메서드들
     private async Task CheckInitialAuthenticationAsync()
     {
@@ -995,6 +998,8 @@
         StateHasChanged();
         await AuthenticateYouTube();
     }
+
+
 
     // 입력 핸들러들
     private void OnVideoCountInput(ChangeEventArgs e)
@@ -1083,6 +1088,8 @@
         }
         return $"{minutes} 분";
     }
+
+
 
     // CSV 파일 핸들러들
     private async Task HandleCsvFileSelection(InputFileChangeEventArgs e)
@@ -1344,7 +1351,7 @@
         }
     }
 
- // CSV 검증 메서드들
+    // CSV 검증 메서드들
     private (bool isValid, string errorMessage, List<string> prompts) ValidatePromptCsv(string csvContent)
     {
         var prompts = new List<string>();
@@ -1433,6 +1440,7 @@
         return (false, "❌ 유효한 프롬프트가 없습니다", prompts);
     }
 
+    //캡션션 정보 csv
     private (bool isValid, string errorMessage, List<string> captions) ValidateCaptionCsv(string csvContent)
     {
         var captions = new List<string>();
@@ -1493,6 +1501,7 @@
         return (false, "❌ 유효한 캡션이 없습니다", captions);
     }
 
+    //유튜브 업로드 정보 csv
     private (bool isValid, string errorMessage, List<(string Title, string Description, string Tags)> uploadInfos) ValidateUploadInfoCsv(string csvContent)
     {
         var uploadInfos = new List<(string Title, string Description, string Tags)>();
