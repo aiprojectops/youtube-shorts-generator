@@ -124,9 +124,13 @@ namespace YouTubeShortsWebApp
             }
         }
 
+        // 🔥 주의: 이 메서드들은 이제 YouTube 전역 설정용으로만 사용됩니다
+        // Replicate API 키와 BasePrompt는 UserSettingsService를 사용하세요
+        
         // Replicate API 키 관련
         public static void SetReplicateApiKey(string apiKey)
         {
+            // ⚠️ Deprecated: UserSettingsService.SetReplicateApiKey() 사용 권장 
             GetConfig().ReplicateApiKey = apiKey ?? "";
             SaveConfig();
         }
@@ -145,6 +149,7 @@ namespace YouTubeShortsWebApp
         // 기본 프롬프트 관련 메서드
         public static void SetBasePrompt(string basePrompt)
         {
+            // ⚠️ Deprecated: UserSettingsService.SetBasePrompt() 사용 권장
             GetConfig().BasePrompt = basePrompt ?? "";
             SaveConfig();
             System.Diagnostics.Debug.WriteLine($"기본 프롬프트 저장: '{basePrompt}'");
@@ -152,6 +157,7 @@ namespace YouTubeShortsWebApp
 
         public static string GetBasePrompt()
         {
+            // ⚠️ Deprecated: UserSettingsService.GetBasePrompt() 사용 권장
             string basePrompt = GetConfig().BasePrompt ?? "";
             System.Diagnostics.Debug.WriteLine($"기본 프롬프트 로드: '{basePrompt}'");
             return basePrompt;
@@ -160,6 +166,7 @@ namespace YouTubeShortsWebApp
         // 기본 프롬프트와 사용자 프롬프트를 합성하는 메서드 (개선)
         public static string CombinePrompts(string userPrompt)
         {
+            // ⚠️ Deprecated: UserSettingsService.CombinePrompts() 사용 권장
             string basePrompt = GetBasePrompt().Trim();
             string userPromptTrimmed = (userPrompt ?? "").Trim();
 
