@@ -117,17 +117,5 @@ namespace YouTubeShortsWebApp
             return key;
         }
 
-        /// <summary>
-        /// 디버깅: 현재 저장된 사용자 목록
-        /// </summary>
-        public void PrintStatus()
-        {
-            Console.WriteLine($"=== 📊 저장소 상태: 총 {_storage.Count}명의 사용자");
-            foreach (var userId in _storage.Keys)
-            {
-                var tokenCount = _storage[userId].Count;
-                Console.WriteLine($"    - {userId}: {tokenCount}개 토큰");
-            }
-        }
     }
 }
