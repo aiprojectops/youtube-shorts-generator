@@ -49,3 +49,27 @@ h1:focus {
 .darker-border-checkbox.form-check-input {
     border-color: #929292;
 }
+
+window.checkImageAspectRatio = function(dataUrl) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        
+        img.onload = function() {
+            resolve({
+                isValid: true,
+                width: img.width,
+                height: img.height
+            });
+        };
+        
+        img.onerror = function() {
+            resolve({
+                isValid: false,
+                width: 0,
+                height: 0
+            });
+        };
+        
+        img.src = dataUrl;
+    });
+};
