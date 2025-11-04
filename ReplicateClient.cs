@@ -93,22 +93,6 @@ namespace YouTubeShortsWebApp
             public string EstimatedTimeRemaining { get; set; }
         }
 
-        // 연결 테스트 메서드
-        public async Task<bool> TestConnectionAsync()
-        {
-            try
-            {              
-                var response = await _httpClient.GetAsync($"{_baseUrl}/models");
-                var content = await response.Content.ReadAsStringAsync();         
-                
-                return response.IsSuccessStatusCode;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"❌ Replicate 연결 실패: {ex.Message}");
-                return false;
-            }
-        }
 
        public async Task<PredictionResponse> StartVideoGeneration(VideoGenerationRequest request)
         {
@@ -306,75 +290,6 @@ namespace YouTubeShortsWebApp
             throw new TimeoutException($"영상 생성 시간이 초과되었습니다. (최대 {maxAttempts * 5 / 60}분)");
         }
 
-        // 계정 정보 클래스
-        public class AccountInfo
-        {
-            public decimal? credit_balance { get; set; }
-            public string username { get; set; } = "";
-            public string type { get; set; } = "";
-        }
-
-        // 계정 정보 및 크레딧 잔액 조회
-        public async Task<AccountInfo> GetAccountInfoAsync()
-        {
-            try
-            {
-                string[] endpoints = {
-                    $"{_baseUrl}/account",
-                    $"{_baseUrl}/user",
-                    $"{_baseUrl}/billing/balance"
-                };
-
-                foreach (string endpoint in endpoints)
-                {
-                    try
-                    {
-                        System.Diagnostics.Debug.WriteLine($"시도 중인 엔드포인트: {endpoint}");
-
-                        HttpResponseMessage response = await _httpClient.GetAsync(endpoint);
-                        string responseContent = await response.Content.ReadAsStringAsync();
-
-                        System.Diagnostics.Debug.WriteLine($"응답 상태: {response.StatusCode}");
-                        System.Diagnostics.Debug.WriteLine($"응답 내용: {responseContent}");
-
-                        if (response.IsSuccessStatusCode)
-                        {
-                            var result = Newtonsoft.Json.JsonConvert.DeserializeObject<AccountInfo>(responseContent);
-                            if (result != null)
-                            {
-                                System.Diagnostics.Debug.WriteLine($"성공한 엔드포인트: {endpoint}");
-                                return result;
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"엔드포인트 {endpoint} 실패: {ex.Message}");
-                    }
-                }
-
-                throw new Exception("모든 계정 정보 엔드포인트에서 실패했습니다.");
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"계정 정보 조회 중 오류 발생: {ex.Message}");
-            }
-        }
-
-        // 크레딧 잔액만 간단히 조회
-        public async Task<decimal?> GetCreditBalanceAsync()
-        {
-            try
-            {
-                var accountInfo = await GetAccountInfoAsync();
-                return accountInfo.credit_balance;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"크레딧 조회 오류: {ex.Message}");
-                return null;
-            }
-        }
 
         // 리소스 정리
         public void Dispose()
