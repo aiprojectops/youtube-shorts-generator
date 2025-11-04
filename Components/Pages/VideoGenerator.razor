@@ -6,6 +6,8 @@
 @using System.IO
 @inject IJSRuntime JSRuntime
 @inject VideoPostProcessingService ProcessingService
+@inject UserSettingsService UserSettings  
+
 
 <PageTitle>비디오 생성기</PageTitle>
 
@@ -19,7 +21,8 @@
                     <h3>비디오 생성 옵션</h3>
                 </div>
                 <div class="card-body">
-                    @if (genOptions.IsGenerateVideo && string.IsNullOrEmpty(ConfigManager.GetConfig().ReplicateApiKey))
+                    <!-- 🔥 수정: ConfigManager 대신 UserSettings 사용 -->
+                    @if (genOptions.IsGenerateVideo && string.IsNullOrEmpty(UserSettings.GetReplicateApiKey()))
                     {
                         <div class="alert alert-warning alert-dismissible fade show" role="alert">
                             <strong>⚠️ API 키가 설정되지 않았습니다</strong>
@@ -360,6 +363,7 @@
 
     private string totalCost => (genOptions.VideoCount * genOptions.SelectedDuration * 0.15m).ToString("F2");
 
+    // 🔥 수정: ConfigManager 대신 UserSettings 사용
     private bool CanGenerate
     {
         get
@@ -367,13 +371,19 @@
             if (genOptions.IsGenerateVideo)
             {
                 return genOptions.CsvPrompts.Count > 0 && 
-                       !string.IsNullOrEmpty(ConfigManager.GetConfig().ReplicateApiKey);
+                       !string.IsNullOrEmpty(UserSettings.GetReplicateApiKey());
             }
             else
             {
                 return genOptions.LocalVideoFiles.Count > 0;
             }
         }
+    }
+
+    // 🆕 추가: 컴포넌트 초기화 시 UserSettings 초기화
+    protected override async Task OnInitializedAsync()
+    {
+        await UserSettings.InitializeAsync();
     }
 
     private string GetAspectClass(string ratio) => 
