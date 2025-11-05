@@ -815,6 +815,15 @@
     // 🆕 유저 ID 변수 추가
     private string userId = "";
 
+    // 모바일 파일 저장 관련
+    private bool useSavedFiles = false;
+    private List<string> savedLocalFilePaths = new List<string>();
+    
+    // 메모리 관련 상수
+    private const long MOBILE_MAX_FILE_SIZE = 200L * 1024 * 1024;  // 200MB
+    private const long MOBILE_MAX_TOTAL_SIZE = 500L * 1024 * 1024; // 500MB
+    private const long PC_MAX_FILE_SIZE = 500L * 1024 * 1024;      // 500MB
+
     // 옵션 클래스들
     private VideoGenerationService.VideoGenerationOptions genOptions = new();
     private VideoGenerationService.PostProcessingOptions postOptions = new();
@@ -1029,6 +1038,10 @@
         ScheduledUploadService.OnAllUploadsCompleted -= HandleAllUploadsCompleted;
         scheduleStatusTimer?.Stop();
         scheduleStatusTimer?.Dispose();
+        
+        // 🔥 추가: 임시 파일 정리
+        CleanupSavedLocalFiles();
+        savedLocalFilePaths.Clear();
     }
 
 
@@ -1309,8 +1322,222 @@
 
     private async Task HandleLocalVideoSelection(InputFileChangeEventArgs e)
     {
-        genOptions.LocalVideoFiles = e.GetMultipleFiles(20).ToList();
-        StateHasChanged();
+        try
+        {
+            var files = e.GetMultipleFiles(20);
+            
+            // 파일이 없으면 리턴
+            if (files.Count() == 0)
+            {
+                genOptions.LocalVideoFiles.Clear();
+                return;
+            }
+            
+            genOptions.LocalVideoFiles = files.ToList();
+            
+            // 🔥 모바일 감지
+            bool isMobile = false;
+            try
+            {
+                isMobile = await JSRuntime.InvokeAsync<bool>("eval", 
+                    "/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)");
+                Console.WriteLine($"🔍 기기 감지: {(isMobile ? "모바일 📱" : "PC 💻")}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ 기기 감지 실패, PC 모드 사용: {ex.Message}");
+                isMobile = false;
+            }
+            
+            // 🔥 모바일인 경우에만 파일 저장
+            if (isMobile)
+            {
+                useSavedFiles = true;
+                
+                // 기존 파일 정리
+                CleanupSavedLocalFiles();
+                savedLocalFilePaths.Clear();
+                
+                // 🔥 파일 크기 검증
+                long totalSize = 0;
+                var fileSizeErrors = new List<string>();
+                
+                foreach (var file in files)
+                {
+                    if (file.Size > MOBILE_MAX_FILE_SIZE)
+                    {
+                        fileSizeErrors.Add($"• {file.Name}: {file.Size / 1024 / 1024}MB (최대 200MB)");
+                    }
+                    totalSize += file.Size;
+                }
+                
+                if (fileSizeErrors.Any())
+                {
+                    await JSRuntime.InvokeVoidAsync("alert", 
+                        $"📱 모바일 파일 크기 제한\n\n" +
+                        $"다음 파일이 너무 큽니다:\n" +
+                        string.Join("\n", fileSizeErrors) + "\n\n" +
+                        $"모바일에서는 파일당 200MB까지 지원됩니다.");
+                    genOptions.LocalVideoFiles.Clear();
+                    return;
+                }
+                
+                if (totalSize > MOBILE_MAX_TOTAL_SIZE)
+                {
+                    await JSRuntime.InvokeVoidAsync("alert", 
+                        $"📱 전체 파일 크기 초과\n\n" +
+                        $"총 크기: {totalSize / 1024 / 1024}MB\n" +
+                        $"최대: 500MB\n\n" +
+                        $"파일 개수를 줄이거나 용량을 줄여주세요.");
+                    genOptions.LocalVideoFiles.Clear();
+                    return;
+                }
+                
+                // 🔥 파일 저장 (한 번에 하나씩)
+                statusMessage = "📱 모바일: 파일 저장 중...";
+                currentProgress = 0;
+                StateHasChanged();
+                
+                int fileIndex = 0;
+                foreach (var file in files)
+                {
+                    fileIndex++;
+                    
+                    try
+                    {
+                        // 진행률 업데이트
+                        currentProgress = (fileIndex * 100) / files.Count();
+                        statusMessage = $"📁 파일 저장 중 ({fileIndex}/{files.Count()}): {file.Name}";
+                        StateHasChanged();
+                        
+                        // 임시 디렉토리 생성
+                        string tempDir = Path.Combine(Path.GetTempPath(), "LocalVideoTemp", userId);
+                        Directory.CreateDirectory(tempDir);
+                        
+                        // 파일명 정리 (특수문자 제거)
+                        string safeFileName = string.Join("_", file.Name.Split(Path.GetInvalidFileNameChars()));
+                        string savedPath = Path.Combine(tempDir, $"{DateTime.Now.Ticks}_{safeFileName}");
+                        
+                        Console.WriteLine($"📁 [{fileIndex}/{files.Count()}] 저장 시작: {file.Name} ({file.Size / 1024 / 1024}MB)");
+                        
+                        // 🔥 작은 버퍼로 스트리밍 (메모리 절약)
+                        const int bufferSize = 4096; // 4KB 버퍼
+                        using (var sourceStream = file.OpenReadStream(maxAllowedSize: MOBILE_MAX_FILE_SIZE))
+                        using (var fileStream = new FileStream(savedPath, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize, useAsync: true))
+                        {
+                            await sourceStream.CopyToAsync(fileStream, bufferSize);
+                        }
+                        
+                        savedLocalFilePaths.Add(savedPath);
+                        Console.WriteLine($"✅ [{fileIndex}/{files.Count()}] 저장 완료: {Path.GetFileName(savedPath)}");
+                        
+                        // 🔥 가비지 컬렉션 (메모리 확보)
+                        if (fileIndex % 2 == 0) // 2개마다
+                        {
+                            GC.Collect();
+                            GC.WaitForPendingFinalizers();
+                        }
+                    }
+                    catch (Exception fileEx)
+                    {
+                        Console.WriteLine($"❌ 파일 저장 실패 ({file.Name}): {fileEx.Message}");
+                        CleanupSavedLocalFiles();
+                        savedLocalFilePaths.Clear();
+                        
+                        await JSRuntime.InvokeVoidAsync("alert", 
+                            $"파일 저장 실패: {file.Name}\n\n" +
+                            $"오류: {fileEx.Message}\n\n" +
+                            $"파일 크기를 줄이거나 다시 시도해주세요.");
+                        
+                        genOptions.LocalVideoFiles.Clear();
+                        useSavedFiles = false;
+                        currentProgress = 0;
+                        statusMessage = "";
+                        StateHasChanged();
+                        return;
+                    }
+                }
+                
+                if (savedLocalFilePaths.Count == 0)
+                {
+                    await JSRuntime.InvokeVoidAsync("alert", "파일을 저장할 수 없습니다.");
+                    genOptions.LocalVideoFiles.Clear();
+                    useSavedFiles = false;
+                    currentProgress = 0;
+                    statusMessage = "";
+                    StateHasChanged();
+                    return;
+                }
+                
+                currentProgress = 100;
+                statusMessage = $"✅ {savedLocalFilePaths.Count}개 파일 저장 완료";
+                StateHasChanged();
+                
+                // 2초 후 메시지 제거
+                await Task.Delay(2000);
+                statusMessage = "";
+                currentProgress = 0;
+                StateHasChanged();
+                
+                Console.WriteLine($"✅ 모바일 파일 저장 완료: {savedLocalFilePaths.Count}개");
+            }
+            else
+            {
+                // PC는 기존 방식
+                useSavedFiles = false;
+                Console.WriteLine($"💻 PC 모드: 직접 참조 방식 사용 ({files.Count()}개 파일)");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ 파일 선택 처리 오류: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("alert", $"파일 선택 오류: {ex.Message}");
+            genOptions.LocalVideoFiles.Clear();
+            savedLocalFilePaths.Clear();
+            useSavedFiles = false;
+        }
+    }
+
+
+    // 🔥 새로 추가: 저장된 파일 정리
+    private void CleanupSavedLocalFiles()
+    {
+        if (savedLocalFilePaths.Count == 0) return;
+        
+        Console.WriteLine($"🗑️ 임시 파일 정리 시작: {savedLocalFilePaths.Count}개");
+        
+        foreach (var filePath in savedLocalFilePaths)
+        {
+            try
+            {
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                    Console.WriteLine($"  ✅ 삭제: {Path.GetFileName(filePath)}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"  ⚠️ 삭제 실패: {Path.GetFileName(filePath)} - {ex.Message}");
+            }
+        }
+        
+        // 빈 디렉토리도 정리
+        try
+        {
+            string tempDir = Path.Combine(Path.GetTempPath(), "LocalVideoTemp", userId);
+            if (Directory.Exists(tempDir) && !Directory.EnumerateFileSystemEntries(tempDir).Any())
+            {
+                Directory.Delete(tempDir);
+                Console.WriteLine($"  ✅ 빈 디렉토리 삭제: {tempDir}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ⚠️ 디렉토리 삭제 실패: {ex.Message}");
+        }
+        
+        Console.WriteLine($"✅ 임시 파일 정리 완료");
     }
 
     private void OnRandomCaptionChanged()
@@ -2007,10 +2234,12 @@
         Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     }
 
+
     private async Task ProcessLocalVideosWithImmediateUpload(int totalVideos)
     {
         Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         Console.WriteLine($"🚀 [로컬 파일 파이프라인] 시작 - 총 {totalVideos}개");
+        Console.WriteLine($"🔧 처리 모드: {(useSavedFiles ? "저장된 파일 (모바일 📱)" : "직접 참조 (PC 💻)")}");
         Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
         for (int i = 1; i <= totalVideos; i++)
@@ -2034,36 +2263,67 @@
                 Console.WriteLine($"");
                 Console.WriteLine($"📹 [영상 #{i}/{totalVideos}] 처리 시작");
 
-                var tempGenOptions = new VideoGenerationService.VideoGenerationOptions
+                // 🔥 조건부: 모바일 vs PC
+                if (useSavedFiles)
                 {
-                    IsGenerateVideo = false,
-                    LocalVideoFiles = new List<IBrowserFile> { genOptions.LocalVideoFiles[i - 1] }
-                };
-
-                var processingOptions = new VideoPostProcessingService.ProcessingOptions
-                {
-                    GenerationOptions = tempGenOptions,
-                    PostProcessingOptions = postOptions
-                };
-
-                var videoResults = await ProcessingService.ProcessVideosAsync(
-                    processingOptions,
-                    (current, total, status) => {
-                        statusMessage = $"영상 {i}/{totalVideos}: {status}";
-                        StateHasChanged();
-                    },
-                    CancellationToken.None
-                );
-
-                var result = videoResults.FirstOrDefault();
-                if (result == null || !result.Success)
-                {
-                    throw new Exception(result?.ErrorMessage ?? "파일 처리 실패");
+                    // 모바일: 저장된 파일 사용
+                    if (i > savedLocalFilePaths.Count)
+                    {
+                        throw new Exception("저장된 파일을 찾을 수 없습니다. 파일을 다시 선택해주세요.");
+                    }
+                    
+                    videoFilePath = savedLocalFilePaths[i - 1];
+                    fileName = Path.GetFileName(videoFilePath);
+                    
+                    if (!File.Exists(videoFilePath))
+                    {
+                        throw new Exception($"파일이 존재하지 않습니다: {fileName}");
+                    }
+                    
+                    Console.WriteLine($"📱 [모바일] 저장된 파일 사용: {fileName}");
+                    
+                    // 후처리가 필요하면 수행 (현재는 스킵)
+                    if (postOptions.EnablePostProcessing)
+                    {
+                        Console.WriteLine($"🎨 후처리는 모바일에서 아직 미지원");
+                    }
                 }
-
-                videoFilePath = result.FilePath;
-                fileName = result.FileName;
-
+                else
+                {
+                    // PC: 기존 방식 (IBrowserFile 직접 처리)
+                    var tempGenOptions = new VideoGenerationService.VideoGenerationOptions
+                    {
+                        IsGenerateVideo = false,
+                        LocalVideoFiles = new List<IBrowserFile> { genOptions.LocalVideoFiles[i - 1] }
+                    };
+                
+                    var processingOptions = new VideoPostProcessingService.ProcessingOptions
+                    {
+                        GenerationOptions = tempGenOptions,
+                        PostProcessingOptions = postOptions
+                    };
+                
+                    var videoResults = await ProcessingService.ProcessVideosAsync(
+                        processingOptions,
+                        (current, total, status) => {
+                            statusMessage = $"영상 {i}/{totalVideos}: {status}";
+                            StateHasChanged();
+                        },
+                        CancellationToken.None
+                    );
+                
+                    var result = videoResults.FirstOrDefault();
+                    if (result == null || !result.Success)
+                    {
+                        throw new Exception(result?.ErrorMessage ?? "파일 처리 실패");
+                    }
+                
+                    videoFilePath = result.FilePath;
+                    fileName = result.FileName;
+                    
+                    Console.WriteLine($"💻 [PC] 직접 처리 완료: {fileName}");
+                }
+                
                 Console.WriteLine($"✅ [영상 #{i}] 처리 완료: {fileName}");
 
                 try
@@ -2156,6 +2416,14 @@
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
             }
+        }
+
+        // 🔥 모바일 모드: 모든 처리 완료 후 저장된 파일 정리
+        if (useSavedFiles)
+        {
+            CleanupSavedLocalFiles();
+            savedLocalFilePaths.Clear();
+            useSavedFiles = false;
         }
 
         Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
