@@ -1320,6 +1320,7 @@
         StateHasChanged();
     }
 
+
     private async Task HandleLocalVideoSelection(InputFileChangeEventArgs e)
     {
         try
@@ -1337,11 +1338,14 @@
             
             // 🔥 모바일 감지
             bool isMobile = false;
+            string deviceInfo = "";
             try
             {
                 isMobile = await JSRuntime.InvokeAsync<bool>("eval", 
                     "/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)");
+                deviceInfo = await JSRuntime.InvokeAsync<string>("eval", "navigator.userAgent");
                 Console.WriteLine($"🔍 기기 감지: {(isMobile ? "모바일 📱" : "PC 💻")}");
+                Console.WriteLine($"🔍 브라우저 정보: {deviceInfo}");
             }
             catch (Exception ex)
             {
@@ -1349,9 +1353,27 @@
                 isMobile = false;
             }
             
-            // 🔥 모바일인 경우에만 파일 저장
+            // 🔥 모바일인 경우 경고 표시
             if (isMobile)
             {
+                // 모바일 브라우저 호환성 경고
+                bool continueAnyway = await JSRuntime.InvokeAsync<bool>("confirm",
+                    "⚠️ 모바일 브라우저 제한 안내\n\n" +
+                    "현재 모바일 브라우저에서는 로컬 파일 업로드에\n" +
+                    "기술적 제한이 있을 수 있습니다.\n\n" +
+                    "권장 사항:\n" +
+                    "• PC/노트북 사용 (가장 안정적)\n" +
+                    "• 또는 AI 영상 생성 기능 사용\n\n" +
+                    "그래도 시도하시겠습니까?\n" +
+                    "(실패할 가능성이 높습니다)");
+                
+                if (!continueAnyway)
+                {
+                    Console.WriteLine("사용자가 모바일 업로드 취소");
+                    genOptions.LocalVideoFiles.Clear();
+                    return;
+                }
+                
                 useSavedFiles = true;
                 
                 // 기존 파일 정리
@@ -1364,6 +1386,8 @@
                 
                 foreach (var file in files)
                 {
+                    Console.WriteLine($"📋 파일 정보: {file.Name}, 크기: {file.Size} bytes, ContentType: {file.ContentType}");
+                    
                     if (file.Size > MOBILE_MAX_FILE_SIZE)
                     {
                         fileSizeErrors.Add($"• {file.Name}: {file.Size / 1024 / 1024}MB (최대 200MB)");
@@ -1418,21 +1442,78 @@
                         string safeFileName = string.Join("_", file.Name.Split(Path.GetInvalidFileNameChars()));
                         string savedPath = Path.Combine(tempDir, $"{DateTime.Now.Ticks}_{safeFileName}");
                         
-                        Console.WriteLine($"📁 [{fileIndex}/{files.Count()}] 저장 시작: {file.Name} ({file.Size / 1024 / 1024}MB)");
+                        Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                        Console.WriteLine($"📁 [{fileIndex}/{files.Count()}] 파일 저장 시도");
+                        Console.WriteLine($"   파일명: {file.Name}");
+                        Console.WriteLine($"   크기: {file.Size / 1024 / 1024}MB");
+                        Console.WriteLine($"   타입: {file.ContentType}");
+                        Console.WriteLine($"   저장 경로: {savedPath}");
+                        Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
                         
-                        // 🔥 메모리 버퍼 방식 (모바일 브라우저 호환성)
-                        using (var sourceStream = file.OpenReadStream(maxAllowedSize: MOBILE_MAX_FILE_SIZE))
+                        // 🔥 단계별 진단
+                        Console.WriteLine($"[단계 1] OpenReadStream 시도...");
+                        Stream sourceStream = null;
+                        
+                        try
                         {
-                            // 파일을 메모리로 읽기
+                            sourceStream = file.OpenReadStream(maxAllowedSize: MOBILE_MAX_FILE_SIZE);
+                            Console.WriteLine($"[단계 1] ✅ 성공");
+                        }
+                        catch (Exception openEx)
+                        {
+                            Console.WriteLine($"[단계 1] ❌ 실패: {openEx.GetType().Name}");
+                            Console.WriteLine($"           메시지: {openEx.Message}");
+                            Console.WriteLine($"           스택: {openEx.StackTrace}");
+                            throw new Exception($"파일 읽기 권한 오류\n\n" +
+                                $"원인: 모바일 브라우저가 파일 접근을 차단했습니다.\n\n" +
+                                $"해결 방법:\n" +
+                                $"1. PC/노트북에서 사용하세요 (권장)\n" +
+                                $"2. 또는 AI 영상 생성 기능을 사용하세요\n\n" +
+                                $"기술적 상세:\n" +
+                                $"• 에러 타입: {openEx.GetType().Name}\n" +
+                                $"• 브라우저: {(deviceInfo.Length > 50 ? deviceInfo.Substring(0, 50) + "..." : deviceInfo)}", openEx);
+                        }
+                        
+                        using (sourceStream)
+                        {
+                            Console.WriteLine($"[단계 2] 메모리로 읽기 시도...");
                             using (var memoryStream = new MemoryStream())
                             {
-                                await sourceStream.CopyToAsync(memoryStream);
+                                try
+                                {
+                                    await sourceStream.CopyToAsync(memoryStream);
+                                    Console.WriteLine($"[단계 2] ✅ 성공 - {memoryStream.Length} bytes 읽음");
+                                }
+                                catch (Exception copyEx)
+                                {
+                                    Console.WriteLine($"[단계 2] ❌ 실패: {copyEx.GetType().Name}");
+                                    Console.WriteLine($"           메시지: {copyEx.Message}");
+                                    throw new Exception($"파일 읽기 중 오류\n\n" +
+                                        $"파일을 읽는 도중 연결이 끊어졌습니다.\n\n" +
+                                        $"원인:\n" +
+                                        $"• 모바일 브라우저의 메모리 제한\n" +
+                                        $"• 네트워크 불안정\n" +
+                                        $"• 브라우저 보안 정책\n\n" +
+                                        $"해결 방법:\n" +
+                                        $"1. PC에서 사용하세요\n" +
+                                        $"2. 파일 크기를 줄여보세요\n" +
+                                        $"3. Wi-Fi 연결을 확인하세요", copyEx);
+                                }
                                 
-                                // 메모리에서 디스크로 쓰기
+                                Console.WriteLine($"[단계 3] 디스크에 쓰기 시도...");
                                 memoryStream.Position = 0;
                                 using (var fileStream = new FileStream(savedPath, FileMode.Create, FileAccess.Write))
                                 {
-                                    await memoryStream.CopyToAsync(fileStream);
+                                    try
+                                    {
+                                        await memoryStream.CopyToAsync(fileStream);
+                                        Console.WriteLine($"[단계 3] ✅ 성공 - {fileStream.Length} bytes 저장됨");
+                                    }
+                                    catch (Exception writeEx)
+                                    {
+                                        Console.WriteLine($"[단계 3] ❌ 실패: {writeEx.Message}");
+                                        throw new Exception($"파일 저장 오류: {writeEx.Message}", writeEx);
+                                    }
                                 }
                             }
                         }
@@ -1441,22 +1522,39 @@
                         Console.WriteLine($"✅ [{fileIndex}/{files.Count()}] 저장 완료: {Path.GetFileName(savedPath)}");
                         
                         // 🔥 가비지 컬렉션 (메모리 확보)
-                        if (fileIndex % 2 == 0) // 2개마다
+                        if (fileIndex % 2 == 0)
                         {
                             GC.Collect();
                             GC.WaitForPendingFinalizers();
+                            Console.WriteLine($"   🧹 메모리 정리 완료");
                         }
                     }
                     catch (Exception fileEx)
                     {
-                        Console.WriteLine($"❌ 파일 저장 실패 ({file.Name}): {fileEx.Message}");
+                        Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                        Console.WriteLine($"❌ 파일 저장 최종 실패");
+                        Console.WriteLine($"   파일: {file.Name}");
+                        Console.WriteLine($"   에러 타입: {fileEx.GetType().Name}");
+                        Console.WriteLine($"   에러 메시지: {fileEx.Message}");
+                        if (fileEx.InnerException != null)
+                        {
+                            Console.WriteLine($"   내부 에러: {fileEx.InnerException.Message}");
+                        }
+                        Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                        
                         CleanupSavedLocalFiles();
                         savedLocalFilePaths.Clear();
                         
+                        // 사용자에게 상세 정보 제공
                         await JSRuntime.InvokeVoidAsync("alert", 
-                            $"파일 저장 실패: {file.Name}\n\n" +
-                            $"오류: {fileEx.Message}\n\n" +
-                            $"파일 크기를 줄이거나 다시 시도해주세요.");
+                            $"❌ 파일 업로드 실패\n\n" +
+                            $"파일: {file.Name}\n\n" +
+                            fileEx.Message + "\n\n" +
+                            $"💡 권장 사항:\n" +
+                            $"• PC/노트북에서 이 기능을 사용하세요\n" +
+                            $"• 또는 'AI 영상 생성' 기능을 사용하세요\n\n" +
+                            $"모바일에서는 브라우저 제약으로\n" +
+                            $"로컬 파일 업로드가 불안정합니다.");
                         
                         genOptions.LocalVideoFiles.Clear();
                         useSavedFiles = false;
@@ -1469,7 +1567,11 @@
                 
                 if (savedLocalFilePaths.Count == 0)
                 {
-                    await JSRuntime.InvokeVoidAsync("alert", "파일을 저장할 수 없습니다.");
+                    await JSRuntime.InvokeVoidAsync("alert", 
+                        "❌ 파일 저장 실패\n\n" +
+                        "모바일 브라우저 제약으로 인해\n" +
+                        "파일을 저장할 수 없습니다.\n\n" +
+                        "PC에서 사용해주세요.");
                     genOptions.LocalVideoFiles.Clear();
                     useSavedFiles = false;
                     currentProgress = 0;
@@ -1499,8 +1601,16 @@
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"❌ 파일 선택 처리 오류: {ex.Message}");
-            await JSRuntime.InvokeVoidAsync("alert", $"파일 선택 오류: {ex.Message}");
+            Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            Console.WriteLine($"❌ 파일 선택 처리 최종 오류");
+            Console.WriteLine($"   에러 타입: {ex.GetType().Name}");
+            Console.WriteLine($"   메시지: {ex.Message}");
+            Console.WriteLine($"   스택: {ex.StackTrace}");
+            Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            
+            await JSRuntime.InvokeVoidAsync("alert", 
+                $"파일 선택 오류\n\n{ex.Message}\n\n" +
+                $"모바일에서는 PC 사용을 권장합니다.");
             genOptions.LocalVideoFiles.Clear();
             savedLocalFilePaths.Clear();
             useSavedFiles = false;
