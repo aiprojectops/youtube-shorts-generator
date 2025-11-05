@@ -11,16 +11,20 @@ namespace YouTubeShortsWebApp.Services
     public class UserSettingsService
     {
         private readonly IJSRuntime _jsRuntime;
-        
+        private string _userId;
         // UserId -> UserSettings 매핑 (메모리 저장)
         private static readonly ConcurrentDictionary<string, UserSettings> _userSettingsStore 
             = new ConcurrentDictionary<string, UserSettings>();
 
-        private string _userId;
 
         public UserSettingsService(IJSRuntime jsRuntime)
         {
             _jsRuntime = jsRuntime;
+        }
+
+        public string GetUserId()
+        {
+            return _userId ?? "";
         }
 
         /// <summary>
