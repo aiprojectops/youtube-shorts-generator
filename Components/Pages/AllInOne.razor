@@ -1420,12 +1420,21 @@
                         
                         Console.WriteLine($"📁 [{fileIndex}/{files.Count()}] 저장 시작: {file.Name} ({file.Size / 1024 / 1024}MB)");
                         
-                        // 🔥 작은 버퍼로 스트리밍 (메모리 절약)
-                        const int bufferSize = 4096; // 4KB 버퍼
+                        // 🔥 메모리 버퍼 방식 (모바일 브라우저 호환성)
                         using (var sourceStream = file.OpenReadStream(maxAllowedSize: MOBILE_MAX_FILE_SIZE))
-                        using (var fileStream = new FileStream(savedPath, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize, useAsync: true))
                         {
-                            await sourceStream.CopyToAsync(fileStream, bufferSize);
+                            // 파일을 메모리로 읽기
+                            using (var memoryStream = new MemoryStream())
+                            {
+                                await sourceStream.CopyToAsync(memoryStream);
+                                
+                                // 메모리에서 디스크로 쓰기
+                                memoryStream.Position = 0;
+                                using (var fileStream = new FileStream(savedPath, FileMode.Create, FileAccess.Write))
+                                {
+                                    await memoryStream.CopyToAsync(fileStream);
+                                }
+                            }
                         }
                         
                         savedLocalFilePaths.Add(savedPath);
