@@ -926,36 +926,103 @@
         ScheduledUploadService.OnAllUploadsCompleted += HandleAllUploadsCompleted;
     }
 
+    // 🔥 수정: OnAfterRenderAsync에서 UserId 제대로 초기화
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            await YouTubeService.InitializeAsync();
-            
-            var uri = new Uri(await JSRuntime.InvokeAsync<string>("eval", "window.location.href"));
-            var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
-            
-            if (query["auth"] == "success")
+            try
             {
-                await YouTubeService.CheckExistingAuthAsync();
-                await JSRuntime.InvokeVoidAsync("alert", "YouTube 계정 연동 성공!");
-                StateHasChanged();
+                // 1️⃣ UserSettings 먼저 초기화 (쿠키에서 UserId 로드)
+                await UserSettings.InitializeAsync();
+                
+                // 2️⃣ UserId 가져오기
+                userId = UserSettings.GetUserId();
+                Console.WriteLine($"✅ [AllInOne] 사용자 ID 로드: {userId}");
+                
+                // 3️⃣ YouTube 서비스 초기화
+                await YouTubeService.InitializeAsync();
+                
+                // 4️⃣ OAuth 콜백 처리
+                var uri = new Uri(await JSRuntime.InvokeAsync<string>("eval", "window.location.href"));
+                var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+                
+                if (query["auth"] == "success")
+                {
+                    await YouTubeService.CheckExistingAuthAsync();
+                    await JSRuntime.InvokeVoidAsync("alert", "YouTube 계정 연동 성공!");
+                }
+                else if (query["auth"] == "error")
+                {
+                    string message = query["message"] ?? "알 수 없는 오류";
+                    await JSRuntime.InvokeVoidAsync("alert", $"YouTube 계정 연동 실패: {message}");
+                }
+                
+                // 5️⃣ 인증 확인
+                await CheckInitialAuthenticationAsync();
+                
+                // 6️⃣ 🔥 스케줄 상태 확인 (userId 제대로 초기화된 후)
+                await CheckAndRestoreScheduleState();
             }
-            else if (query["auth"] == "error")
+            catch (Exception ex)
             {
-                string message = query["message"] ?? "알 수 없는 오류";
-                await JSRuntime.InvokeVoidAsync("alert", $"YouTube 계정 연동 실패: {message}");
-            }
-
-            await CheckInitialAuthenticationAsync();
-            int queueCount = ScheduledUploadService.GetQueueCount(userId);
-            if (queueCount > 0)
-            {
-                hasActiveSchedule = true;
-                StartScheduleStatusTracking();
+                Console.WriteLine($"❌ [AllInOne] 초기화 오류: {ex.Message}");
             }
         }
     }
+
+    // 🔥 새로 추가: 스케줄 상태 확인 및 복원 메서드
+    private async Task CheckAndRestoreScheduleState()
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(userId))
+            {
+                Console.WriteLine("⚠️ [AllInOne] UserId가 비어있어서 스케줄 확인 불가");
+                return;
+            }
+            
+            int queueCount = ScheduledUploadService.GetQueueCount(userId);
+            Console.WriteLine($"📊 [AllInOne] 스케줄 확인 - UserId: {userId}, 대기 중: {queueCount}개");
+            
+            if (queueCount > 0)
+            {
+                hasActiveSchedule = true;
+                statusMessage = $"스케줄 업로드 진행 중... (대기: {queueCount}개)";
+                
+                // 다음 업로드 정보 표시
+                var allItems = ScheduledUploadService.GetAllScheduledItems(userId);
+                var nextUpload = allItems
+                    .Where(x => x.Status == "대기 중" || x.Status == "생성 완료")
+                    .OrderBy(x => x.ScheduledTime)
+                    .FirstOrDefault();
+                
+                if (nextUpload != null)
+                {
+                    var timeUntil = nextUpload.ScheduledTime - DateTime.Now;
+                    nextUploadInfo = $"{nextUpload.FileName} - {nextUpload.ScheduledTime:MM/dd HH:mm}";
+                    Console.WriteLine($"📅 [AllInOne] 다음 업로드: {nextUploadInfo}");
+                }
+                
+                // 타이머 시작
+                StartScheduleStatusTracking();
+                
+                Console.WriteLine($"✅ [AllInOne] 스케줄 상태 복원 완료");
+            }
+            else
+            {
+                Console.WriteLine($"ℹ️ [AllInOne] 진행 중인 스케줄 없음");
+                hasActiveSchedule = false;
+            }
+            
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ [AllInOne] 스케줄 상태 확인 실패: {ex.Message}");
+        }
+    }
+
 
     public void Dispose()
     {
@@ -1784,30 +1851,6 @@
     }
 
 
-    // 생명주기 메서드들
-    protected override async Task OnInitializedAsync()
-    {
-        // 🆕 유저 ID 가져오기 (세션 ID 사용)
-        userId = HttpContextAccessor.HttpContext?.Session.Id 
-            ?? Guid.NewGuid().ToString();
-        
-        Console.WriteLine($"[AllInOne] 현재 사용자 ID: {userId}");
-        
-        // 🆕 UserSettings 초기화
-        await UserSettings.InitializeAsync();
-        
-        base.OnInitialized();
-        ScheduledUploadService.OnAllUploadsCompleted += HandleAllUploadsCompleted;
-        
-        // 🆕 유저별 스케줄 확인 (userId 추가)
-        int queueCount = ScheduledUploadService.GetQueueCount(userId);
-        if (queueCount > 0)
-        {
-            hasActiveSchedule = true;
-            StartScheduleStatusTracking();
-        }
-    }
-
 
     // 파이프라인 메서드들
     private async Task ProcessAIVideosWithImmediateUpload(int totalVideos)
@@ -2186,16 +2229,26 @@
         statusMessage = "중지 중...";
     }
 
+
     private async Task RegisterToSchedule()
     {
         Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         Console.WriteLine($"📋 [AllInOne.RegisterToSchedule] 시작");
+        Console.WriteLine($"👤 UserId: {userId}");  // 🔥 로그 추가
         Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         
         if (!YouTubeService.IsAuthenticated)
         {
             Console.WriteLine($"❌ YouTube 인증이 안 되어 있습니다!");
             await JSRuntime.InvokeVoidAsync("alert", "YouTube 계정 연동이 필요합니다.");
+            return;
+        }
+        
+        // 🔥 추가: UserId 검증
+        if (string.IsNullOrEmpty(userId))
+        {
+            Console.WriteLine($"❌ UserId가 비어있습니다!");
+            await JSRuntime.InvokeVoidAsync("alert", "사용자 ID를 확인할 수 없습니다. 페이지를 새로고침해주세요.");
             return;
         }
         
