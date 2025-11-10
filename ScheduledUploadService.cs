@@ -13,7 +13,7 @@ namespace YouTubeShortsWebApp
             "YouTubeScheduledQueues"  // 🔥 폴더로 변경
         );
 
-        // 🔥 유저별 큐로 변경
+        // 🔥 유저별 큐로 변경 
         private readonly ConcurrentDictionary<string, List<ScheduledUploadItem>> _userQueues = new();
         private readonly object _queueLock = new object();
 
@@ -350,8 +350,13 @@ namespace YouTubeShortsWebApp
         {
             Console.WriteLine($"[{userId}] 📹 영상 생성 중: {item.FileName}");
             
-            var config = ConfigManager.GetConfig();
-            var replicateClient = new ReplicateClient(config.ReplicateApiKey);
+            // 🔥 환경 변수 대신 저장된 API 키 사용
+            if (string.IsNullOrEmpty(item.ReplicateApiKey))
+            {
+                throw new Exception("Replicate API 키가 설정되지 않았습니다.");
+            }
+            
+            var replicateClient = new ReplicateClient(item.ReplicateApiKey);  // ✅ 저장된 키 사용
             
             try
             {
@@ -577,6 +582,9 @@ namespace YouTubeShortsWebApp
         public DateTime ScheduledTime { get; set; }
         public string UserId { get; set; } = "";
         public string RefreshToken { get; set; } = "";
+
+        public string ReplicateApiKey { get; set; } = "";
+        
         public string Title { get; set; } = "";
         public string Description { get; set; } = "";
         public string Tags { get; set; } = "";
