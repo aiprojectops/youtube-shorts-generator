@@ -23,11 +23,17 @@ public class YouTubeUploadService
     public bool IsAuthenticated => _youtubeUploader != null && _currentAccount != null;
     public YouTubeUploader.YouTubeAccountInfo CurrentAccount => _currentAccount;  // 🔥 수정
 
-    public YouTubeUploadService(IJSRuntime jsRuntime, SharedMemoryDataStore dataStore)  // 🆕 매개변수 추가
+    private readonly UserSettingsService _userSettings;  // ✅ 추가
+    
+    public YouTubeUploadService(
+        IJSRuntime jsRuntime, 
+        SharedMemoryDataStore dataStore,
+        UserSettingsService userSettings)  // ✅ 추가
     {
         _jsRuntime = jsRuntime;
-        _dataStore = dataStore;  // 🆕 이 줄 추가
-        _userId = null; // 나중에 InitializeAsync에서 설정
+        _dataStore = dataStore;
+        _userSettings = userSettings;  // ✅ 추가
+        _userId = null;
         Console.WriteLine($"=== YouTubeUploadService 생성 (UserId는 아직 미설정)");
     }
     
@@ -601,12 +607,13 @@ public class YouTubeUploadService
     {
         try
         {
-            var config = ConfigManager.GetConfig();
+            // ✅ UserSettingsService에서 사용자별 키 가져오기
+            string apiKey = _userSettings.GetReplicateApiKey();
             
-            if (!string.IsNullOrEmpty(config.ReplicateApiKey))
+            if (!string.IsNullOrEmpty(apiKey))
             {
-                Console.WriteLine("=== Replicate API 키 추출 성공 (ConfigManager)");
-                return config.ReplicateApiKey;
+                Console.WriteLine("=== Replicate API 키 추출 성공 (UserSettings)");
+                return apiKey;
             }
             
             Console.WriteLine("=== Replicate API 키가 설정되지 않음");
