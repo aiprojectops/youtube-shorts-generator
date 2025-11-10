@@ -1,0 +1,135 @@
+# YouTube Shorts Generator
+
+AI 기반 숏폼 영상 자동 생성 및 YouTube 업로드 웹앱
+
+## 🎯 주요 기능
+
+- **AI 영상 생성**: Replicate API를 활용한 Text-to-Video 생성
+- **자동 후처리**: 캡션 추가, 배경음악 삽입 (FFmpeg)
+- **YouTube 업로드**: OAuth 인증 기반 즉시/스케줄 업로드
+- **올인원 자동화**: 생성부터 업로드까지 무인 자동화
+
+## 🛠️ 기술 스택
+
+- **프레임워크**: ASP.NET Core 8.0 (Blazor Server)
+- **호스팅**: Render
+- **외부 API**: 
+  - Replicate API (AI 영상 생성)
+  - Google YouTube Data API v3 (업로드)
+  - FFmpeg (후처리)
+
+## 📂 프로젝트 구조
+
+```
+YouTubeShortsWebApp/
+├── Program.cs                    # 진입점, DI 설정
+├── AuthController.cs             # OAuth 콜백 처리
+├── YouTubeUploader.cs            # YouTube API 로직
+├── ReplicateClient.cs            # Replicate API 클라이언트
+├── VideoPostProcessor.cs         # FFmpeg 후처리
+├── Components/
+│   ├── Pages/                    # Razor 페이지
+│   │   ├── Home.razor
+│   │   ├── Settings.razor        # API 키 설정
+│   │   ├── VideoGenerator.razor  # 개별 생성
+│   │   ├── YouTubeUpload.razor   # 업로드
+│   │   ├── AllInOne.razor        # 통합 자동화
+│   │   └── VideoHistory.razor
+│   └── Layout/                   # 레이아웃
+└── Services/                     # 비즈니스 로직
+    ├── VideoGenerationService.cs
+    ├── YouTubeUploadService.cs
+    ├── ScheduledUploadService.cs
+    └── UserSettingsService.cs
+```
+
+## ⚙️ 환경 설정
+
+### 1. 필수 요구사항
+- .NET 8.0 SDK
+- FFmpeg 설치
+
+### 2. API 키 발급
+
+**Replicate API**:
+1. [replicate.com](https://replicate.com) 가입
+2. API 토큰 발급 (r8_로 시작)
+3. 웹앱 `/settings` 페이지에서 입력
+
+**YouTube API**:
+1. [Google Cloud Console](https://console.cloud.google.com) 프로젝트 생성
+2. YouTube Data API v3 활성화
+3. OAuth 2.0 클라이언트 ID 생성 (웹 애플리케이션)
+4. 리디렉션 URI 추가: `https://your-domain.com/oauth/google/callback`
+
+### 3. Render 환경 변수 설정
+
+```bash
+base_prompt=고품질 4K 영상, 영화같은 조명
+REPLICATE_PROXY_URL=https://your-proxy-url.com
+YOUTUBE_CLIENT_ID=xxxxx.apps.googleusercontent.com
+YOUTUBE_CLIENT_SECRET=GOCSPX-xxxxxxxxxxxxx
+```
+
+**변수 설명**:
+- `base_prompt`: 모든 영상에 공통 적용될 기본 프롬프트
+- `REPLICATE_PROXY_URL`: Replicate API 프록시 서버 URL (선택)
+- `YOUTUBE_CLIENT_ID`: Google OAuth 클라이언트 ID
+- `YOUTUBE_CLIENT_SECRET`: Google OAuth 클라이언트 시크릿
+
+> 💡 **참고**: Replicate API 키는 사용자별로 웹앱 설정 페이지에서 입력합니다.
+
+## 🚀 로컬 실행
+
+```bash
+# 1. 클론
+git clone <repository-url>
+cd YouTubeShortsWebApp
+
+# 2. 패키지 복원
+dotnet restore
+
+# 3. 실행
+dotnet run
+
+# 4. 브라우저에서 https://localhost:7059 접속
+```
+
+## 📖 사용 방법
+
+### 1단계: 설정
+- `/settings` 페이지에서 Replicate API 키와 YouTube OAuth 정보 입력
+
+### 2단계: 영상 생성
+- **개별 생성** (`/video-generator`): 프롬프트 입력 또는 로컬 파일 업로드
+- **대량 생성** (`/all-in-one`): CSV 프롬프트 업로드 → 자동 생성 → 자동 업로드
+
+### 3단계: 업로드
+- **즉시 업로드**: `/youtube-upload`에서 수동 업로드
+- **스케줄 업로드**: 시간 분산 자동 업로드
+
+## ⚠️ 주의사항
+
+- **Replicate API 비용**: 영상당 약 $0.05~$0.50
+- **YouTube 할당량**: 하루 약 6개 영상 업로드 제한
+- **Render 무료 플랜**: 15분 무활동 시 슬립 (SelfPingService로 방지)
+- **토큰 저장**: 서버 재시작 시 YouTube 재인증 필요
+
+## 📦 주요 NuGet 패키지
+
+- `Google.Apis.YouTube.v3` (1.70.0)
+- `Newtonsoft.Json` (13.0.3)
+- `System.Drawing.Common` (9.0.8)
+
+## 🔧 트러블슈팅
+
+| 문제 | 해결 |
+|------|------|
+| API 키 오류 | `/settings`에서 키 확인 |
+| YouTube 업로드 실패 | OAuth 리디렉션 URI 확인 |
+| 후처리 실패 | FFmpeg 설치 확인 |
+| 서버 슬립 | Render 유료 플랜 또는 SelfPingService 확인 |
+
+## 📄 라이선스
+
+MIT License
