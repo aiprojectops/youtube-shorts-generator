@@ -347,7 +347,10 @@ public class YouTubeUploadService
         // 🔥 현재 UserId와 RefreshToken 가져오기
         string currentUserId = _userId;
         string refreshToken = GetCurrentRefreshToken();
-        Console.WriteLine($"=== [생성+스케줄] UserId: {currentUserId}, RefreshToken 있음: {!string.IsNullOrEmpty(refreshToken)}");
+
+        // 🔥 이 부분 추가 - Replicate API 키 가져오기
+        string replicateApiKey = GetCurrentReplicateApiKey();
+        Console.WriteLine($"=== [생성+스케줄] UserId: {currentUserId}, RefreshToken 있음: {!string.IsNullOrEmpty(refreshToken)}, ReplicateApiKey 있음: {!string.IsNullOrEmpty(replicateApiKey)}");
         
         var videosToSchedule = randomizeOrder
             ? videoInfoList.OrderBy(x => Guid.NewGuid()).ToList()
@@ -407,9 +410,10 @@ public class YouTubeUploadService
                 FileName = $"video_{i + 1:D3}.mp4",
                 ScheduledTime = scheduledTime,
     
-                // 🔥 UserId와 RefreshToken 추가
+                // 🔥 UserId, RefreshToken, ReplicateApiKey 추가
                 UserId = currentUserId,
                 RefreshToken = refreshToken,
+                ReplicateApiKey = replicateApiKey,  // 🔥 이 줄 추가
                 
                 Title = title,
                 Description = description,
@@ -471,6 +475,7 @@ public class YouTubeUploadService
         // 🔥 이 3줄 추가
         string currentUserId = _userId;
         string refreshToken = GetCurrentRefreshToken();
+        string replicateApiKey = GetCurrentReplicateApiKey();  // 🔥 이 줄 추가
         Console.WriteLine($"=== UserId: {currentUserId}, RefreshToken 있음: {!string.IsNullOrEmpty(refreshToken)}");
         
         if (options.UseRandomInfo)
@@ -545,6 +550,7 @@ public class YouTubeUploadService
                 // 🔥 이 2줄 추가
                 UserId = currentUserId,
                 RefreshToken = refreshToken,
+                ReplicateApiKey = replicateApiKey,  // 🔥 이 줄 추가
                 
                 Title = title,
                 Description = description,
@@ -584,6 +590,31 @@ public class YouTubeUploadService
         catch (Exception ex)
         {
             Console.WriteLine($"=== Refresh Token 추출 실패: {ex.Message}");
+            return "";
+        }
+    }
+
+    /// <summary>
+    /// 현재 Replicate API 키 가져오기 (스케줄 업로드용)
+    /// </summary>
+    private string GetCurrentReplicateApiKey()
+    {
+        try
+        {
+            var config = ConfigManager.GetConfig();
+            
+            if (!string.IsNullOrEmpty(config.ReplicateApiKey))
+            {
+                Console.WriteLine("=== Replicate API 키 추출 성공 (ConfigManager)");
+                return config.ReplicateApiKey;
+            }
+            
+            Console.WriteLine("=== Replicate API 키가 설정되지 않음");
+            return "";
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"=== Replicate API 키 추출 실패: {ex.Message}");
             return "";
         }
     }
