@@ -727,7 +727,15 @@ else
             genOptions.SourceImageFile = null;
         }
     }
-    
+
+    // 이미지 체크 결과 클래스
+    public class ImageCheckResult
+    {
+        public bool IsValid { get; set; }
+        public int Width { get; set; }
+        public int Height { get; set; }
+    }
+
     // 🆕 소스 이미지 제거
     private void ClearSourceImage()
     {
