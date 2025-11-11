@@ -645,7 +645,8 @@ else
         }
     }
 
-    // 🆕 소스 이미지 선택 핸들러
+
+    // 🆕 소스 이미지 선택 핸들러 (AllInOne 방식으로 수정)
     private async Task HandleSourceImageSelection(InputFileChangeEventArgs e)
     {
         var file = e.File;
@@ -657,23 +658,46 @@ else
     
         try
         {
-            // 이미지 크기 확인 (최대 10MB)
+            // 파일 크기 체크
             if (file.Size > 10 * 1024 * 1024)
             {
-                await JSRuntime.InvokeVoidAsync("alert", "이미지 파일은 10MB 이하여야 합니다.");
+                await JSRuntime.InvokeVoidAsync("alert", "이미지 파일은 최대 10MB까지만 가능합니다.");
                 return;
             }
     
-            // 이미지 비율 확인
+            // 이미지를 Base64로 변환
             using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
             using var memoryStream = new MemoryStream();
             await stream.CopyToAsync(memoryStream);
-            memoryStream.Position = 0;
+            var base64 = Convert.ToBase64String(memoryStream.ToArray());
+            var dataUrl = $"data:{file.ContentType};base64,{base64}";
     
-            using var image = System.Drawing.Image.FromStream(memoryStream);
-            float aspectRatio = (float)image.Width / image.Height;
+            // JavaScript로 이미지 크기 확인
+            ImageCheckResult result;
+            try
+            {
+                result = await JSRuntime.InvokeAsync<ImageCheckResult>("checkImageAspectRatio", dataUrl);
+                Console.WriteLine($"[이미지 체크] IsValid: {result.IsValid}, Width: {result.Width}, Height: {result.Height}");
+            }
+            catch (Exception jsEx)
+            {
+                Console.WriteLine($"[이미지 체크] JavaScript 호출 실패: {jsEx.Message}");
+                await JSRuntime.InvokeVoidAsync("alert",
+                    $"⚠️ 이미지 분석 중 오류가 발생했습니다.\n\n" +
+                    $"JavaScript 함수를 찾을 수 없습니다.\n" +
+                    $"페이지를 새로고침 후 다시 시도해주세요.\n\n" +
+                    $"오류: {jsEx.Message}");
+                return;
+            }
     
-            Console.WriteLine($"[이미지 체크] 비율: {aspectRatio:F2} (가로 {image.Width}px × 세로 {image.Height}px)");
+            if (!result.IsValid || result.Width == 0 || result.Height == 0)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "❌ 유효하지 않은 이미지 파일입니다.");
+                return;
+            }
+    
+            float aspectRatio = (float)result.Width / result.Height;
+            Console.WriteLine($"[이미지 체크] Aspect Ratio: {aspectRatio:F2}");
     
             // Replicate 제한: 0.40 ~ 2.50
             if (aspectRatio < 0.40f || aspectRatio > 2.50f)
@@ -681,7 +705,7 @@ else
                 await JSRuntime.InvokeVoidAsync("alert",
                     $"⚠️ 이미지 비율이 Replicate 제한을 벗어났습니다.\n\n" +
                     $"📐 현재 비율: {aspectRatio:F2}\n" +
-                    $"   (가로 {image.Width}px × 세로 {image.Height}px)\n\n" +
+                    $"   (가로 {result.Width}px × 세로 {result.Height}px)\n\n" +
                     $"✅ 허용 범위: 0.40 ~ 2.50\n\n" +
                     $"예시:\n" +
                     $"• 0.40 = 세로가 긴 이미지 (예: 400×1000)\n" +
