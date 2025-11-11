@@ -49,7 +49,7 @@ namespace YouTubeShortsWebApp
                 //_config.BasePrompt = Environment.GetEnvironmentVariable("BASE_PROMPT") ?? "";
 
                 // 환경변수가 없으면 로컬 파일에서 읽기
-                if (string.IsNullOrEmpty(_config.ReplicateApiKey) && File.Exists(ConfigFilePath))
+                if (File.Exists(ConfigFilePath))
                 {
                     string json = File.ReadAllText(ConfigFilePath);
                     var fileConfig = Newtonsoft.Json.JsonConvert.DeserializeObject<Config>(json);
