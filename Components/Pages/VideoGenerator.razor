@@ -87,20 +87,88 @@
                             </div>
                         </div>
 
-                        <!-- 프롬프트 CSV -->
-                        <div class="mb-3">
-                            <label class="form-label"><strong>프롬프트 CSV 파일:</strong></label>
-                            <InputFile OnChange="HandleCsvSelection" accept=".csv,.txt" class="form-control" disabled="@isGenerating" />
-                            <div class="form-text">각 줄마다 하나의 프롬프트를 입력한 CSV 파일</div>
-                            
-                            @if (genOptions.CsvPrompts.Count > 0)
-                            {
-                                <div class="alert alert-success mt-2">
-                                    ✅ @genOptions.CsvPrompts.Count 개 프롬프트 로드됨
-                                    <button type="button" class="btn btn-sm btn-primary ms-2" @onclick="() => showCsvPreview = true">미리보기</button>
-                                </div>
-                            }
-                        </div>
+<!-- 🆕 프롬프트 입력 방식 선택 -->
+<div class="mb-3">
+    <label class="form-label"><strong>프롬프트 입력 방식:</strong></label>
+    <div>
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="promptInputType" id="promptCsv" 
+                   checked="@(!genOptions.UseDirectPrompt)" 
+                   @onchange="() => genOptions.UseDirectPrompt = false" 
+                   disabled="@isGenerating">
+            <label class="form-check-label" for="promptCsv">
+                CSV 파일로 입력
+            </label>
+        </div>
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="promptInputType" id="promptDirect" 
+                   checked="@genOptions.UseDirectPrompt" 
+                   @onchange="() => genOptions.UseDirectPrompt = true" 
+                   disabled="@isGenerating">
+            <label class="form-check-label" for="promptDirect">
+                직접 입력
+            </label>
+        </div>
+    </div>
+</div>
+
+<!-- 프롬프트 입력 -->
+@if (!genOptions.UseDirectPrompt)
+{
+    <!-- CSV 파일 입력 -->
+    <div class="mb-3">
+        <label class="form-label"><strong>프롬프트 CSV 파일:</strong></label>
+        <InputFile OnChange="HandleCsvSelection" accept=".csv,.txt" class="form-control" disabled="@isGenerating" />
+        <div class="form-text">각 줄마다 하나의 프롬프트를 입력한 CSV 파일</div>
+        
+        @if (genOptions.CsvPrompts.Count > 0)
+        {
+            <div class="alert alert-success mt-2">
+                ✅ @genOptions.CsvPrompts.Count 개 프롬프트 로드됨
+                <button type="button" class="btn btn-sm btn-primary ms-2" @onclick="() => showCsvPreview = true">미리보기</button>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <!-- 직접 입력 -->
+    <div class="mb-3">
+        <label class="form-label"><strong>프롬프트 직접 입력:</strong></label>
+        <textarea class="form-control" rows="3" @bind="genOptions.DirectPrompt" 
+                  disabled="@isGenerating"
+                  placeholder="예: a beautiful sunset over the ocean, cinematic lighting, 4k quality"></textarea>
+        <div class="form-text">영상 생성에 사용할 프롬프트를 직접 입력하세요</div>
+        
+        @if (!string.IsNullOrWhiteSpace(genOptions.DirectPrompt))
+        {
+            <div class="alert alert-info mt-2">
+                ✅ 프롬프트 입력 완료 (@genOptions.DirectPrompt.Length 자)
+            </div>
+        }
+    </div>
+}
+
+<!-- 🆕 소스 이미지 (선택사항) -->
+<div class="mb-3">
+    <label class="form-label"><strong>📷 소스 이미지 (선택사항):</strong></label>
+    <InputFile OnChange="HandleSourceImageSelection" accept="image/*" class="form-control" disabled="@isGenerating" />
+    <div class="form-text">
+        이미지를 업로드하면 해당 이미지를 기반으로 영상이 생성됩니다.
+        <br />
+        ⚠️ 이미지 비율: 0.40 ~ 2.50 범위 내여야 합니다.
+    </div>
+    
+    @if (genOptions.SourceImageFile != null)
+    {
+        <div class="alert alert-success mt-2">
+            ✅ 이미지 선택됨: @genOptions.SourceImageFile.Name
+            <button type="button" class="btn btn-sm btn-danger ms-2" @onclick="ClearSourceImage" disabled="@isGenerating">
+                제거
+            </button>
+        </div>
+    }
+</div>
                     }
                     else
                     {
@@ -575,5 +643,71 @@
         {
             Console.WriteLine($"다운로드 오류: {ex.Message}");
         }
+    }
+
+    // 🆕 소스 이미지 선택 핸들러
+    private async Task HandleSourceImageSelection(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file == null)
+        {
+            genOptions.SourceImageFile = null;
+            return;
+        }
+    
+        try
+        {
+            // 이미지 크기 확인 (최대 10MB)
+            if (file.Size > 10 * 1024 * 1024)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "이미지 파일은 10MB 이하여야 합니다.");
+                return;
+            }
+    
+            // 이미지 비율 확인
+            using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream);
+            memoryStream.Position = 0;
+    
+            using var image = System.Drawing.Image.FromStream(memoryStream);
+            float aspectRatio = (float)image.Width / image.Height;
+    
+            Console.WriteLine($"[이미지 체크] 비율: {aspectRatio:F2} (가로 {image.Width}px × 세로 {image.Height}px)");
+    
+            // Replicate 제한: 0.40 ~ 2.50
+            if (aspectRatio < 0.40f || aspectRatio > 2.50f)
+            {
+                await JSRuntime.InvokeVoidAsync("alert",
+                    $"⚠️ 이미지 비율이 Replicate 제한을 벗어났습니다.\n\n" +
+                    $"📐 현재 비율: {aspectRatio:F2}\n" +
+                    $"   (가로 {image.Width}px × 세로 {image.Height}px)\n\n" +
+                    $"✅ 허용 범위: 0.40 ~ 2.50\n\n" +
+                    $"예시:\n" +
+                    $"• 0.40 = 세로가 긴 이미지 (예: 400×1000)\n" +
+                    $"• 1.00 = 정사각형 (예: 500×500)\n" +
+                    $"• 2.50 = 가로가 긴 이미지 (예: 1000×400)\n\n" +
+                    $"💡 이미지를 크롭하거나 리사이즈해서 다시 업로드해주세요.");
+                return;
+            }
+    
+            // 성공
+            Console.WriteLine($"[이미지 체크] ✅ 통과!");
+            genOptions.SourceImageFile = file;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[이미지 체크] 예외 발생: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("alert", $"❌ 이미지 처리 중 오류 발생:\n\n{ex.Message}");
+            genOptions.SourceImageFile = null;
+        }
+    }
+    
+    // 🆕 소스 이미지 제거
+    private void ClearSourceImage()
+    {
+        genOptions.SourceImageFile = null;
+        StateHasChanged();
     }
 }
