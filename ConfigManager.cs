@@ -13,7 +13,7 @@ namespace YouTubeShortsWebApp
 
         public class Config
         {
-            public string ReplicateApiKey { get; set; } = "";
+            //public string ReplicateApiKey { get; set; } = "";
             public string YouTubeClientId { get; set; } = "";
             public string YouTubeClientSecret { get; set; } = "";
             public string LastOutputDirectory { get; set; } = "";
@@ -21,7 +21,7 @@ namespace YouTubeShortsWebApp
             public string DefaultVideoDescription { get; set; } = "Generated using YouTube Shorts Generator";
             public string DefaultVideoTags { get; set; } = "AI,Video,Generated,Shorts";
             public string DefaultPrivacySetting { get; set; } = "🔒 비공개";
-            public string BasePrompt { get; set; } = "";
+           // public string BasePrompt { get; set; } = "";
         }
 
         private static Config _config = null;
@@ -42,11 +42,11 @@ namespace YouTubeShortsWebApp
                 _config = new Config();
 
                 // 환경변수에서 먼저 읽기 (클라우드 배포용)
-                _config.ReplicateApiKey = Environment.GetEnvironmentVariable("REPLICATE_API_KEY") ?? "";
+                //_config.ReplicateApiKey = Environment.GetEnvironmentVariable("REPLICATE_API_KEY") ?? "";
                 // LoadConfig() 메서드 수정 - 환경변수 로드 부분에 추가:
                 _config.YouTubeClientId = Environment.GetEnvironmentVariable("YOUTUBE_CLIENT_ID") ?? "";
                 _config.YouTubeClientSecret = Environment.GetEnvironmentVariable("YOUTUBE_CLIENT_SECRET") ?? "";
-                _config.BasePrompt = Environment.GetEnvironmentVariable("BASE_PROMPT") ?? "";
+                //_config.BasePrompt = Environment.GetEnvironmentVariable("BASE_PROMPT") ?? "";
 
                 // 환경변수가 없으면 로컬 파일에서 읽기
                 if (string.IsNullOrEmpty(_config.ReplicateApiKey) && File.Exists(ConfigFilePath))
@@ -61,8 +61,8 @@ namespace YouTubeShortsWebApp
                             _config.YouTubeClientId = fileConfig.YouTubeClientId ?? "";
                         if (string.IsNullOrEmpty(_config.YouTubeClientSecret))
                             _config.YouTubeClientSecret = fileConfig.YouTubeClientSecret ?? "";
-                        if (string.IsNullOrEmpty(_config.BasePrompt))
-                            _config.BasePrompt = fileConfig.BasePrompt ?? "";
+                        //if (string.IsNullOrEmpty(_config.BasePrompt))
+                        //    _config.BasePrompt = fileConfig.BasePrompt ?? "";
 
                         _config.DefaultVideoTitle = fileConfig.DefaultVideoTitle ?? "AI Generated Video";
                         _config.DefaultVideoDescription = fileConfig.DefaultVideoDescription ?? "Generated using YouTube Shorts Generator";
@@ -73,8 +73,8 @@ namespace YouTubeShortsWebApp
                 }
 
                 // null 값 방지
-                if (_config.BasePrompt == null)
-                    _config.BasePrompt = "";
+                //if (_config.BasePrompt == null)
+                //    _config.BasePrompt = "";
                 /*if (_config.ReplicateApiKey == null)
                     _config.ReplicateApiKey = "";*/
                 // null 값 방지 부분에도 추가:
@@ -116,7 +116,7 @@ namespace YouTubeShortsWebApp
                 File.WriteAllText(ConfigFilePath, json);
 
                 System.Diagnostics.Debug.WriteLine($"설정 저장됨: {ConfigFilePath}");
-                System.Diagnostics.Debug.WriteLine($"기본 프롬프트: {_config.BasePrompt}");
+                // System.Diagnostics.Debug.WriteLine($"기본 프롬프트: {_config.BasePrompt}");
             }
             catch (Exception ex)
             {
@@ -127,6 +127,7 @@ namespace YouTubeShortsWebApp
         // 🔥 주의: 이 메서드들은 이제 YouTube 전역 설정용으로만 사용됩니다
         // Replicate API 키와 BasePrompt는 UserSettingsService를 사용하세요
         
+        /*
         // Replicate API 키 관련
         public static void SetReplicateApiKey(string apiKey)
         {
@@ -134,7 +135,7 @@ namespace YouTubeShortsWebApp
             GetConfig().ReplicateApiKey = apiKey ?? "";
             SaveConfig();
         }
-
+        */
          
         // YouTube API 관련
         public static void SetYouTubeCredentials(string clientId, string clientSecret)
@@ -146,6 +147,7 @@ namespace YouTubeShortsWebApp
         }
 
 
+        /*
         // 기본 프롬프트 관련 메서드
         public static void SetBasePrompt(string basePrompt)
         {
@@ -154,6 +156,7 @@ namespace YouTubeShortsWebApp
             SaveConfig();
             System.Diagnostics.Debug.WriteLine($"기본 프롬프트 저장: '{basePrompt}'");
         }
+        
 
         public static string GetBasePrompt()
         {
@@ -162,7 +165,8 @@ namespace YouTubeShortsWebApp
             System.Diagnostics.Debug.WriteLine($"기본 프롬프트 로드: '{basePrompt}'");
             return basePrompt;
         }
-
+       
+        
         // 기본 프롬프트와 사용자 프롬프트를 합성하는 메서드 (개선)
         public static string CombinePrompts(string userPrompt)
         {
@@ -202,6 +206,7 @@ namespace YouTubeShortsWebApp
 
             return combinedPrompt;
         }
+         */
 
     }
 }
