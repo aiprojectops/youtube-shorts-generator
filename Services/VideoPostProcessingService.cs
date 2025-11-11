@@ -183,10 +183,21 @@ namespace YouTubeShortsWebApp.Services
                 // 🆕 사용자별 API 키 확인
                 if (string.IsNullOrEmpty(_userSettings.GetReplicateApiKey()))
                     return (false, "Replicate API 키가 설정되지 않았습니다.");
-
-                if (options.GenerationOptions.CsvPrompts == null || options.GenerationOptions.CsvPrompts.Count == 0)
-                    return (false, "CSV 프롬프트가 로드되지 않았습니다.");
-
+            
+                // 🆕 프롬프트 검증 (CSV 또는 직접입력)
+                if (options.GenerationOptions.UseDirectPrompt)
+                {
+                    // 직접 입력 모드
+                    if (string.IsNullOrWhiteSpace(options.GenerationOptions.DirectPrompt))
+                        return (false, "프롬프트를 입력해주세요.");
+                }
+                else
+                {
+                    // CSV 모드
+                    if (options.GenerationOptions.CsvPrompts == null || options.GenerationOptions.CsvPrompts.Count == 0)
+                        return (false, "CSV 프롬프트가 로드되지 않았습니다.");
+                }
+            
                 if (options.GenerationOptions.VideoCount < 1)
                     return (false, "생성할 영상 개수는 1개 이상이어야 합니다.");
             }
