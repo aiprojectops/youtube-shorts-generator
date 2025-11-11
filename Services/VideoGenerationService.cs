@@ -159,15 +159,33 @@ namespace YouTubeShortsWebApp.Services
             PostProcessingOptions postOptions,
             Action<string> updateStatus)
         {
-            if (genOptions.CsvPrompts.Count == 0)
+            // 🆕 프롬프트 선택 로직 (CSV vs 직접입력)
+            string selectedPrompt;
+            
+            if (genOptions.UseDirectPrompt)
             {
-                throw new Exception("CSV 프롬프트가 로드되지 않았습니다.");
+                // 직접 입력한 프롬프트 사용
+                if (string.IsNullOrWhiteSpace(genOptions.DirectPrompt))
+                {
+                    throw new Exception("프롬프트를 입력해주세요.");
+                }
+                selectedPrompt = genOptions.DirectPrompt.Trim();
+                Console.WriteLine($"=== 직접 입력 프롬프트 사용: {selectedPrompt}");
             }
-
-            string selectedPrompt = genOptions.CsvPrompts[_random.Next(genOptions.CsvPrompts.Count)];
+            else
+            {
+                // CSV에서 랜덤 선택
+                if (genOptions.CsvPrompts.Count == 0)
+                {
+                    throw new Exception("CSV 프롬프트가 로드되지 않았습니다.");
+                }
+                selectedPrompt = genOptions.CsvPrompts[_random.Next(genOptions.CsvPrompts.Count)];
+                Console.WriteLine($"=== CSV에서 랜덤 선택: {selectedPrompt}");
+            }
+            
             updateStatus?.Invoke(selectedPrompt.Length > 50 ? selectedPrompt.Substring(0, 50) + "..." : selectedPrompt);
-
-            // 🆕 사용자별 프롬프트 합성
+        
+            // 🆕 사용자별 프롬프트 합성 (기본 프롬프트 + 선택된 프롬프트)
             string combinedPrompt = _userSettings.CombinePrompts(selectedPrompt);
             
             // 🆕 사용자별 API 키 사용
