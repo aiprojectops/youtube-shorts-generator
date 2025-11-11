@@ -30,7 +30,7 @@ builder.Services.AddHostedService<ScheduledUploadService>(provider =>
     provider.GetRequiredService<ScheduledUploadService>());
 
 // Self-Ping 서비스 추가
-builder.Services.AddHostedService<SelfPingService>();
+// builder.Services.AddHostedService<SelfPingService>();  // ⛔ Self-Ping 비활성화
 
 // 🆕 세션 활성화 (유저 식별용)
 builder.Services.AddDistributedMemoryCache();
