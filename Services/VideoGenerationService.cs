@@ -31,8 +31,12 @@ namespace YouTubeShortsWebApp.Services
             public string SelectedAspectRatio { get; set; } = "9:16";
             public List<string> CsvPrompts { get; set; } = new();
             public List<IBrowserFile> LocalVideoFiles { get; set; } = new();
-            // 🔥 이미지 옵션 추가
+            // 🔥 이미지 옵션
             public IBrowserFile SourceImageFile { get; set; } = null;
+            
+            // 🆕 프롬프트 입력 방식 선택
+            public bool UseDirectPrompt { get; set; } = false;  // false=CSV, true=직접입력
+            public string DirectPrompt { get; set; } = "";      // 직접 입력한 프롬프트
         }
 
         public class PostProcessingOptions
