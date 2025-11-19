@@ -2844,26 +2844,46 @@
     }
 
      // 🆕 이벤트 핸들러 수정 (userId 파라미터 추가)
-        private async void HandleAllUploadsCompleted(
-            string completedUserId,  // 🆕 추가
-            int successCount, 
-            int totalCount, 
-            List<ScheduledUploadItem> completedItems)
+    private async void HandleAllUploadsCompleted(
+        string completedUserId,  // 🆕 추가
+        int successCount, 
+        int totalCount, 
+        List<ScheduledUploadItem> completedItems)
+    {
+        // 🆕 자기 자신의 작업만 처리
+        if (completedUserId != userId)
+            return;
+        
+        await InvokeAsync(async () =>
         {
-            // 🆕 자기 자신의 작업만 처리
-            if (completedUserId != userId)
-                return;
-            
-            await InvokeAsync(async () =>
-            {
-                Console.WriteLine($"[{userId}] 전체 업로드 완료 - {successCount}/{totalCount} 성공");
-            
+            Console.WriteLine($"[{userId}] 전체 업로드 완료 - {successCount}/{totalCount} 성공");
+        
             isResultError = (successCount < totalCount);
             
-            resultMessage = $"모든 작업이 완료되었습니다!\n\n" +
-                           $"✅ 성공: {successCount}개\n" +
-                           $"❌ 실패: {totalCount - successCount}개\n" +
-                           $"📊 전체: {totalCount}개";
+            // 🆕 StringBuilder 사용으로 변경
+            var resultBuilder = new StringBuilder();
+            resultBuilder.AppendLine($"모든 작업이 완료되었습니다!");
+            resultBuilder.AppendLine();
+            resultBuilder.AppendLine($"✅ 성공: {successCount}개");
+            resultBuilder.AppendLine($"❌ 실패: {totalCount - successCount}개");
+            resultBuilder.AppendLine($"📊 전체: {totalCount}개");
+            
+            // 🆕 실패 상세 정보 추가
+            var failedItems = completedItems.Where(x => x.Status == "실패" || x.Status == "생성 실패").ToList();
+            if (failedItems.Any())
+            {
+                resultBuilder.AppendLine();
+                resultBuilder.AppendLine("실패 상세:");
+                foreach (var item in failedItems)
+                {
+                    string reason = !string.IsNullOrEmpty(item.ErrorMessage) 
+                        ? item.ErrorMessage 
+                        : "알 수 없는 오류";
+                    resultBuilder.AppendLine($"• {item.FileName}: {reason}");
+                }
+            }
+            
+            resultMessage = resultBuilder.ToString();
             
             string alertMessage = $"🎉 All-in-One 완료!\n\n" +
                                  $"✅ 성공: {successCount}개\n" +
@@ -2885,6 +2905,7 @@
             StateHasChanged();
         });
     }
+
 
     // 🆕 강제 종료 수정
     private void ShowCancelConfirmModal()
