@@ -59,14 +59,27 @@ namespace YouTubeShortsWebApp.Services
             CancellationToken cancellationToken = default)
         {
             var results = new List<ProcessingResult>();
-
+            
+            // ⭐ 랜덤 길이 사용을 위한 Random 객체 추가
+            var random = new Random();
+        
             // 총 처리할 영상 개수
             int totalVideos = options.GenerationOptions.IsGenerateVideo
                 ? options.GenerationOptions.VideoCount
                 : options.GenerationOptions.LocalVideoFiles.Count;
-
+        
             Console.WriteLine($"🎬 영상 처리 시작: 총 {totalVideos}개");
-
+            
+            // ⭐ 랜덤 길이 모드 로그 추가
+            if (options.GenerationOptions.UseRandomDuration)
+            {
+                Console.WriteLine($"🎲 랜덤 길이 모드: {options.GenerationOptions.MinDuration}~{options.GenerationOptions.MaxDuration}초");
+            }
+            else
+            {
+                Console.WriteLine($"📏 고정 길이 모드: {options.GenerationOptions.SelectedDuration}초");
+            }
+        
             for (int i = 0; i < totalVideos; i++)
             {
                 // 취소 체크
@@ -75,14 +88,36 @@ namespace YouTubeShortsWebApp.Services
                     Console.WriteLine("⚠️ 사용자에 의해 중단됨");
                     break;
                 }
-
+        
                 int currentIndex = i + 1;
-                string status = $"영상 {currentIndex}/{totalVideos} 처리 중...";
+                
+                // ⭐⭐⭐ 핵심 수정: 각 영상마다 랜덤 길이 적용
+                int actualDuration;
+                if (options.GenerationOptions.UseRandomDuration)
+                {
+                    // 랜덤 길이 계산 (MinDuration ~ MaxDuration 사이)
+                    actualDuration = random.Next(
+                        options.GenerationOptions.MinDuration, 
+                        options.GenerationOptions.MaxDuration + 1
+                    );
+                    
+                    // 임시로 SelectedDuration 변경 (원본은 유지)
+                    int originalDuration = options.GenerationOptions.SelectedDuration;
+                    options.GenerationOptions.SelectedDuration = actualDuration;
+                    
+                    Console.WriteLine($"🎲 영상 #{currentIndex} 랜덤 길이 결정: {actualDuration}초");
+                }
+                else
+                {
+                    actualDuration = options.GenerationOptions.SelectedDuration;
+                }
+                
+                string status = $"영상 {currentIndex}/{totalVideos} (길이: {actualDuration}초) 처리 중...";
                 
                 try
                 {
                     progressCallback?.Invoke(currentIndex, totalVideos, status);
-
+        
                     // VideoGenerationService 호출
                     var genResult = await _videoGenService.GenerateOrProcessVideoAsync(
                         currentIndex,
@@ -90,7 +125,7 @@ namespace YouTubeShortsWebApp.Services
                         options.PostProcessingOptions,
                         (s) => progressCallback?.Invoke(currentIndex, totalVideos, s)
                     );
-
+        
                     if (genResult.Success)
                     {
                         results.Add(new ProcessingResult
@@ -100,8 +135,8 @@ namespace YouTubeShortsWebApp.Services
                             FileName = genResult.FileName,
                             Prompt = genResult.Prompt
                         });
-
-                        Console.WriteLine($"✅ 영상 {currentIndex} 완료: {genResult.FileName}");
+        
+                        Console.WriteLine($"✅ 영상 {currentIndex} 완료 ({actualDuration}초): {genResult.FileName}");
                     }
                     else
                     {
@@ -110,7 +145,7 @@ namespace YouTubeShortsWebApp.Services
                             Success = false,
                             ErrorMessage = genResult.ErrorMessage
                         });
-
+        
                         Console.WriteLine($"❌ 영상 {currentIndex} 실패: {genResult.ErrorMessage}");
                     }
                 }
@@ -125,9 +160,9 @@ namespace YouTubeShortsWebApp.Services
                     });
                 }
             }
-
+        
             Console.WriteLine($"🎬 영상 처리 완료: {results.Count(r => r.Success)}/{totalVideos} 성공");
-
+        
             return results;
         }
 
