@@ -37,6 +37,11 @@ namespace YouTubeShortsWebApp.Services
             // 🆕 프롬프트 입력 방식 선택
             public bool UseDirectPrompt { get; set; } = false;  // false=CSV, true=직접입력
             public string DirectPrompt { get; set; } = "";      // 직접 입력한 프롬프트
+            
+            // ⭐ 랜덤 길이 옵션 추가 (새로 추가된 부분)
+            public bool UseRandomDuration { get; set; } = false;  // false=고정길이, true=랜덤길이
+            public int MinDuration { get; set; } = 3;             // 최소 길이 (초)
+            public int MaxDuration { get; set; } = 8;             // 최대 길이 (초)
         }
 
         public class PostProcessingOptions
