@@ -119,22 +119,22 @@
                                 {
                                     <div class="border rounded p-2 bg-light">
                                         <div class="mb-2">
-                                            <label class="form-label small">최소: @genOptions.MinDuration초</label>
+                                            <label class="form-label small">최소: @genOptions.MinDuration 초</label>
                                             <input type="range" class="form-range" min="2" max="@(genOptions.MaxDuration - 1)" step="1" 
                                                    @bind="genOptions.MinDuration" 
                                                    @bind:after="ValidateDurationRange"
                                                    disabled="@(isRunning || hasActiveSchedule)" />
                                         </div>
                                         <div class="mb-2">
-                                            <label class="form-label small">최대: @genOptions.MaxDuration초</label>
+                                            <label class="form-label small">최대: @genOptions.MaxDuration 초</label>
                                             <input type="range" class="form-range" min="@(genOptions.MinDuration + 1)" max="12" step="1" 
                                                    @bind="genOptions.MaxDuration" 
                                                    @bind:after="ValidateDurationRange"
                                                    disabled="@(isRunning || hasActiveSchedule)" />
                                         </div>
                                         <small class="text-muted d-block">
-                                            🎲 @genOptions.MinDuration~@genOptions.MaxDuration초 랜덤
-                                            <br />평균: @GetAverageDuration()초
+                                            🎲 @genOptions.MinDuration~@genOptions.MaxDuration 초 랜덤
+                                            <br />평균: @GetAverageDuration() 초
                                         </small>
                                     </div>
                                 }
@@ -979,9 +979,10 @@
         get
         {
             double avgDuration = GetAverageDuration();
-            return (genOptions.VideoCount * avgDuration * 0.15m).ToString("F2");
+            return (genOptions.VideoCount * (decimal)avgDuration * 0.15m).ToString("F2");
         }
     }
+
     private string GetAspectClass(string ratio) => genOptions.SelectedAspectRatio == ratio ? "btn-success" : "btn-outline-success";
     private string GetResultAlertClass() => isResultError ? "alert-danger" : "alert-success";
     private string GetResultTitle() => isResultError ? "오류 발생" : "All-in-One 완료!";
@@ -2679,7 +2680,7 @@
     {
         Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         Console.WriteLine($"📋 [AllInOne.RegisterToSchedule] 시작");
-        Console.WriteLine($"👤 UserId: {userId}");  // 🔥 로그 추가
+        Console.WriteLine($"👤 UserId: {userId}");
         Console.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         
         if (!YouTubeService.IsAuthenticated)
@@ -2689,7 +2690,6 @@
             return;
         }
         
-        // 🔥 추가: UserId 검증
         if (string.IsNullOrEmpty(userId))
         {
             Console.WriteLine($"❌ UserId가 비어있습니다!");
@@ -2706,16 +2706,13 @@
                 Console.WriteLine($"=== AI 생성 모드");
                 
                 var videoInfoList = new List<YouTubeUploadService.VideoGenerationInfo>();
-                var random = new Random();
-                
-                // ⭐ 랜덤 길이를 위한 Random 객체 (for 루프 바로 앞에 추가)
-                var random = new Random();
+                var random = new Random();  // ⭐ 한 번만 선언
                 
                 for (int i = 0; i < genOptions.VideoCount; i++)
                 {
                     string prompt = genOptions.CsvPrompts[random.Next(genOptions.CsvPrompts.Count)];
                     
-                    // ⭐⭐⭐ 각 영상의 길이를 미리 결정 (새로 추가)
+                    // ⭐⭐⭐ 각 영상의 길이를 미리 결정 (새로 추가된 부분)
                     int videoDuration;
                     if (genOptions.UseRandomDuration)
                     {
@@ -2760,7 +2757,7 @@
                     videoInfoList.Add(new YouTubeUploadService.VideoGenerationInfo
                     {
                         Prompt = prompt,
-                        Duration = videoDuration,
+                        Duration = videoDuration,  // ⭐ 미리 결정된 길이 사용
                         AspectRatio = genOptions.SelectedAspectRatio,
                         EnablePostProcessing = postOptions.EnablePostProcessing,
                         CaptionText = captionText,
