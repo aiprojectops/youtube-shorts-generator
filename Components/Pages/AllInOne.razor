@@ -77,16 +77,67 @@
                                 <div class="text-primary">총 예상 비용: $@totalCost</div>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label"><strong>영상 길이: @genOptions.SelectedDuration 초</strong></label>
-                                <input type="range" 
-                                       class="form-range" 
-                                       min="2" 
-                                       max="12" 
-                                       step="1" 
-                                       value="@genOptions.SelectedDuration" 
-                                       @oninput="OnDurationInput" 
-                                       disabled="@(isRunning || hasActiveSchedule)" />
-                                <small class="text-muted">2초 ~ 12초</small>
+                                <label class="form-label"><strong>영상 길이 설정:</strong></label>
+                                
+                                <!-- 고정 / 랜덤 선택 -->
+                                <div class="mb-2">
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="durationMode" id="fixedDuration"
+                                               checked="@(!genOptions.UseRandomDuration)" 
+                                               @onchange="() => genOptions.UseRandomDuration = false" 
+                                               disabled="@(isRunning || hasActiveSchedule)">
+                                        <label class="form-check-label" for="fixedDuration">
+                                            📏 고정
+                                        </label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="durationMode" id="randomDuration"
+                                               checked="@genOptions.UseRandomDuration" 
+                                               @onchange="() => genOptions.UseRandomDuration = true" 
+                                               disabled="@(isRunning || hasActiveSchedule)">
+                                        <label class="form-check-label" for="randomDuration">
+                                            🎲 랜덤
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <!-- 고정 길이 모드 -->
+                                @if (!genOptions.UseRandomDuration)
+                                {
+                                    <div>
+                                        <label class="form-label small">@genOptions.SelectedDuration 초</label>
+                                        <input type="range" class="form-range" min="2" max="12" step="1" 
+                                               value="@genOptions.SelectedDuration" 
+                                               @oninput="OnDurationInput"
+                                               disabled="@(isRunning || hasActiveSchedule)" />
+                                        <small class="text-muted">2~12초</small>
+                                    </div>
+                                }
+                                
+                                <!-- 랜덤 길이 모드 -->
+                                @if (genOptions.UseRandomDuration)
+                                {
+                                    <div class="border rounded p-2 bg-light">
+                                        <div class="mb-2">
+                                            <label class="form-label small">최소: @genOptions.MinDuration초</label>
+                                            <input type="range" class="form-range" min="2" max="@(genOptions.MaxDuration - 1)" step="1" 
+                                                   @bind="genOptions.MinDuration" 
+                                                   @bind:after="ValidateDurationRange"
+                                                   disabled="@(isRunning || hasActiveSchedule)" />
+                                        </div>
+                                        <div class="mb-2">
+                                            <label class="form-label small">최대: @genOptions.MaxDuration초</label>
+                                            <input type="range" class="form-range" min="@(genOptions.MinDuration + 1)" max="12" step="1" 
+                                                   @bind="genOptions.MaxDuration" 
+                                                   @bind:after="ValidateDurationRange"
+                                                   disabled="@(isRunning || hasActiveSchedule)" />
+                                        </div>
+                                        <small class="text-muted d-block">
+                                            🎲 @genOptions.MinDuration~@genOptions.MaxDuration초 랜덤
+                                            <br />평균: @GetAverageDuration()초
+                                        </small>
+                                    </div>
+                                }
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label"><strong>화면 비율:</strong></label>
@@ -923,7 +974,14 @@
         }
     }
 
-    private string totalCost => (genOptions.VideoCount * genOptions.SelectedDuration * 0.15m).ToString("F2");
+    private string totalCost
+    {
+        get
+        {
+            double avgDuration = GetAverageDuration();
+            return (genOptions.VideoCount * avgDuration * 0.15m).ToString("F2");
+        }
+    }
     private string GetAspectClass(string ratio) => genOptions.SelectedAspectRatio == ratio ? "btn-success" : "btn-outline-success";
     private string GetResultAlertClass() => isResultError ? "alert-danger" : "alert-success";
     private string GetResultTitle() => isResultError ? "오류 발생" : "All-in-One 완료!";
@@ -2650,9 +2708,27 @@
                 var videoInfoList = new List<YouTubeUploadService.VideoGenerationInfo>();
                 var random = new Random();
                 
+                // ⭐ 랜덤 길이를 위한 Random 객체 (for 루프 바로 앞에 추가)
+                var random = new Random();
+                
                 for (int i = 0; i < genOptions.VideoCount; i++)
                 {
                     string prompt = genOptions.CsvPrompts[random.Next(genOptions.CsvPrompts.Count)];
+                    
+                    // ⭐⭐⭐ 각 영상의 길이를 미리 결정 (새로 추가)
+                    int videoDuration;
+                    if (genOptions.UseRandomDuration)
+                    {
+                        // 랜덤 길이 모드: 지금 미리 결정해서 저장
+                        videoDuration = random.Next(genOptions.MinDuration, genOptions.MaxDuration + 1);
+                        Console.WriteLine($"📹 영상 #{i + 1} 스케줄 길이 결정: {videoDuration}초");
+                    }
+                    else
+                    {
+                        // 고정 길이 모드
+                        videoDuration = genOptions.SelectedDuration;
+                    }
+                    
                     string? captionText = null;
                     
                     if (postOptions.EnablePostProcessing && postOptions.AddCaption)
@@ -2684,7 +2760,7 @@
                     videoInfoList.Add(new YouTubeUploadService.VideoGenerationInfo
                     {
                         Prompt = prompt,
-                        Duration = genOptions.SelectedDuration,
+                        Duration = videoDuration,
                         AspectRatio = genOptions.SelectedAspectRatio,
                         EnablePostProcessing = postOptions.EnablePostProcessing,
                         CaptionText = captionText,
@@ -2951,5 +3027,39 @@
         {
             await JSRuntime.InvokeVoidAsync("alert", $"강제 종료 실패: {ex.Message}");
         }
+    }
+
+    // ⭐ 랜덤 길이 범위 검증 메서드
+    private void ValidateDurationRange()
+    {
+        // 최소값이 최대값보다 크거나 같으면 보정
+        if (genOptions.MinDuration >= genOptions.MaxDuration)
+        {
+            genOptions.MaxDuration = genOptions.MinDuration + 1;
+        }
+        
+        // 최소값 하한 체크 (2초 이상)
+        if (genOptions.MinDuration < 2)
+        {
+            genOptions.MinDuration = 2;
+        }
+        
+        // 최대값 상한 체크 (12초 이하)
+        if (genOptions.MaxDuration > 12)
+        {
+            genOptions.MaxDuration = 12;
+        }
+        
+        StateHasChanged();
+    }
+
+    // ⭐ 평균 길이 계산 메서드
+    private double GetAverageDuration()
+    {
+        if (genOptions.UseRandomDuration)
+        {
+            return (genOptions.MinDuration + genOptions.MaxDuration) / 2.0;
+        }
+        return genOptions.SelectedDuration;
     }
 }
