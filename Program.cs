@@ -50,10 +50,10 @@ var app = builder.Build();
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    app.UseHsts();
+    //app.UseHsts();
 }
 
-app.UseHttpsRedirection();  // HTTP → HTTPS 리다이렉션
+// app.UseHttpsRedirection();  // HTTP → HTTPS 리다이렉션
 app.UseStaticFiles();  // CSS, JS 등 정적 파일 제공
 app.UseAntiforgery();   // CSRF 공격 방어
 
