@@ -64,4 +64,5 @@ app.MapControllers();   // API 엔드포인트 매핑
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();  // Blazor Server 모드
 
+app.MapGet("/health", () => Results.Ok("healthy"));
 app.Run();
