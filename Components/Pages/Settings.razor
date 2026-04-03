@@ -1,0 +1,271 @@
+@page "/settings"
+@rendermode InteractiveServer
+@using YouTubeShortsWebApp
+@using YouTubeShortsWebApp.Services
+@inject UserSettingsService UserSettings
+
+<PageTitle>설정</PageTitle>
+
+<h1>⚙️ 설정</h1>
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-8">
+
+            <!-- Replicate API 설정 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>🤖 Replicate API 설정</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label"><strong>API 키:</strong></label>
+                        <div class="input-group">
+                            <input type="@(showApiKey ? "text" : "password")" class="form-control" @bind="replicateApiKey" placeholder="r8_..." />
+                            <button type="button" class="btn btn-outline-secondary" @onclick="ToggleApiKeyVisibility">
+                                @(showApiKey ? "숨기기" : "보기")
+                            </button>
+                        </div>
+                        <div class="form-text">
+                            <a href="https://replicate.com/account/api-tokens" target="_blank">Replicate.com</a>에서 API 토큰을 발급받으세요.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 기본 프롬프트 설정 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>📝 기본 프롬프트 설정</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label"><strong>기본 프롬프트:</strong></label>
+                        <textarea class="form-control" rows="4" @bind="basePrompt"
+                                  placeholder="모든 영상 생성에 기본적으로 포함될 내용을 입력하세요..."></textarea>
+                        <div class="form-text">
+                            예: "8k uhd, professional cinematic lighting, high quality" 등의 화질/스타일 관련 내용
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(basePrompt))
+                    {
+                        <div class="alert alert-info">
+                            <strong>미리보기:</strong> "@basePrompt"
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- YouTube API 설정 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>📺 YouTube API 설정</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label"><strong>클라이언트 ID:</strong></label>
+                        <input type="text" class="form-control" @bind="youtubeClientId" placeholder="Google Cloud Console에서 발급받은 클라이언트 ID" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label"><strong>클라이언트 시크릿:</strong></label>
+                        <input type="password" class="form-control" @bind="youtubeClientSecret" placeholder="Google Cloud Console에서 발급받은 클라이언트 시크릿" />
+                    </div>
+                    <div class="form-text">
+                        <a href="https://console.cloud.google.com" target="_blank">Google Cloud Console</a>에서 YouTube Data API v3를 활성화하고 OAuth 2.0 클라이언트 ID를 생성하세요.
+                    </div>
+                </div>
+            </div>
+
+            <!-- 구분선 -->
+            <div class="mt-4 mb-3">
+                <hr />
+            </div>
+
+            <!-- FFmpeg 시스템 확인 섹션 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>🛠️ 시스템 확인</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label"><strong>FFmpeg 상태 (영상 후처리용):</strong></label>
+                        <div class="d-flex align-items-center">
+                            <button type="button" class="btn btn-outline-primary me-3" @onclick="TestFFmpeg" disabled="@isTestingFFmpeg">
+                                @if (isTestingFFmpeg)
+                                {
+                                    <span>테스트 중...</span>
+                                }
+                                else
+                                {
+                                    <span>FFmpeg 테스트</span>
+                                }
+                            </button>
+                            <span class="@ffmpegStatusClass">@ffmpegStatusMessage</span>
+                        </div>
+                        <div class="form-text mt-2">
+                            FFmpeg가 필요한 기능: 캡션 추가, 배경음악 추가
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 저장 버튼 -->
+            <div class="d-grid gap-2">
+                <button type="button" class="btn btn-success btn-lg" @onclick="SaveSettings" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <span>저장 중...</span>
+                    }
+                    else
+                    {
+                        <span>설정 저장</span>
+                    }
+                </button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(saveMessage))
+            {
+                <div class="mt-3 alert @saveMessageClass">
+                    @saveMessage
+                </div>
+            }
+
+        </div>
+    </div>
+</div>
+
+@code {
+    // API 설정
+    private string replicateApiKey = "";
+    private string youtubeClientId = "";
+    private string youtubeClientSecret = "";
+    private string basePrompt = "";
+
+    // UI 상태
+    private bool showApiKey = false;
+    private bool isSaving = false;
+    private string saveMessage = "";
+    private string saveMessageClass = "";
+
+    // FFmpeg 테스트 관련
+    private bool isTestingFFmpeg = false;
+    private string ffmpegStatusMessage = "테스트하지 않음";
+    private string ffmpegStatusClass = "text-muted";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 🆕 UserSettingsService 초기화
+        await UserSettings.InitializeAsync();
+        LoadCurrentSettings();
+    }
+
+    private void LoadCurrentSettings()
+    {
+        try
+        {
+            // 🆕 사용자별 설정 로드
+            replicateApiKey = UserSettings.GetReplicateApiKey();
+            basePrompt = UserSettings.GetBasePrompt();
+            
+            // YouTube 설정은 전역 (ConfigManager 그대로)
+            var config = ConfigManager.GetConfig();
+            youtubeClientId = config.YouTubeClientId ?? "";
+            youtubeClientSecret = config.YouTubeClientSecret ?? "";
+        }
+        catch (Exception ex)
+        {
+            saveMessage = $"설정 로드 중 오류 발생: {ex.Message}";
+            saveMessageClass = "alert-danger";
+        }
+    }
+
+    private void ToggleApiKeyVisibility()
+    {
+        showApiKey = !showApiKey;
+    }
+
+    private async Task SaveSettings()
+    {
+        isSaving = true;
+        saveMessage = "";
+
+        try
+        {
+            // 🆕 사용자별 Replicate API 키 저장
+            UserSettings.SetReplicateApiKey(replicateApiKey.Trim());
+
+            // 🆕 사용자별 기본 프롬프트 저장
+            UserSettings.SetBasePrompt(basePrompt.Trim());
+
+            // YouTube API 설정은 전역 저장 (ConfigManager 그대로)
+            if (!string.IsNullOrWhiteSpace(youtubeClientId) && !string.IsNullOrWhiteSpace(youtubeClientSecret))
+            {
+                ConfigManager.SetYouTubeCredentials(youtubeClientId.Trim(), youtubeClientSecret.Trim());
+            }
+
+            saveMessage = "✅ 설정이 성공적으로 저장되었습니다!";
+            saveMessageClass = "alert-success";
+        }
+        catch (Exception ex)
+        {
+            saveMessage = $"❌ 설정 저장 중 오류 발생: {ex.Message}";
+            saveMessageClass = "alert-danger";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+
+    private async Task TestFFmpeg()
+    {
+        isTestingFFmpeg = true;
+        ffmpegStatusMessage = "테스트 중...";
+        ffmpegStatusClass = "text-info";
+        StateHasChanged();
+
+        try
+        {
+            // 경로 정보 수집
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string ffmpegPath = Path.Combine(baseDir, "ffmpeg.exe");
+            bool fileExists = File.Exists(ffmpegPath);
+
+            // 기본 사용 가능 여부 확인
+            bool isAvailable = await VideoPostProcessor.IsFFmpegAvailableAsync();
+
+            if (isAvailable)
+            {
+                // 간단한 실행 테스트
+                bool simpleTest = await VideoPostProcessor.TestSimpleFFmpegAsync();
+
+                if (simpleTest)
+                {
+                    ffmpegStatusMessage = $"✅ FFmpeg 사용 가능\n경로: {ffmpegPath}\n파일 존재: {fileExists}";
+                    ffmpegStatusClass = "text-success";
+                }
+                else
+                {
+                    ffmpegStatusMessage = $"⚠️ FFmpeg 설치됨 but 실행에 문제가 있음\n경로: {ffmpegPath}\n파일 존재: {fileExists}";
+                    ffmpegStatusClass = "text-warning";
+                }
+            }
+            else
+            {
+                ffmpegStatusMessage = $"❌ FFmpeg를 찾을 수 없음\n찾는 경로: {ffmpegPath}\n파일 존재: {fileExists}\n기본 디렉토리: {baseDir}";
+                ffmpegStatusClass = "text-danger";
+            }
+        }
+        catch (Exception ex)
+        {
+            ffmpegStatusMessage = $"❌ 테스트 오류: {ex.Message}";
+            ffmpegStatusClass = "text-danger";
+        }
+        finally
+        {
+            isTestingFFmpeg = false;
+            StateHasChanged();
+        }
+    }
+}

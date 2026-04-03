@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+ 	
+  <ItemGroup>
+    <PackageReference Include="Google.Apis.YouTube.v3" Version="1.70.0.3847" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="System.Data.OleDb" Version="9.0.8" />
+    <PackageReference Include="System.Drawing.Common" Version="9.0.8" />
+    <PackageReference Include="System.Windows.Extensions" Version="9.0.8" />
+	<None Include="ffmpeg.exe" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+ 	
+  <ItemGroup>
+    <Folder Include="wwwroot\music\" />
+  </ItemGroup>
+
+</Project>

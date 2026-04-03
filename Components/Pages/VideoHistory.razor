@@ -1,0 +1,268 @@
+﻿@page "/video-history"
+@rendermode InteractiveServer
+@using YouTubeShortsWebApp
+@inject IJSRuntime JSRuntime
+
+<PageTitle>생성 히스토리</PageTitle>
+
+<h1>📚 생성 히스토리</h1>
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-12">
+
+            <!-- 히스토리 헤더 -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-0">총 @historyItems.Count 개의 영상 생성 기록</h5>
+                            <small class="text-muted">최근 생성한 영상부터 표시됩니다</small>
+                        </div>
+                        <div>
+                            <button type="button" class="btn btn-outline-secondary me-2" @onclick="RefreshHistory">
+                                🔄 새로고침
+                            </button>
+                            @if (historyItems.Count > 0)
+                            {
+                                <button type="button" class="btn btn-outline-danger" @onclick="ClearAllHistory">
+                                    🗑️ 전체 삭제
+                                </button>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 히스토리 목록 -->
+            @if (historyItems.Count == 0)
+            {
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <h4 class="text-muted">생성된 영상이 없습니다</h4>
+                        <p class="text-muted">비디오 생성기에서 첫 번째 영상을 만들어보세요!</p>
+                        <a href="/video-generator" class="btn btn-primary">영상 생성하러 가기</a>
+                    </div>
+                </div>
+            }
+            else
+            {
+                @foreach (var item in historyItems)
+                {
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <h6 class="card-title">
+                                        @item.CreatedAt.ToString("yyyy-MM-dd HH:mm")
+                                        @if (item.IsRandomPrompt)
+                                        {
+                                            <span class="badge bg-info ms-2">랜덤</span>
+                                        }
+                                        <span class="badge bg-secondary ms-1">@item.Duration 초</span>
+                                        <span class="badge bg-secondary ms-1">@item.AspectRatio</span>
+                                    </h6>
+
+                                    <p class="card-text mb-2">
+                                        <strong>프롬프트:</strong>
+                                        @(item.Prompt.Length > 100 ? item.Prompt.Substring(0, 100) + "..." : item.Prompt)
+                                    </p>
+
+                                    @if (!string.IsNullOrEmpty(item.FileName))
+                                    {
+                                        <p class="card-text mb-2">
+                                            <strong>파일명:</strong> @item.FileName
+                                        </p>
+                                    }
+
+                                    <div class="d-flex align-items-center">
+                                        @if (item.IsDownloaded)
+                                        {
+                                            <span class="badge bg-success me-2">⬇️ 다운로드됨</span>
+                                        }
+                                        @if (item.IsUploaded)
+                                        {
+                                            <span class="badge bg-danger me-2">📤 업로드됨</span>
+                                        }
+                                        <small class="text-muted">@item.Status</small>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-4 text-end">
+                                    <div class="btn-group-vertical">
+                                        @if (!string.IsNullOrEmpty(item.VideoUrl))
+                                        {
+                                            <button type="button" class="btn btn-outline-primary btn-sm mb-1"
+                                                    @onclick="() => DownloadVideo(item)">
+                                                다시 다운로드
+                                            </button>
+                                        }
+
+                                        @if (!string.IsNullOrEmpty(item.YouTubeUrl))
+                                        {
+                                            <a href="@item.YouTubeUrl" target="_blank" class="btn btn-outline-danger btn-sm mb-1">
+                                                YouTube 보기
+                                            </a>
+                                        }
+
+                                        <button type="button" class="btn btn-outline-secondary btn-sm mb-1"
+                                                @onclick="() => ShowDetails(item)">
+                                            상세보기
+                                        </button>
+
+                                        <button type="button" class="btn btn-outline-danger btn-sm"
+                                                @onclick="() => DeleteItem(item.Id)">
+                                            삭제
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+
+        </div>
+    </div>
+</div>
+
+<!-- 상세보기 모달 -->
+@if (selectedItem != null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">영상 상세 정보</h5>
+                    <button type="button" class="btn-close" @onclick="() => selectedItem = null"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-sm-3"><strong>생성 시간:</strong></div>
+                        <div class="col-sm-9">@selectedItem.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-sm-3"><strong>프롬프트:</strong></div>
+                        <div class="col-sm-9">@selectedItem.Prompt</div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(selectedItem.FinalPrompt) && selectedItem.FinalPrompt != selectedItem.Prompt)
+                    {
+                        <hr>
+                        <div class="row">
+                            <div class="col-sm-3"><strong>최종 프롬프트:</strong></div>
+                            <div class="col-sm-9">@selectedItem.FinalPrompt</div>
+                        </div>
+                    }
+                    <hr>
+                    <div class="row">
+                        <div class="col-sm-3"><strong>설정:</strong></div>
+                        <div class="col-sm-9">
+                            @selectedItem.Duration 초, @selectedItem.AspectRatio
+                            @if (selectedItem.IsRandomPrompt)
+                            {
+                                <span class="badge bg-info ms-2">랜덤 프롬프트</span>
+                            }
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(selectedItem.VideoUrl))
+                    {
+                        <hr>
+                        <div class="row">
+                            <div class="col-sm-3"><strong>비디오 URL:</strong></div>
+                            <div class="col-sm-9">
+                                <a href="@selectedItem.VideoUrl" target="_blank" class="text-break">@selectedItem.VideoUrl</a>
+                            </div>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(selectedItem.YouTubeUrl))
+                    {
+                        <hr>
+                        <div class="row">
+                            <div class="col-sm-3"><strong>YouTube URL:</strong></div>
+                            <div class="col-sm-9">
+                                <a href="@selectedItem.YouTubeUrl" target="_blank" class="text-break">@selectedItem.YouTubeUrl</a>
+                            </div>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    @if (!string.IsNullOrEmpty(selectedItem.VideoUrl))
+                    {
+                        <button type="button" class="btn btn-primary" @onclick="() => DownloadVideo(selectedItem)">
+                            다시 다운로드
+                        </button>
+                    }
+                    <button type="button" class="btn btn-secondary" @onclick="() => selectedItem = null">닫기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<VideoHistoryManager.VideoHistoryItem> historyItems = new();
+    private VideoHistoryManager.VideoHistoryItem? selectedItem = null;
+
+    protected override void OnInitialized()
+    {
+        RefreshHistory();
+    }
+
+    private void RefreshHistory()
+    {
+        historyItems = VideoHistoryManager.GetHistory();
+    }
+
+    private async Task DownloadVideo(VideoHistoryManager.VideoHistoryItem item)
+    {
+        if (string.IsNullOrEmpty(item.VideoUrl)) return;
+
+        try
+        {
+            string fileName = !string.IsNullOrEmpty(item.FileName) ? item.FileName :
+                $"generated_video_{item.CreatedAt:yyyyMMdd_HHmmss}.mp4";
+
+            bool success = await JSRuntime.InvokeAsync<bool>("downloadFile", item.VideoUrl, fileName);
+
+            if (success)
+            {
+                // 다운로드 상태 업데이트
+                VideoHistoryManager.UpdateHistoryItem(item.Id, historyItem =>
+                {
+                    historyItem.IsDownloaded = true;
+                });
+                RefreshHistory();
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"다운로드 실패: {ex.Message}");
+        }
+    }
+
+    private void ShowDetails(VideoHistoryManager.VideoHistoryItem item)
+    {
+        selectedItem = item;
+    }
+
+    private async Task DeleteItem(string id)
+    {
+        bool confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "이 항목을 삭제하시겠습니까?");
+        if (confirmed)
+        {
+            VideoHistoryManager.DeleteHistoryItem(id);
+            RefreshHistory();
+        }
+    }
+
+    private async Task ClearAllHistory()
+    {
+        bool confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "모든 히스토리를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.");
+        if (confirmed)
+        {
+            VideoHistoryManager.ClearHistory();
+            RefreshHistory();
+        }
+    }
+}

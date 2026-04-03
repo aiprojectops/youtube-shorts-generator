@@ -1,0 +1,32 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.vs/
+.vs/
+
+## Temp/Build
+*.log
+*.cache
+publish/
+out/
+
+## IDE
+.idea/
+.vscode/
+
+## OS
+Thumbs.db
+.DS_Store
+
+## Binaries
+ffmpeg.exe
+
+## Sample data
+*.csv
+
+## Secrets
+appsettings.*.json
+!appsettings.json
+!appsettings.Development.json
